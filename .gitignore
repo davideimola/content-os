@@ -2,3 +2,7 @@
 .env
 .env.*
 !.env.example
+
+# Build artifacts — no compiled binaries are committed (ADR-0003). `make build`
+# and `make cover` write here.
+/bin/
