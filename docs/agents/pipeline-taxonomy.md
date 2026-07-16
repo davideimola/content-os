@@ -47,7 +47,7 @@ Dimensions describe the piece and steer the mix. A judged piece (`proposed` onwa
 
 - **Idea template** (`.github/ISSUE_TEMPLATE/idea.yml`) applies `idea` on creation. Nothing else — no format, channel, or quality decision at capture time.
 - **CFP template** (`.github/ISSUE_TEMPLATE/cfp.yml`) applies `cfp` and `talk` on creation.
-- **Capture doors** (terminal skill, Claude app) file Ideas directly via `gh issue create --label idea`; blank issues stay enabled so capture is never forced through a form.
+- **Capture doors** file Ideas directly with the `idea` label and nothing else. The terminal door is `contentos idea create` (see [idea.md](idea.md)); the Claude app files the same way. Blank issues stay enabled so capture is never forced through a form.
 - **Beats** advance state and set dimensions: the Monday planning Beat turns `idea` into `proposed` with a Flag/Side and channel; slotting adds `slotted`; a Factory picking it up moves it to `in-production`; the creator publishing moves it to `published`.
 
 ## Triage vs Pipeline labels
