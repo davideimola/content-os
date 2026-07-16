@@ -6,8 +6,8 @@ raw [Idea](../../CONTEXT.md) onto the [Pipeline](../../CONTEXT.md) in under thir
 [Beat](../../CONTEXT.md) judges the idea afterwards (see the [pipeline taxonomy](pipeline-taxonomy.md)).
 Davide has a spark → he runs `contentos idea create` → an `idea`-labeled issue lands on
 `davideimola/content-os`, and he keeps working. Its sibling is the
-[Claude app door](claude-app-capture.md), which files the **same shape** by voice or text from any
-device; keep the two in step if the shape ever changes.
+[AI-app door](app-capture.md), which files the **same shape** by voice or text from any app with a
+write-capable GitHub connector; keep the two in step if the shape ever changes.
 
 It is a subcommand of the `contentos` CLI (ADR-0003), and like the rest of the CLI it is **hands,
 not brain**: it files the spark verbatim and never judges it. It is the CLI's first GitHub-touching
