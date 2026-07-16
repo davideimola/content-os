@@ -1,0 +1,51 @@
+name: 🎤 CFP
+description: Track a call-for-papers opportunity with its deadline and outcome.
+title: "[CFP] "
+labels: ["cfp", "talk"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Track the opportunity here. The talk brief it reuses lives in the `presentations` Factory — link it below once it exists.
+  - type: input
+    id: event
+    attributes:
+      label: Conference / event
+      description: Name of the conference or event.
+      placeholder: e.g. GoLab 2026
+    validations:
+      required: true
+  - type: input
+    id: deadline
+    attributes:
+      label: CFP deadline
+      description: When the call for papers closes (YYYY-MM-DD).
+      placeholder: 2026-09-30
+    validations:
+      required: true
+  - type: input
+    id: cfp-link
+    attributes:
+      label: CFP link
+      description: URL of the call for papers.
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Outcome
+      description: Current status of this opportunity.
+      options:
+        - to submit
+        - submitted
+        - accepted
+        - rejected
+      default: 0
+  - type: input
+    id: brief
+    attributes:
+      label: Talk brief (presentations Factory)
+      description: Link to the talk brief issue in the presentations repo, once it exists.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Anything else worth capturing — talk angle, audience, travel or scheduling constraints.

@@ -1,0 +1,18 @@
+name: 💡 Idea
+description: Capture a raw content spark. No format, no channel, no quality bar — capture first, judge later.
+title: "[Idea] "
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Dump the spark and go — this should take under 30 seconds.
+        Don't decide the format, the channel, or whether it's any good; the Monday planning Beat judges it later.
+  - type: textarea
+    id: spark
+    attributes:
+      label: The spark
+      description: A sentence, a link, a half-thought — whatever survives the moment it occurred to you.
+      placeholder: e.g. "The thing nobody tells you about running AI agents against real attacker traffic…"
+    validations:
+      required: true
