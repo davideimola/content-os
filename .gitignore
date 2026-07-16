@@ -1,0 +1,4 @@
+# Secrets — never commit the Telegram bot token or chat id. See .env.example.
+.env
+.env.*
+!.env.example

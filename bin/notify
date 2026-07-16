@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+#
+# notify — send a one-way ping to Davide on Telegram, wrapping the Telegram Bot API.
+#
+# The Content OS "notify" seam (see docs/agents/notify.md). Send-only by design:
+# no inbound webhook, no server. Every Beat pings Davide exclusively through this.
+#
+# Usage:
+#   bin/notify "message text"          # message from the arguments
+#   echo "message text" | bin/notify   # message from stdin
+#
+# Required environment (kept as routine secrets, never committed — see .env.example):
+#   TELEGRAM_BOT_TOKEN   bot token from BotFather
+#   TELEGRAM_CHAT_ID     the chat id the ping is delivered to
+#
+# Optional environment:
+#   TELEGRAM_API_BASE    API base URL; default: https://api.telegram.org
+#   NOTIFY_CURL          curl binary to use; default: curl (overridable for tests)
+#
+# Exit status: 0 when the message was delivered; non-zero, with a clear message on
+# stderr, otherwise. A failed send never passes silently.
+set -u
+
+prog="notify"
+die() { printf '%s: %s\n' "$prog" "$1" >&2; exit 1; }
+# Delivery-failure paths share one suffix so the "not delivered" promise reads identically.
+fail_send() { die "$1 The ping was not delivered."; }
+
+# Pull a human-readable error out of a Telegram JSON response without ever leaking
+# the token (which lives only in the request URL, never in the response body).
+telegram_error() {
+  body="$1"
+  desc=""
+  if [ -n "$body" ] && command -v jq >/dev/null 2>&1; then
+    desc="$(printf '%s' "$body" | jq -r '.description // empty' 2>/dev/null)"
+  fi
+  if [ -z "$desc" ] && [ -n "$body" ]; then
+    desc="$(printf '%s' "$body" | sed -n 's/.*"description"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  fi
+  [ -n "$desc" ] || desc="${body:-no response body}"
+  printf '%s' "$desc"
+}
+
+token="${TELEGRAM_BOT_TOKEN:-}"
+chat_id="${TELEGRAM_CHAT_ID:-}"
+api_base="${TELEGRAM_API_BASE:-https://api.telegram.org}"
+curl_bin="${NOTIFY_CURL:-curl}"
+
+[ -n "$token" ]   || die "TELEGRAM_BOT_TOKEN is not set — create a bot with BotFather and store the token as a secret (see docs/agents/notify.md)."
+[ -n "$chat_id" ] || die "TELEGRAM_CHAT_ID is not set — store your chat id as a secret (see docs/agents/notify.md)."
+
+# Message: all arguments joined with spaces, or stdin when no arguments are given.
+if [ "$#" -gt 0 ]; then
+  message="$*"
+else
+  message="$(cat)"
+fi
+[ -n "$message" ] || die "refusing to send an empty message — pass text as an argument or on stdin."
+
+body_file="$(mktemp)"
+trap 'rm -f "$body_file"' EXIT
+
+# --data-urlencode encodes every field safely (newlines, spaces, URLs, unicode).
+set -- \
+  -sS -X POST \
+  -o "$body_file" \
+  -w '%{http_code}' \
+  --data-urlencode "chat_id=${chat_id}" \
+  --data-urlencode "text=${message}" \
+  --data-urlencode "disable_web_page_preview=true"
+set -- "$@" "${api_base}/bot${token}/sendMessage"
+
+http_code="$("$curl_bin" "$@")"
+curl_status=$?
+response="$(cat "$body_file" 2>/dev/null || true)"
+
+# Transport failure: could not reach Telegram at all. Never echo the URL (it holds the token).
+if [ "$curl_status" -ne 0 ]; then
+  fail_send "could not reach the Telegram API (curl exited $curl_status)."
+fi
+
+# HTTP-level failure: surface Telegram's own description.
+case "$http_code" in
+  2??) : ;;
+  *) fail_send "Telegram rejected the send (HTTP ${http_code:-unknown}): $(telegram_error "$response")." ;;
+esac
+
+# Even on a 2xx, Telegram reports real success via "ok":true — guard against a false ok.
+case "$response" in
+  *'"ok":true'* | *'"ok": true'*) : ;;
+  *) fail_send "Telegram reported the send as failed: $(telegram_error "$response")." ;;
+esac
+
+exit 0
