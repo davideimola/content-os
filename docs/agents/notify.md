@@ -1,9 +1,20 @@
 # notify seam: send-only Telegram ping
 
-`bin/notify` is the single command every [Beat](../../CONTEXT.md) uses to ping Davide on
-Telegram. It wraps the Telegram Bot API's `sendMessage` and nothing else: **send-only, no
-inbound webhook, no server** (ADR-0002). A Beat has something for Davide → it calls
-`bin/notify` → a message lands on his phone.
+`contentos notify` is the single command every [Beat](../../CONTEXT.md) uses to ping Davide on
+Telegram. It is the first subcommand of the `contentos` CLI (ADR-0003) and wraps the Telegram
+Bot API's `sendMessage` and nothing else: **send-only, no inbound webhook, no server**
+(ADR-0002). A Beat has something for Davide → it calls `contentos notify` → a message lands on
+his phone.
+
+## Building the CLI
+
+`contentos` is a Go binary built from this repo; no compiled binaries are committed.
+
+- **Dev / other repos:** `go install github.com/davideimola/content-os/cmd/contentos@latest`.
+- **From a checkout:** `go build -o contentos ./cmd/contentos`, or run directly with
+  `go run ./cmd/contentos notify "..."`.
+- **In the Beats:** the routine's setup script builds it from the cloned source — Go is
+  preinstalled in the routine VM, and the toolchain is pinned in `mise.toml`.
 
 ## One-time setup (requires Davide)
 
@@ -31,11 +42,13 @@ inbound webhook, no server** (ADR-0002). A Beat has something for Davide → it 
 ## Usage (for the Beats)
 
 ```sh
-bin/notify "Monday plan: 1 LinkedIn post + blog draft. https://github.com/davideimola/content-os/issues/42"
+contentos notify "Monday plan: 1 LinkedIn post + blog draft. https://github.com/davideimola/content-os/issues/42"
 ```
 
 - Message text comes from the arguments, or from stdin if no arguments are given
-  (`printf '%s' "$msg" | bin/notify`).
+  (`printf '%s' "$msg" | contentos notify`).
+- Flag parsing is disabled on this subcommand, so the message passes through **verbatim** even
+  when it begins with `-`. For the command's own help, use `contentos help notify`.
 - **Exit status is the contract:** `0` means delivered; non-zero means it was *not*
   delivered and a clear reason is printed to stderr. A Beat must check the exit status and
   treat a failure as "Davide was not pinged", never assume success.
@@ -62,10 +75,10 @@ short summary plus direct links to the exact issues or board view:
 
 ## Testing
 
-- **Automated (no network):** `bash test/run.sh` (or `bash test/notify_test.sh`). A fake
-  curl is injected via `NOTIFY_CURL`, so the tests never hit the real API. They cover the
-  happy path, missing/empty inputs, HTTP and transport failures, false `ok`, stdin, and
-  that the token never leaks into an error message.
+- **Automated (no network):** `go test ./internal/notify/` (or the whole suite, `go test ./...`).
+  The tests drive the command against an `httptest` fake API server via `TELEGRAM_API_BASE`, so
+  they never hit the real API. They cover the happy path, missing/empty inputs, HTTP and
+  transport failures, false `ok`, stdin, and that the token never leaks into an error message.
 - **Live smoke test (needs the real secrets):** after setup, with the secrets loaded, run
-  `bin/notify "notify seam smoke test"` and confirm the message arrives. The Beats then
+  `contentos notify "notify seam smoke test"` and confirm the message arrives. The Beats then
   assume the seam works.

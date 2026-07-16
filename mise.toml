@@ -1,0 +1,5 @@
+# Toolchain for content-os, managed by mise (https://mise.jdx.dev).
+# `mise install` provisions these; the Beat's routine setup script and the
+# Factory repos use the same pin so every environment builds the CLI the same way.
+[tools]
+go = "1.25"

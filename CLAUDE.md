@@ -16,7 +16,7 @@ The Pipeline's labels. State (mutually exclusive): `idea` → `proposed` → `sl
 
 ### notify seam
 
-`bin/notify "text"` is the single send-only command every Beat uses to ping Davide on Telegram (wraps the Telegram Bot API; no server). Reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` from the environment (secrets, never committed). Exit 0 = delivered; non-zero = clear error on stderr. Tests: `bash test/run.sh`. See `docs/agents/notify.md`.
+`contentos notify "text"` is the single send-only command every Beat uses to ping Davide on Telegram — the first subcommand of the `contentos` Go CLI (ADR-0003), wrapping the Telegram Bot API; no server. Reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` from the environment (secrets, never committed). Exit 0 = delivered; non-zero = clear error on stderr. Build with `go install github.com/davideimola/content-os/cmd/contentos@latest` (or `go run ./cmd/contentos`). Tests: `go test ./...`. See `docs/agents/notify.md`.
 
 ### Domain docs
 
