@@ -96,16 +96,26 @@ CURRENT STATE:
 $state
 EOF
 )
-  resp=$(curl -sS "https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}" \
-    -H 'Content-Type: application/json' \
-    -d "$(jq -n --arg p "$prompt" --argjson schema "$schema" \
-        '{contents:[{parts:[{text:$p}]}],
-          generationConfig:{responseMimeType:"application/json", responseSchema:$schema, temperature:0.2}}')")
-  # surface API errors instead of emitting empty output
-  if ! echo "$resp" | jq -e '.candidates[0].content.parts[0].text' >/dev/null 2>&1; then
-    echo "DECIDE failed — Gemini response:" >&2; echo "$resp" >&2; exit 1
-  fi
-  echo "$resp" | jq -r '.candidates[0].content.parts[0].text'
+  local payload attempt=0 max=5 code
+  payload=$(jq -n --arg p "$prompt" --argjson schema "$schema" \
+    '{contents:[{parts:[{text:$p}]}],
+      generationConfig:{responseMimeType:"application/json", responseSchema:$schema, temperature:0.2}}')
+  while :; do
+    attempt=$((attempt+1))
+    resp=$(curl -sS "https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}" \
+      -H 'Content-Type: application/json' -d "$payload")
+    if echo "$resp" | jq -e '.candidates[0].content.parts[0].text' >/dev/null 2>&1; then
+      echo "$resp" | jq -r '.candidates[0].content.parts[0].text'; return 0
+    fi
+    code=$(echo "$resp" | jq -r '.error.code // "?"')
+    # transient free-tier overload / rate limit → back off and retry
+    if { [ "$code" = "503" ] || [ "$code" = "429" ]; } && [ "$attempt" -lt "$max" ]; then
+      echo "DECIDE: Gemini $code (attempt $attempt/$max) — retrying in $((attempt*15))s" >&2
+      sleep $((attempt*15)); continue
+    fi
+    echo "DECIDE failed (code $code) after $attempt attempt(s) — Gemini response:" >&2
+    echo "$resp" >&2; return 1
+  done
 }
 
 apply() {   # $1 = decisions json file (or - for stdin)
