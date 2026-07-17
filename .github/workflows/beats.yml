@@ -79,6 +79,9 @@ jobs:
 
             NEVER draft content — judge and route only (ADR-0002). Follow the doc; do not invent steps.
         env:
+          # trust the checked-out workspace so YOLO tool-approval actually runs in CI
+          # (otherwise Gemini CLI silently overrides yolo -> default in an untrusted dir)
+          GEMINI_CLI_TRUST_WORKSPACE: "true"
           GH_TOKEN: ${{ secrets.GH_PROJECT_PAT }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
