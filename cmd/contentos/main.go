@@ -77,10 +77,20 @@ func newOpenCmd(openFn open.Opener, exitCode *int) *cobra.Command {
 		Long: "Open a Content OS destination in the default browser.\n\n" +
 			"Targets: board, pipeline, ideas, proposed, slotted, talks, blog, beats, repo.\n" +
 			"Also `open issue <n>` or a bare `open <n>` for a specific issue. With no target,\n" +
-			"an interactive numbered menu is shown.\n\n" +
+			"pick interactively — via fzf when installed, otherwise a numbered menu.\n\n" +
+			"Shell completion suggests the targets (`contentos completion <shell>`), so\n" +
+			"`contentos open <TAB>` filters them — fuzzily with fzf-tab.\n\n" +
 			"See docs/agents/open.md.",
+		// Dynamic completion of the first argument: the targets (+ `issue`). With
+		// fzf-tab this is a fuzzy picker over them — the idiomatic Cobra mechanism.
+		ValidArgsFunction: func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			return open.Completions(), cobra.ShellCompDirectiveNoFileComp
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			*exitCode = open.Run(args, cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr(), openFn)
+			*exitCode = open.Run(args, cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr(), openFn, open.SystemPicker)
 			return nil
 		},
 	}

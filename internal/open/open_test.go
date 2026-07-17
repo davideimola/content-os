@@ -10,7 +10,7 @@ import (
 func run(args []string, stdin string) (code int, opened, stdout, stderr string) {
 	var out, errb strings.Builder
 	rec := func(u string) error { opened = u; return nil }
-	code = Run(args, strings.NewReader(stdin), &out, &errb, rec)
+	code = Run(args, strings.NewReader(stdin), &out, &errb, rec, NumberedMenu)
 	return code, opened, out.String(), errb.String()
 }
 
@@ -112,7 +112,7 @@ func TestOpen_MenuInvalidChoice(t *testing.T) {
 func TestOpen_OpenerErrorSurfaces(t *testing.T) {
 	var out, errb strings.Builder
 	code := Run([]string{"board"}, strings.NewReader(""), &out, &errb,
-		func(string) error { return errors.New("boom") })
+		func(string) error { return errors.New("boom") }, NumberedMenu)
 	if code == 0 {
 		t.Errorf("exit=0, want non-zero when the opener fails")
 	}
