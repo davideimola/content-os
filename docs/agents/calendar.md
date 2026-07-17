@@ -28,9 +28,18 @@ Owner **`davideimola`** (a user project, not org), titled **`Content OS — Cale
 | `Date`  | Date            | The target **publish date** (blog / linkedin) or the **deadline** (talk / cfp). The Calendar's spine. |
 | `Stage` | Single-select   | Mirror of the state label. Options are the exact label strings: `idea`, `proposed`, `slotted`, `in-production`, `published`. |
 
-The built-in `Status` field is left unused — `Stage` is ours because its options are set once from the
-CLI and match the labels verbatim, so the mirror needs no translation. Channel and Flag/Side stay on
-the issue as labels (they drive filters, not columns) and are read from the item's `Labels`.
+The built-in `Status` field (Todo / In Progress / Done) is **not** the state field — `Stage` is, so
+its options can be set once from the CLI and match the labels verbatim, no translation. GitHub's
+default "Item added to project" workflow auto-sets `Status` to `Todo` on every item, so left visible
+it is redundant noise beside `Stage`; **hide it** in each view (⌄ menu → Fields → untick `Status`).
+State on the board is `Stage` and nothing else — two state fields would be the drift trap this design
+avoids. Channel and Flag/Side stay on the issue as labels (they drive filters, not columns) and are
+read from the item's `Labels`.
+
+The one thing `Status` is good for is automation, which only the built-in field has: enabling the
+`Item closed → Done` + `Auto-archive items` (`is:closed`) workflows makes a **published-and-closed**
+piece fall off the active board on its own, no Beat required. Optional — turn it on only if the habit
+is to close an editorial issue once it ships.
 
 **Views** (configured once in the web UI — see setup):
 
