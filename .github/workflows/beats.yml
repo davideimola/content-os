@@ -1,11 +1,14 @@
 name: Content OS Beats
 
-# The three Beats run here (GitHub Actions cron), not as native Claude routines:
-# the routines' cloud env proxies GitHub access and cannot reach Projects v2 (the
-# Calendar board). An Actions runner has full GitHub + internet egress. The model
-# is a free Google Gemini key via the official Gemini CLI action; the Beat prompts
-# stay model-agnostic (they live in docs/agents/*-beat.md), so the model/harness
-# is swappable. See docs/agents/beat-scheduling.md and docs/research/zero-cost-agentic-ci.md.
+# The three Beats run here (GitHub Actions cron), not as native Claude routines: the routines'
+# cloud env proxies GitHub access and cannot reach Projects v2 (the Calendar board). An Actions
+# runner has full GitHub + internet egress.
+#
+# Architecture is SEPARATED (ADR-0003 hands/brain): each scripts/beats/<beat>.sh does
+#   GATHER (deterministic gh) -> DECIDE (one Gemini REST call, JSON mode, non-agentic) -> APPLY
+#   (deterministic gh + contentos). The model is a pure function state->decisions; all side effects
+#   (labels, board, Telegram) are deterministic bash. No agent tool-loop.
+# See docs/agents/beat-scheduling.md and docs/research/zero-cost-agentic-ci.md.
 
 on:
   schedule:
@@ -22,7 +25,6 @@ on:
 
 permissions:
   contents: read
-  issues: write        # gh issue edits via the default token; the board uses GH_TOKEN (a PAT)
 
 concurrency:
   group: contentos-beats
@@ -57,6 +59,7 @@ jobs:
 
       - name: Prereq smoke check (deterministic — surfaces auth/board issues in the log)
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GH_TOKEN: ${{ secrets.GH_PROJECT_PAT }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -64,39 +67,17 @@ jobs:
           echo "go:        $(go version)"
           echo "gh:        $(gh --version | head -1)"
           echo "contentos: $(command -v contentos || echo MISSING)"
+          echo "GEMINI_API_KEY set: ${GEMINI_API_KEY:+yes}${GEMINI_API_KEY:-NO}"
           echo "TELEGRAM_BOT_TOKEN set: ${TELEGRAM_BOT_TOKEN:+yes}${TELEGRAM_BOT_TOKEN:-NO}"
           echo "TELEGRAM_CHAT_ID set:   ${TELEGRAM_CHAT_ID:+yes}${TELEGRAM_CHAT_ID:-NO}"
           echo "--- gh auth status ---"; gh auth status || true
-          echo "--- gh issue list (idea) ---"; gh issue list --repo davideimola/content-os --label idea --state open --json number --jq 'length' || echo "ISSUE LIST FAILED"
           echo "--- gh project view 2 (the board) ---"; gh project view 2 --owner davideimola --format json --jq '.title' || echo "PROJECT ACCESS FAILED"
+        continue-on-error: true
 
-      - name: Run the Beat (Gemini CLI)
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          # Auto-approve tools so the agent can run gh/go/contentos unattended.
-          settings: '{"approvalMode":"yolo","tools":{"sandbox":false}}'
-          prompt: |
-            You are running the Content OS "${{ steps.sel.outputs.beat }}" Beat for Davide Imola.
-            The repo davideimola/content-os is checked out in the working directory. On PATH: `go`,
-            `gh`, and the `contentos` CLI. Environment: GH_TOKEN (a GitHub PAT with repo+project
-            scope — gh reads it automatically), TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID.
-
-            Read docs/agents/${{ steps.sel.outputs.beat }}-beat.md (the full procedure), plus
-            CLAUDE.md and the docs it links (calendar.md, pipeline-taxonomy.md, notify.md,
-            metrics-ingest.md as relevant), then EXECUTE that Beat's procedure exactly as written —
-            using `gh` for issues and the Projects v2 Calendar board (project #2, owner davideimola)
-            and `contentos notify` for the single Telegram ping.
-
-            Check prerequisites FIRST: `gh` authenticated with repo+project scope (`gh auth status`
-            and a `gh project view 2 --owner davideimola` smoke check), `go`, and the two TELEGRAM_*
-            vars. If any is missing, STOP and report which one — do not do a partial run.
-
-            NEVER draft content — judge and route only (ADR-0002). Follow the doc; do not invent steps.
+      - name: Run the Beat (separated — gather · decide · apply)
         env:
-          # trust the checked-out workspace so YOLO tool-approval actually runs in CI
-          # (otherwise Gemini CLI silently overrides yolo -> default in an untrusted dir)
-          GEMINI_CLI_TRUST_WORKSPACE: "true"
-          GH_TOKEN: ${{ secrets.GH_PROJECT_PAT }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GH_TOKEN: ${{ secrets.GH_PROJECT_PAT }}          # gh reads it; PAT has repo + project
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: bash "scripts/beats/${{ steps.sel.outputs.beat }}.sh" run
