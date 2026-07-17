@@ -25,7 +25,7 @@ PID="PVT_kwHOAN8k8s4Bdpom"                       # project id (see docs/agents/c
 DATE_FID="PVTF_lAHOAN8k8s4BdpomzhYJsS8"          # Date field
 STAGE_FID="PVTSSF_lAHOAN8k8s4BdpomzhYJsTA"       # Stage field
 STAGE_SLOTTED="4cd2f423"                          # Stage option: slotted
-MODEL="${GEMINI_MODEL:-gemini-flash-latest}"   # stable alias; override with GEMINI_MODEL
+MODEL="${GEMINI_MODEL:-gemini-flash-lite-latest}"   # free-tier daily quota is small & per-model; override with GEMINI_MODEL
 BEAT_DOC="docs/agents/monday-beat.md"
 here() { cd "$(git rev-parse --show-toplevel)"; }
 
@@ -108,10 +108,15 @@ EOF
       echo "$resp" | jq -r '.candidates[0].content.parts[0].text'; return 0
     fi
     code=$(echo "$resp" | jq -r '.error.code // "?"')
-    # transient free-tier overload / rate limit → back off and retry
-    if { [ "$code" = "503" ] || [ "$code" = "429" ]; } && [ "$attempt" -lt "$max" ]; then
-      echo "DECIDE: Gemini $code (attempt $attempt/$max) — retrying in $((attempt*15))s" >&2
+    # 503 = transient overload → back off & retry a few times.
+    if [ "$code" = "503" ] && [ "$attempt" -lt "$max" ]; then
+      echo "DECIDE: Gemini 503 (attempt $attempt/$max) — retrying in $((attempt*15))s" >&2
       sleep $((attempt*15)); continue
+    fi
+    # 429 may be per-minute (clears) or per-day quota (won't) — retry ONCE only, so we don't
+    # burn the small free-tier daily quota hammering an exhausted limit.
+    if [ "$code" = "429" ] && [ "$attempt" -lt 2 ]; then
+      echo "DECIDE: Gemini 429 — one retry in 12s" >&2; sleep 12; continue
     fi
     echo "DECIDE failed (code $code) after $attempt attempt(s) — Gemini response:" >&2
     echo "$resp" >&2; return 1
