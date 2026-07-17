@@ -1,5 +1,10 @@
 # The AI-app capture door is any app with a write-capable GitHub connector
 
+> **Refined by [ADR-0008](0008-idea-capture-door-is-a-claude-skill.md):** the sibling terminal door is
+> now a Claude skill (also LLM-backed), not the Go `contentos idea create`. Both doors now **summarize**
+> the title. The "same shape" invariant the two share is body verbatim + `idea` label + `[Idea] `
+> prefix — **not** the title text, which each door words in its own way.
+
 The parent spec (#1) and its first user story assume Davide can "dictate a raw idea to the Claude app
 from my phone and have it land as an Idea issue on content-os". Issue #6 is that door. Building it, we
 hit a wall: **the Claude app has no working way to create a GitHub issue.** There is no first-party

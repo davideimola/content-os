@@ -75,7 +75,7 @@ ways (user story 24).
 
 - **Idea template** (`.github/ISSUE_TEMPLATE/idea.yml`) applies `idea` on creation. Nothing else — no format, channel, or quality decision at capture time.
 - **CFP template** (`.github/ISSUE_TEMPLATE/cfp.yml`) applies `cfp` and `talk` on creation.
-- **Capture doors** file Ideas directly with the `idea` label and nothing else. The terminal door is `contentos idea create` (see [idea.md](idea.md)); the AI-app door files the same shape from any app with a write-capable GitHub connector (see [app-capture.md](app-capture.md)). Blank issues stay enabled so capture is never forced through a form.
+- **Capture doors** file Ideas directly with the `idea` label and nothing else. The machine-side door is the `/idea` Claude skill (see [idea.md](idea.md)); the AI-app door files the same shape from any app with a write-capable GitHub connector (see [app-capture.md](app-capture.md)). Blank issues stay enabled so capture is never forced through a form.
 - **Beats** advance state and set dimensions: the Monday planning Beat turns `idea` into `proposed` with a Flag/Side and channel; slotting adds `slotted`; a Factory picking it up moves it to `in-production`; the creator publishing moves it to `published`.
 
 ## Triage vs Pipeline labels

@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/davideimola/content-os/internal/idea"
 	"github.com/davideimola/content-os/internal/metrics"
 	"github.com/davideimola/content-os/internal/notify"
 	"github.com/davideimola/content-os/internal/open"
@@ -16,7 +15,7 @@ import (
 
 func main() {
 	code := 0
-	root := newRootCmd(os.Stdin, os.Getenv, idea.System, open.System, &code)
+	root := newRootCmd(os.Stdin, os.Getenv, open.System, &code)
 	if err := root.Execute(); err != nil {
 		// A structural error (unknown command, bad flag): cobra has already
 		// printed it. Subcommands report their own failures and set code instead.
@@ -25,11 +24,10 @@ func main() {
 	os.Exit(code)
 }
 
-// newRootCmd builds the contentos command tree. stdin, getenv, and run (the
-// seam to `gh`) are injected so the tree is testable; exitCode receives a
-// subcommand's process exit code — the subcommand prints its own diagnostics,
-// so cobra stays silent about it.
-func newRootCmd(stdin io.Reader, getenv func(string) string, run idea.Commander, openFn open.Opener, exitCode *int) *cobra.Command {
+// newRootCmd builds the contentos command tree. stdin and getenv are injected
+// so the tree is testable; exitCode receives a subcommand's process exit code —
+// the subcommand prints its own diagnostics, so cobra stays silent about it.
+func newRootCmd(stdin io.Reader, getenv func(string) string, openFn open.Opener, exitCode *int) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "contentos",
 		Short: "Content OS operations surface",
@@ -60,7 +58,6 @@ func newRootCmd(stdin io.Reader, getenv func(string) string, run idea.Commander,
 	}
 	root.AddCommand(notifyCmd)
 	root.AddCommand(newMetricsIngestCmd(exitCode))
-	root.AddCommand(newIdeaCmd(run, exitCode))
 	root.AddCommand(newOpenCmd(openFn, exitCode))
 	return root
 }
@@ -94,42 +91,6 @@ func newOpenCmd(openFn open.Opener, exitCode *int) *cobra.Command {
 			return nil
 		},
 	}
-}
-
-// newIdeaCmd builds `contentos idea` and its `create` action — the terminal
-// capture door that files a raw spark as an idea-labeled issue on content-os.
-// run is the seam to `gh`; the idea package prints its own diagnostics and sets
-// exitCode, so cobra stays silent about them.
-func newIdeaCmd(run idea.Commander, exitCode *int) *cobra.Command {
-	ideaCmd := &cobra.Command{
-		Use:   "idea",
-		Short: "Capture raw content sparks onto the Pipeline",
-		Long: "idea is the terminal capture door: it files a raw, unjudged spark as an issue\n" +
-			"on content-os in seconds, asking no format, channel, or quality question.\n" +
-			"Capture first, judge later — the Monday planning Beat judges it.\n\n" +
-			"See docs/agents/idea.md.",
-	}
-
-	create := &cobra.Command{
-		Use:   "create [spark ...]",
-		Short: "File a raw idea on content-os",
-		Long: "File a raw idea as an `idea`-labeled issue on davideimola/content-os: the spark\n" +
-			"verbatim as the body, and a summary derived from its first line as the title.\n\n" +
-			"The spark is the arguments joined with spaces, or stdin when there are none.\n" +
-			"Flag parsing is disabled so the spark passes through verbatim even when it\n" +
-			"begins with '-'; run `contentos help idea create` for this help.\n\n" +
-			"Reaches GitHub through the `gh` CLI (ADR-0004), which must be installed and\n" +
-			"authenticated. On success the new issue URL is printed to stdout; exit status\n" +
-			"is the contract — 0 filed, non-zero (with a reason on stderr) not.",
-		// A raw spark may begin with '-'; pass every argument through untouched.
-		DisableFlagParsing: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			*exitCode = idea.Run(args, cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr(), run)
-			return nil
-		},
-	}
-	ideaCmd.AddCommand(create)
-	return ideaCmd
 }
 
 // newMetricsIngestCmd builds `contentos metrics-ingest` and its two input paths:

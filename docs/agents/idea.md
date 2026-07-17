@@ -1,70 +1,88 @@
-# idea seam: the terminal capture door
+# idea skill: the machine-side capture door
 
-`contentos idea create` is the **terminal capture door**: from any repo on the machine it files a
-raw [Idea](../../CONTEXT.md) onto the [Pipeline](../../CONTEXT.md) in under thirty seconds, asking
-**no format, channel, or quality question**. Capture first, judge later — the Monday planning
+The `/idea` **Claude skill** is the **machine-side capture door**: from any repo on the machine Davide
+files a raw [Idea](../../CONTEXT.md) onto the [Pipeline](../../CONTEXT.md) in seconds, asking **no
+format, channel, or quality question**. Capture first, judge later — the Monday planning
 [Beat](../../CONTEXT.md) judges the idea afterwards (see the [pipeline taxonomy](pipeline-taxonomy.md)).
-Davide has a spark → he runs `contentos idea create` → an `idea`-labeled issue lands on
-`davideimola/content-os`, and he keeps working. Its sibling is the
-[AI-app door](app-capture.md), which files the **same shape** by voice or text from any app with a
-write-capable GitHub connector; keep the two in step if the shape ever changes.
+Davide has a spark → he runs `/idea <spark>` in Claude → an `idea`-labeled issue lands on
+`davideimola/content-os`, and he keeps working. Its sibling is the [AI-app door](app-capture.md),
+which files the **same shape** by voice or text from the phone; the two share one invariant.
 
-It is a subcommand of the `contentos` CLI (ADR-0003), and like the rest of the CLI it is **hands,
-not brain**: it files the spark verbatim and never judges it. It is the CLI's first GitHub-touching
-subcommand and, per [ADR-0004](../adr/0004-github-touching-subcommands-shell-out-to-gh.md), reaches
-GitHub by shelling out to the `gh` CLI — so it inherits Davide's existing `gh` login and needs no
-token of its own.
+It **used to be** a `contentos` subcommand (`contentos idea create`). It moved to a skill because a
+good title needs an LLM to distil the spark, and that judgement is "brain" — which belongs in a skill,
+not the deterministic "hands, not brain" CLI. See
+[ADR-0008](../adr/0008-idea-capture-door-is-a-claude-skill.md). The skill still reaches GitHub by
+shelling out to `gh` ([ADR-0004](../adr/0004-github-touching-subcommands-shell-out-to-gh.md)), so it
+inherits Davide's existing `gh` login and needs no token of its own.
 
-## Building the CLI
+## Installing the skill
 
-Same as the rest of `contentos` (see [notify.md](notify.md#building-the-cli)). Because the capture
-door must be reachable from **every** repo, install it user-level once:
+The skill is committed at `.claude/skills/idea/SKILL.md` as the **source of truth**. Because the
+capture door must be reachable from **every** repo, install it user-level once:
 
 ```sh
-go install github.com/davideimola/content-os/cmd/contentos@latest
+make install-skills   # or `make setup` to also build + install the contentos CLI
 ```
 
-That puts `contentos` on `PATH` (via `$GOBIN`/`$GOPATH/bin`), so `contentos idea create` works from
-any working directory. No compiled binaries are committed.
+That copies it to `~/.claude/skills/idea/`, so `/idea` is available in any Claude session, from any
+working directory (a **personal** skill, where [`desk`](../../.claude/skills/desk/SKILL.md) is a
+project skill scoped to content-os). Re-run `make install-skills` after editing the skill.
+
+**The skill's `SKILL.md` must stay self-contained** — it runs from `~/.claude/skills/idea/`, detached
+from this repo, so it carries **no repo-relative links** (`../../…` would resolve into the user's home
+dir, not the repo). Everything the skill needs to file an idea is inline; the repo docs and ADRs it
+relates to are named as plain text, not linked. (A project skill like `desk` may use repo-relative
+links, because it only ever runs from inside its checkout — that difference is the whole reason this
+one can't.)
 
 ## Prerequisite: `gh`
 
-The door shells out to the [GitHub CLI](https://cli.github.com/), which must be **installed and
+The skill shells out to the [GitHub CLI](https://cli.github.com/), which must be **installed and
 authenticated** (`gh auth login`). It targets `davideimola/content-os` explicitly, so it files onto
-the Pipeline no matter which repo you run it from — the current directory is never consulted.
+the Pipeline no matter which repo the session is in — the current directory is never consulted.
 
 ## Usage
 
-```sh
-# spark as arguments
-contentos idea create "The thing nobody tells you about running AI agents on real attacker traffic"
+Invoke it in any Claude session with the spark:
 
-# or piped on stdin — paste a half-thought and go
-pbpaste | contentos idea create
+```text
+/idea The thing nobody tells you about running AI agents on real attacker traffic
 ```
 
-- The spark is the **arguments joined with spaces**, or **stdin** when there are none — mirroring
-  `contentos notify`.
-- Flag parsing is disabled, so a spark that begins with `-` passes through **verbatim**. For the
-  command's own help, use `contentos help idea create`.
-- The whole spark becomes the issue **body**, untouched. The **title** is a compact summary derived
-  from the spark's first non-empty line, behind the Idea template's `[Idea] ` prefix so every idea
-  reads uniformly in the tracker. The only label applied is `idea` — no format, channel, or quality
-  decision at capture time.
-- **No mandatory prompts** beyond the spark itself: the door never asks a follow-up question.
-- On success the **new issue URL is printed to stdout** — one tap to the captured idea.
-- **Exit status is the contract:** `0` means filed; non-zero means it was *not* filed, with a clear
-  reason on stderr (`gh` failed, the spark was empty, …). The token/URL never carry a secret because
-  `gh` owns the auth.
+Or just express the idea and let the skill capture it. It files exactly one issue and replies with
+**only the new issue URL**.
+
+- The whole spark becomes the issue **body**, verbatim — nothing summarized, reformatted, translated,
+  corrected, or added.
+- The **title** is `[Idea] ` + a short, readable summary of the idea's core (its thesis or subject),
+  in the spark's own language, on one scannable line — the skill has an LLM, so it distils rather than
+  truncates. The title is a tracker handle, **not** a judgement.
+- The only label is `idea` — no format, channel, or quality decision at capture time.
+- **No follow-up question** beyond a missing spark: the door never asks whether it should be a blog
+  post or which channel. Capture is the whole job.
+- On success the **new issue URL** is the reply — one tap to the captured idea. It never pretends an
+  idea was filed when it was not.
+
+## The shape, and the sibling door
+
+The skill and the [AI-app door](app-capture.md) file the **same invariant**: the `[Idea] ` title
+prefix, the verbatim body, and the lone `idea` label. Both now **summarize** the title (both have an
+LLM), so the two doors word the title differently for the same spark — that is expected; only the
+invariant is shared. Keep the skill (`.claude/skills/idea/SKILL.md`) and the AI-app door's capture
+instructions in `app-capture.md` in step: if the shape ever changes in one, change it in the other.
 
 ## Testing
 
-- **Automated (no network, no `gh`, no auth):** `go test ./internal/idea/` (or the whole suite,
-  `go test ./...`). The `gh` call is an **injected command runner** (`idea.Commander`), so the tests
-  drive it against a fake that records the invocation and returns a canned URL. They cover the happy
-  path from arguments and from stdin, the `[Idea] ` title derived from the first line, rune-safe
-  title truncation, the empty/whitespace refusal (which must not reach `gh`), a stdin read error, a
-  `gh` failure surfacing its own stderr, and that the body reaches `gh` verbatim.
-- **Live smoke test (needs a real, authenticated `gh`):** from **any** directory run
-  `contentos idea create "idea seam smoke test"`, confirm the URL it prints opens an `idea`-labeled
-  issue on `davideimola/content-os`, then close that issue.
+The door is a prompt, so it is verified by **driving it and asserting the resulting GitHub state**
+(the tracker seam), not by unit tests.
+
+- **Drive-and-assert (the same-shape check):** capture a throwaway spark with `/idea`, then read the
+  issue back and assert its shape:
+
+  ```sh
+  gh issue view <n> --repo davideimola/content-os --json title,body,labels \
+    --jq '{title, body, labels: [.labels[].name]}'
+  ```
+
+  It passes when the title starts with `[Idea] `, `labels` is exactly `["idea"]`, and the body is the
+  spark you gave with nothing added.

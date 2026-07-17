@@ -1,5 +1,10 @@
 # The Content OS operations surface is a Go CLI (`contentos`)
 
+> **Amended by [ADR-0008](0008-idea-capture-door-is-a-claude-skill.md):** the idea capture door leaves
+> the CLI and becomes a Claude skill (`/idea`) — summarizing a title is "brain", which belongs in a
+> skill, not the hands-only CLI. `contentos` keeps `notify`, `metrics-ingest`, and `open`; the
+> "hands, not brain" principle stands.
+
 Before this decision the only custom-built piece was `bin/notify`, a bash script wrapping the Telegram Bot API (ADR-0002). But the editorial pipeline is centralized on content-os (ADR-0001), so skills in the Factories (`davideimola.dev`, `presentations`) increasingly need to run the same deterministic operations against it — create an idea, query the Pipeline, read analytics — and today that means each Factory references skills living in another repo, which is fragile and duplicative. We decided content-os grows exactly one custom-built piece: **`contentos`, a Go CLI** that is the single, shared, deterministic operations surface. It is **hands, not brain**: it runs fixed operations over the Pipeline (GitHub issues) and never embeds AI nor holds its own state — the skills and Claude routines stay the intelligence, the GitHub issues stay the single source of truth (ADR-0001). `bin/notify` is retired; `notify` becomes its first subcommand (`contentos notify`).
 
 Why Go: it is Davide's strongest language (maintainable for him, unlike the bash he only tolerates), and it compiles to a single binary that other repos install with `go install github.com/davideimola/content-os/cmd/contentos@latest` and that Claude can call as a tool — turning the messy cross-repo skill reference into one versioned, shared command.

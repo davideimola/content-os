@@ -12,7 +12,16 @@ BIN     := $(BIN_DIR)/$(BINARY)
 # Defaults to ~/.local/bin (no sudo); override, e.g. `make install-bin PREFIX=/usr/local`.
 PREFIX  ?= $(HOME)/.local
 
-# Arguments for `make run`, e.g. `make run ARGS="idea create 'a spark'"`.
+# Where `install-skills` drops the global skills so they are callable from any repo
+# (ADR-0008). Override, e.g. `make install-skills SKILLS_DIR=/path/to/skills`.
+SKILLS_DIR ?= $(HOME)/.claude/skills
+
+# The skills that install user-level (personal, global reach). Project-scoped skills
+# like `desk` (ADR-0007) stay in-repo and are NOT listed here. Add a name to make a
+# skill global; the source of each is .claude/skills/<name>/SKILL.md.
+GLOBAL_SKILLS ?= idea
+
+# Arguments for `make run`, e.g. `make run ARGS="notify 'hi'"`.
 ARGS ?=
 
 .DEFAULT_GOAL := help
@@ -20,7 +29,7 @@ ARGS ?=
 .PHONY: help
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "} {printf "  \033[36m%-11s\033[0m %s\n", $$1, $$2}'
+		awk 'BEGIN {FS = ":.*?## "} {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: build
 build: ## Build the contentos binary into bin/
@@ -35,6 +44,19 @@ install-bin: build ## Install contentos into PREFIX/bin (default ~/.local/bin â€
 	@install -d "$(PREFIX)/bin"
 	install -m 0755 "$(BIN)" "$(PREFIX)/bin/$(BINARY)"
 	@echo "installed $(BINARY) -> $(PREFIX)/bin/$(BINARY)"
+
+.PHONY: install-skills
+install-skills: ## Install the global skills (GLOBAL_SKILLS) into ~/.claude/skills so they work from any repo (override SKILLS_DIR)
+	@for skill in $(GLOBAL_SKILLS); do \
+		install -d "$(SKILLS_DIR)/$$skill"; \
+		install -m 0644 ".claude/skills/$$skill/SKILL.md" "$(SKILLS_DIR)/$$skill/SKILL.md"; \
+		echo "installed $$skill skill -> $(SKILLS_DIR)/$$skill/SKILL.md"; \
+	done
+
+.PHONY: setup
+setup: install-bin install-skills ## Set up content-os on this machine: build + install the CLI, and install the global skills
+	@echo "content-os setup complete â€” contentos in $(PREFIX)/bin, global skills in $(SKILLS_DIR)"
+	@echo "(ensure $(PREFIX)/bin is on PATH; run 'mise install' first if the Go toolchain is missing)"
 
 .PHONY: run
 run: ## Run from source; pass ARGS="..." (e.g. make run ARGS="notify hi")

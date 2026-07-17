@@ -1,5 +1,10 @@
 # GitHub-touching `contentos` subcommands shell out to `gh`
 
+> **Refined by [ADR-0008](0008-idea-capture-door-is-a-claude-skill.md):** `idea`, the subcommand this
+> ADR was decided for, is now a Claude skill. The skill still reaches GitHub through `gh`, so the `gh`
+> decision below stands — it just no longer rides a `contentos` subcommand (none remain that touch
+> GitHub). The injected-runner seam (`idea.Commander`) is gone with the package.
+
 ADR-0003 built `contentos` as the operations surface over the Pipeline and explicitly deferred one question until it was first needed: whether the subcommands that touch GitHub (the Pipeline's home, ADR-0001) shell out to the `gh` CLI or embed a Go GitHub client. The capture door — `contentos idea create` (issue #5) — is the first such subcommand, so the decision is now due. We decided **`contentos` reaches GitHub by shelling out to `gh`**, not by embedding a GitHub client with its own token handling.
 
 Why `gh`: the operations surface is **hands, not brain** (ADR-0003), and `gh` is exactly the dumb, well-tested hand for GitHub. It already owns authentication — on Davide's machine `gh` is installed and logged in, and the capture door runs there, from any repo — so the CLI inherits auth for free and honours the door's "under thirty seconds, no ceremony" promise. It matches the existing convention: `docs/agents/issue-tracker.md` already mandates `gh` for every GitHub operation, so the CLI and the skills touch GitHub the same one way. And it keeps the binary small: no GitHub SDK dependency, no token plumbing, no second client to keep in step with the API.

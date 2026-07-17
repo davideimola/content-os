@@ -1,7 +1,7 @@
 # AI-app capture door: voice or text, from any app with a GitHub connector
 
-The second **capture door** onto the [Pipeline](../../CONTEXT.md), the sibling of the terminal door
-([`contentos idea create`](idea.md)). From an AI app on the phone or desktop, Davide **dictates or
+The second **capture door** onto the [Pipeline](../../CONTEXT.md), the sibling of the machine-side
+[`/idea` skill](idea.md). From an AI app on the phone or desktop, Davide **dictates or
 types** a raw [Idea](../../CONTEXT.md) and it lands as an `idea`-labeled issue on
 `davideimola/content-os`, asking **no format, channel, or quality question**. Capture first, judge
 later — the Monday planning [Beat](../../CONTEXT.md) judges it afterwards (see the
@@ -14,26 +14,29 @@ reference** (it filed [#18](https://github.com/davideimola/content-os/issues/18)
 smoke test); the same setup works for any app that grows a write-capable GitHub connector. This
 is deliberately **not** an app of our own ([ADR-0002](../adr/0002-no-app-repo-plus-claude-routines.md)):
 the connector runs in the app vendor's cloud — a third-party service we use, like `gh` for the
-terminal door and the Telegram Bot API for `notify`, never a server we host.
+`/idea` skill and the Telegram Bot API for `notify`, never a server we host.
 
 ## One shape, two doors
 
-An idea filed here must carry the **same shape** as one filed by `contentos idea create`. The facets
-below are the contract both doors honour; an AI-driven door reproduces them faithfully, except it
-*approximates* the terminal door's exact title truncation — it may cut at a word boundary rather than
-at the precise rune count, which is cosmetic:
+An idea filed here must carry the **same shape** as one filed by the [`/idea` skill](idea.md). The
+**invariant** both doors honour is three facets: the `[Idea] ` title prefix, the **verbatim body**,
+and the **`idea`-only label**. Both doors have an LLM, so both **summarize** the title into a readable
+handle — they may word it differently for the same spark, and that is fine: the title is a scannable
+tracker handle, not a captured artifact, and the raw spark survives verbatim in the body either way.
 
 | Facet | Value |
 | --- | --- |
 | Repo | `davideimola/content-os` (fixed, never inferred from anything) |
-| Title | `[Idea] ` + the spark's **first non-empty line** copied as written, truncated to the terminal door's 72-character cap and ending in `…` if shortened — never paraphrased |
+| Title | `[Idea] ` + a short, readable summary of the idea's core (its thesis or subject), in the spark's own language, on one scannable line (aim for under ~70 characters). A tracker handle, **not** a judgement — never a channel, format, or quality call. Distilled, never a rambling first line copied verbatim |
 | Body | the spark **verbatim** — nothing summarized, reformatted, translated, corrected, or added |
 | Label | `idea`, and nothing else — no channel, format, or Flag/Side at capture time |
 
-The terminal door enforces this shape in Go (`internal/idea`); the AI-app door enforces it through
-the [capture instructions](#the-capture-instructions) below — those are the single source of shape
-truth for this door, and they match what the [`idea` issue template](../../.github/ISSUE_TEMPLATE/idea.yml)
-already encodes. Keep the two doors in step: if the shape ever changes in one, change it in the other.
+The `/idea` skill enforces this through its `SKILL.md`; the AI-app door enforces it through the
+[capture instructions](#the-capture-instructions) below — those are the single source of shape truth
+for this door, and they match what the [`idea` issue template](../../.github/ISSUE_TEMPLATE/idea.yml)
+already encodes. Keep the two doors in step on the **invariant** (title prefix, verbatim body,
+`idea`-only label): if it ever changes in one, change it in the other. The title *text* is each door's
+own summary of the same idea ([ADR-0008](../adr/0008-idea-capture-door-is-a-claude-skill.md)).
 
 ## What an app needs to be the door
 
@@ -53,12 +56,12 @@ If an app has both, follow the Perplexity steps below, substituting that app's n
 
 1. **Enable the GitHub connector.** In Perplexity, Settings → Connectors, add the GitHub connector and
    authorize it for `davideimola/content-os` with permission to **create issues**. (This is the
-   app-side equivalent of the terminal door's authenticated `gh` — [ADR-0004](../adr/0004-github-touching-subcommands-shell-out-to-gh.md).)
+   app-side equivalent of the `/idea` skill's authenticated `gh` — [ADR-0004](../adr/0004-github-touching-subcommands-shell-out-to-gh.md).)
 2. **Create a capture Space.** Make a Perplexity Space named e.g. **"Content OS — capture"**. A Space
    applies its custom instructions to every thread inside it, so the door has a permanent home.
 3. **Paste the capture instructions.** Copy the block under
    [The capture instructions](#the-capture-instructions) verbatim into the Space's custom
-   instructions. They are the contract that makes this door match the terminal door.
+   instructions. They are the contract that makes this door match the `/idea` skill.
 4. **Pin it for one tap.** Put the Space (or a shortcut to it) somewhere reachable in one tap on the
    phone — the door is only as good as it is frictionless.
 
@@ -95,10 +98,12 @@ When Davide gives you an idea:
 2. Body: the idea exactly as he gave it — the dictation transcript or typed
    text, verbatim. Do not summarize, reformat, add headings, translate,
    correct, or comment. Add nothing of your own and remove nothing.
-3. Title: "[Idea] " followed by the spark's first non-empty line, copied as
-   written and truncated to at most 72 characters (end it with "…" if you
-   truncate). Do not paraphrase or summarize the line — the same spark must
-   yield the same title the terminal door would.
+3. Title: "[Idea] " followed by a short, readable summary of what the idea
+   is about — its core thesis or subject, in the same language as the spark,
+   on one scannable line (aim for under ~70 characters). Distil it: never copy
+   a rambling opening line verbatim. The title is only a handle for the
+   tracker, not a judgement — capture the subject, never rate the idea or pick
+   a channel, format, or Flag/Side.
 4. Labels: exactly `idea`, and nothing else. Do not add a channel, format,
    Flag/Side, or any other label.
 5. Do not ask any follow-up question. Do not propose a channel, format, or
@@ -124,12 +129,12 @@ features.
   ```
 
   It passes when the title starts with `[Idea] `, `labels` is exactly `["idea"]`, and the body is the
-  spark you gave with nothing added. File the **same spark** through `contentos idea create` and
-  confirm the two issues carry the same shape — the `[Idea] ` prefix, the verbatim body, and the lone
-  `idea` label (the title may truncate at a slightly different point). That is the "same shape"
-  acceptance criterion made concrete. The Perplexity reference filed
-  [#18](https://github.com/davideimola/content-os/issues/18) with this shape (its title truncated at a
-  word boundary rather than the Go door's exact cap — cosmetic).
+  spark you gave with nothing added. File the **same spark** through the [`/idea` skill](idea.md) and
+  confirm the two issues carry the same **invariant** — the `[Idea] ` prefix, the verbatim body, and
+  the lone `idea` label. The title **text** will differ, and that is expected: both doors summarize
+  the idea into a readable handle in their own words. Assert the invariant, not title equality — that
+  is the "same shape" acceptance criterion made concrete. (The Perplexity reference smoke test filed
+  [#18](https://github.com/davideimola/content-os/issues/18), validating this door at the tracker seam.)
 
 - **Live smoke test (needs the phone):** dictate `app capture smoke test` from the app on the phone,
   confirm the URL it replies with opens an `idea`-labeled issue on `davideimola/content-os` shaped as
