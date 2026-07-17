@@ -55,6 +55,21 @@ jobs:
           echo "beat=$beat" >> "$GITHUB_OUTPUT"
           echo "Running the $beat Beat"
 
+      - name: Prereq smoke check (deterministic — surfaces auth/board issues in the log)
+        env:
+          GH_TOKEN: ${{ secrets.GH_PROJECT_PAT }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          echo "go:        $(go version)"
+          echo "gh:        $(gh --version | head -1)"
+          echo "contentos: $(command -v contentos || echo MISSING)"
+          echo "TELEGRAM_BOT_TOKEN set: ${TELEGRAM_BOT_TOKEN:+yes}${TELEGRAM_BOT_TOKEN:-NO}"
+          echo "TELEGRAM_CHAT_ID set:   ${TELEGRAM_CHAT_ID:+yes}${TELEGRAM_CHAT_ID:-NO}"
+          echo "--- gh auth status ---"; gh auth status || true
+          echo "--- gh issue list (idea) ---"; gh issue list --repo davideimola/content-os --label idea --state open --json number --jq 'length' || echo "ISSUE LIST FAILED"
+          echo "--- gh project view 2 (the board) ---"; gh project view 2 --owner davideimola --format json --jq '.title' || echo "PROJECT ACCESS FAILED"
+
       - name: Run the Beat (Gemini CLI)
         uses: google-github-actions/run-gemini-cli@v0
         with:
