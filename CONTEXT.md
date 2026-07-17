@@ -29,7 +29,7 @@ A conference appearance treated as editorial work: it has a CFP/deadline, prepar
 _Avoid_: event, speech
 
 **Pipeline**:
-The single editorial backlog: every idea, proposal, and in-flight piece across all channels, tracked as GitHub issues on `content-os`. Each in-flight piece links its production artifact in the relevant Factory.
+The single editorial backlog on `content-os`, in three tiers: **Ideas** (raw sparks), the **Pieces** an accepted Idea spawns (one per channel), and the **CFPs** a Talk Piece is submitted through. Each Piece links its production artifact in the relevant Factory.
 _Avoid_: backlog, content plan, board
 
 **Factory**:
@@ -45,11 +45,15 @@ Re-surfacing on-voice material content-os already holds — a parked Idea, or an
 _Avoid_: generate, brainstorm, suggest
 
 **Idea**:
-A raw, unjudged content spark, captured as a content-os issue in under thirty seconds. No format, no channel, no quality bar at capture time — capture first, judge later.
+A raw, unjudged content spark, captured as a content-os issue in under thirty seconds. No format, no channel, no quality bar at capture time — capture first, judge later. Once judged it is **rejected**, or **accepted** — an accepted Idea spawns one or more Pieces and stays open as the umbrella that links them.
 _Avoid_: draft, proposal, note
 
+**Piece**:
+A single channel-specific output derived from an accepted Idea — a blog post, a social post, or a talk. Each Piece carries its own channel, lifecycle (proposed → slotted → in-production → published), publish date, and production artifact, and lives its own life even when linked to sibling Pieces from the same Idea (e.g. a blog Piece blocks the social Piece that amplifies it).
+_Avoid_: post, content, item
+
 **CFP**:
-A call-for-papers opportunity, tracked on content-os with its deadline and outcome (to submit / submitted / accepted / rejected). The talk brief it reuses lives in the `presentations` Factory.
+A submission of a Talk Piece to a specific conference, tracked on content-os with its deadline and outcome (to submit / submitted / accepted / rejected). One Talk can have **many** CFPs — the Talk stays put; each CFP adapts the pitch's tone to its conference. The talk brief it reuses lives in the `presentations` Factory.
 _Avoid_: call, submission (for the opportunity itself)
 
 **Calendar**:
