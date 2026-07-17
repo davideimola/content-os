@@ -61,12 +61,16 @@ The by-date view over the Pipeline — what publishes when, plus CFP and talk de
 _Avoid_: board, content plan
 
 **Beat**:
-One of the three scheduled proactive sessions: weekly planning (Monday), cadence guard (Thursday), monthly review. A Beat works the Pipeline on its own and pings Davide on Telegram when there is something for him.
-_Avoid_: cron job, reminder (the ping is the message, the Beat is the session)
+One of the three scheduled reminders — weekly planning (Monday), cadence guard (Thursday), monthly review. A Beat detects staleness from observable facts (the last published Piece, unjudged Ideas, missing metrics) and pings Davide on Telegram to run the interactive session that does the work — the Desk (planning) or the Review (monthly). It never judges or changes the Pipeline itself.
+_Avoid_: cron job, autonomous planner
 
 **Desk**:
-The interactive counterpart to a Beat: an on-demand editorial session Davide opens himself to work the Pipeline by hand, present in the loop — where a Beat runs on a schedule and pings him because he is absent. It plans by the same editorial judgement as the Monday Beat, but the judging is a live conversation rather than an autonomous one, and it changes nothing until Davide approves the plan.
+The interactive planning session Davide opens himself to work the Pipeline by hand, present in the loop — judging new Ideas and slotting the week by the editorial signal framework, in a live conversation, changing nothing until he approves. Its scheduled Beat is only a reminder that nudges him to open it; its monthly sibling is the Review.
 _Avoid_: interactive Beat, console, dashboard
+
+**Review**:
+The interactive counterpart to the monthly Beat — an on-demand session Davide opens to turn a month's metrics into next month's steer: it runs the Metrics snapshot ritual, crosses the numbers with the Calendar, and reports the mix and Cadence against their targets with number-cited recommendations. The Review is to the monthly what the Desk is to the week.
+_Avoid_: report, digest, dashboard
 
 **Metrics snapshot**:
 The monthly capture of channel data (LinkedIn analytics export, site analytics numbers), stored in the repo and crossed with the Calendar by the monthly review to judge what worked.

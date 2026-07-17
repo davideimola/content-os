@@ -1,5 +1,10 @@
 # The Beats run as GitHub Actions with a separated gather→decide→apply architecture, deciding with free Gemini
 
+> **Superseded in part by [ADR-0013](0013-beats-are-staleness-reminders.md):** the Beats no longer
+> decide autonomously — they become deterministic staleness reminders, and Gemini leaves them. The
+> GitHub-Actions execution model below stands; the `gather → decide (Gemini) → apply` shape collapses to
+> **detect → ping**, with the editorial judgment moving to the interactive Desk and Review.
+
 ADR-0002 built the Content OS as "a repo plus scheduled Claude routines", and ADR-0003 held that "the
 Beats remain Claude routines" with GitHub Actions cron as a mere documented *fallback*. Building the
 Beats reversed that. Two facts forced it: (1) a native Claude routine's cloud environment proxies
