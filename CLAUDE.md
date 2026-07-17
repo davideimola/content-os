@@ -14,6 +14,10 @@ Default canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `read
 
 The Pipeline's labels. State (mutually exclusive): `idea` → `proposed` → `slotted` → `in-production` → `published`. Dimensions: `flag`/`side`, channels `blog`/`linkedin`/`talk`, and `cfp`. Idea and CFP capture use the issue templates in `.github/ISSUE_TEMPLATE/`. See `docs/agents/pipeline-taxonomy.md`.
 
+### Calendar
+
+The by-date view over the Pipeline: a GitHub Projects (v2) board on `davideimola/content-os`, owned by user `davideimola`, titled `Content OS — Calendar`. Issues stay the source of truth (ADR-0001); the board adds a `Date` field (publish date / deadline — the Calendar's spine) and a `Stage` single-select field that mirrors the state label 1:1 (options are the exact label strings `idea`/`proposed`/`slotted`/`in-production`/`published`) so a board layout can show state-based columns — label wins if they disagree. Three views: `Pipeline` (board grouped by `Stage`), `This week` (by `Date`), and `Talks & CFP` (talks/CFP share this one board). Maintained by the Beats via `gh project` CLI recipes (add / date / move / this-week query); creation needs the `project` OAuth scope (`gh auth refresh -s project`). Hands, not brain (ADR-0003); folding the ops into a `contentos` subcommand is a later slice. Verified at the tracker seam — slot a test issue with a date, assert it lands in the week view — no unit tests. See `docs/agents/calendar.md`.
+
 ### notify seam
 
 `contentos notify "text"` is the single send-only command every Beat uses to ping Davide on Telegram — the first subcommand of the `contentos` Go CLI (ADR-0003), wrapping the Telegram Bot API; no server. Reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` from the environment (secrets, never committed). Exit 0 = delivered; non-zero = clear error on stderr. Build with `go install github.com/davideimola/content-os/cmd/contentos@latest` (or `go run ./cmd/contentos`). Tests: `go test ./...`. See `docs/agents/notify.md`.
