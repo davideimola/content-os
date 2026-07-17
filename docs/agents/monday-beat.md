@@ -3,8 +3,8 @@
 The first of the three [Beats](../../CONTEXT.md) — a scheduled proactive session that runs every
 Monday morning, works the [Pipeline](../../CONTEXT.md) on its own, and pings Davide once with the
 week's plan. One arc: **judge new [Ideas](../../CONTEXT.md) → propose → check overlap → slot the week
-on the [Calendar](../../CONTEXT.md) → ping the plan**. So Monday starts with Davide knowing exactly
-what to do (user stories 5–11).
+on the [Calendar](../../CONTEXT.md) → (recycle or prompt if the week is dry) → ping the plan**. So
+Monday starts with Davide knowing exactly what to do (user stories 5–11).
 
 Like the rest of the system it splits **hands from brain** (ADR-0003): the deterministic moves go
 through `contentos` and `gh` (they never judge), and the editorial judgement — what is worth
@@ -87,9 +87,32 @@ gh project item-edit --project-id <pid> --id "$item" --field-id <date-fid> --dat
 gh project item-edit --project-id <pid> --id "$item" --field-id <stage-fid> --single-select-option-id <slotted>
 ```
 
-**5 — Ping the plan.** One `contentos notify` with the week's plan: a one-line summary, then each
+**5 — Defend a dry week (recycle, then prompt).** Runs **only** if, after step 4, this week's
+[Cadence](../../CONTEXT.md) floor is still uncovered — no `idea`, no `proposed`, and no
+`slotted`/`in-production` `linkedin` piece can carry this week's LinkedIn slot. In-flight pieces mean
+the week is fine; skip this step. This is the **dry-pipeline fallback**
+([ADR-0006](../adr/0006-dry-pipeline-recycle-and-prompt-never-generate.md)): content-os
+[recycles](../../CONTEXT.md) on-voice material it already holds and **never generates a new topic**.
+
+- **Recycle** (defends the weekly LinkedIn floor). Find **one** piece to slot, drawing in priority from:
+  1. a **parked `idea`** previously held as thin — now worth reviving with the sharpening it lacked;
+  2. else an **angle derived from a published blog or an upcoming talk** — an amplifier LinkedIn post
+     off shipped work (deriving ≠ generating; the topic already passed the voice bar).
+
+  If one is found, promote and slot it exactly like a judged idea (`proposed` + Flag/Side + `linkedin`,
+  then `slotted` + a `Date` this week) — **exactly one**, always de-slottable. **Exclude** any piece
+  Davide has previously **de-slotted**: a de-slot is a "no", so never re-recycle it.
+- **Prompt** (fallback of the fallback). If recycle finds nothing usable, do **not** invent a topic —
+  the week's single plan ping (step 6) degrades to a one-line prompt for input.
+- **Scope.** A dry monthly **blog** floor is **not** recycled (a blog cannot be honestly recycled) — it
+  falls to the prompt.
+
+**6 — Ping the plan.** One `contentos notify` with the week's plan: a one-line summary, then each
 actionable item with a **direct link** (the issue URL, or the board's `This week` view). Keep it
-scannable (see the [ping format](notify.md#ping-format)).
+scannable (see the [ping format](notify.md#ping-format)). On a **dry week** this same single ping is
+either the **recycle pick, naming its source** ("nothing new this week → slotted an amplifier of your
+blog *X*"), or — if recycle found nothing — the **prompt**: one line, one move ("pipeline's dry, the
+week's LinkedIn is open → capture one idea, Perplexity ~20s"). Still exactly one ping, still no guilt.
 
 ```sh
 contentos notify "Monday plan — 1 LinkedIn + blog draft this week.
@@ -138,11 +161,22 @@ token, and the ping proves the run reached Davide.
 No unit tests — a Beat is a prompt (the spec's Testing Decisions). Verify by **driving it on a seeded
 Pipeline** and checking outcomes at the tracker seam:
 
-1. Seed a few `idea` issues of varied strength; run steps 1–5 by hand.
+1. Seed a few `idea` issues of varied strength; run steps 1–6 by hand.
 2. Assert: strong ideas are now `proposed` with a Flag/Side **and** a channel, weak ones stayed
    `idea`/`needs-info` (AC1); the week's pieces are on board #2 with a `Date` this week and a `Stage`
    (AC2); a `contentos notify` ping reached the phone with the plan summary and direct links (AC3).
 3. Clean up the seed (close the test issues, archive the board items).
+
+**Dry-week branch** ([ADR-0006](../adr/0006-dry-pipeline-recycle-and-prompt-never-generate.md)) — two
+sub-cases:
+
+1. **Recycle:** seed a week with **no** slottable `linkedin` material but **one** parked-thin `idea`;
+   run steps 1–6 and assert that parked idea is recycled — promoted, `slotted` this week, and named as
+   a dry-week pick in the ping.
+2. **Prompt:** remove that idea too so nothing is recyclable; re-run and assert the ping degrades to a
+   one-line prompt for input, with **nothing** slotted and no topic invented.
+
+Not yet dry-run verified — pending its own seeded run.
 
 Verified **2026-07-17** on three seeded ideas: two promoted with a Flag/Side and a channel and
 slotted this week on board #2, one held as `idea` with a sharpening comment; the week's plan ping was

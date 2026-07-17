@@ -66,7 +66,10 @@ Rescue tone, never guilt (user story 14). The most-ready pick (heuristic below) 
 one concrete item** — a slotted piece, a proposal, or the single strongest idea — so the ping always
 names *something specific* to ship, never "pick one" (that would be the brainstorm the guard exists to
 remove). Only if the Pipeline is genuinely empty (no `linkedin` piece and no `idea` at all) does it
-fall back to a one-line "nothing queued — capture one idea and ship a short take today."
+fall back to the same **dry-pipeline prompt** the Monday Beat uses
+([ADR-0006](../adr/0006-dry-pipeline-recycle-and-prompt-never-generate.md)): a one-line "nothing
+queued — capture one idea and ship a short take today." Like Monday, it recycles or prompts but
+**never generates** a topic.
 
 ## The "most-ready" heuristic
 

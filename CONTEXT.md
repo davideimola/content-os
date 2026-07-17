@@ -40,6 +40,10 @@ _Avoid_: content repo, downstream repo
 The publishing floor Davide commits to defend: 1 LinkedIn post per week, 1 blog post per month. A floor to protect, never a ceiling; the reminders guard it.
 _Avoid_: schedule, frequency, quota
 
+**Recycle**:
+Re-surfacing on-voice material content-os already holds — a parked Idea, or an angle derived from a published blog or an upcoming Talk — to defend the Cadence floor on a dry week. It never invents a new topic; it only re-surfaces what already passed the voice bar.
+_Avoid_: generate, brainstorm, suggest
+
 **Idea**:
 A raw, unjudged content spark, captured as a content-os issue in under thirty seconds. No format, no channel, no quality bar at capture time — capture first, judge later.
 _Avoid_: draft, proposal, note
