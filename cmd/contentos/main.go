@@ -10,12 +10,13 @@ import (
 	"github.com/davideimola/content-os/internal/idea"
 	"github.com/davideimola/content-os/internal/metrics"
 	"github.com/davideimola/content-os/internal/notify"
+	"github.com/davideimola/content-os/internal/open"
 	"github.com/spf13/cobra"
 )
 
 func main() {
 	code := 0
-	root := newRootCmd(os.Stdin, os.Getenv, idea.System, &code)
+	root := newRootCmd(os.Stdin, os.Getenv, idea.System, open.System, &code)
 	if err := root.Execute(); err != nil {
 		// A structural error (unknown command, bad flag): cobra has already
 		// printed it. Subcommands report their own failures and set code instead.
@@ -28,7 +29,7 @@ func main() {
 // seam to `gh`) are injected so the tree is testable; exitCode receives a
 // subcommand's process exit code — the subcommand prints its own diagnostics,
 // so cobra stays silent about it.
-func newRootCmd(stdin io.Reader, getenv func(string) string, run idea.Commander, exitCode *int) *cobra.Command {
+func newRootCmd(stdin io.Reader, getenv func(string) string, run idea.Commander, openFn open.Opener, exitCode *int) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "contentos",
 		Short: "Content OS operations surface",
@@ -60,7 +61,29 @@ func newRootCmd(stdin io.Reader, getenv func(string) string, run idea.Commander,
 	root.AddCommand(notifyCmd)
 	root.AddCommand(newMetricsIngestCmd(exitCode))
 	root.AddCommand(newIdeaCmd(run, exitCode))
+	root.AddCommand(newOpenCmd(openFn, exitCode))
 	return root
+}
+
+// newOpenCmd builds `contentos open` — utility shortcuts that open Content OS
+// destinations (the Calendar board, Pipeline views, an issue, the Beats workflow)
+// in the browser. With no target it shows an interactive menu. openFn is the seam
+// to the OS browser opener; the open package prints its own diagnostics and sets
+// exitCode, so cobra stays silent about them.
+func newOpenCmd(openFn open.Opener, exitCode *int) *cobra.Command {
+	return &cobra.Command{
+		Use:   "open [target | issue <n> | <issue-n>]",
+		Short: "Open Content OS destinations in the browser",
+		Long: "Open a Content OS destination in the default browser.\n\n" +
+			"Targets: board, pipeline, ideas, proposed, slotted, talks, blog, beats, repo.\n" +
+			"Also `open issue <n>` or a bare `open <n>` for a specific issue. With no target,\n" +
+			"an interactive numbered menu is shown.\n\n" +
+			"See docs/agents/open.md.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			*exitCode = open.Run(args, cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr(), openFn)
+			return nil
+		},
+	}
 }
 
 // newIdeaCmd builds `contentos idea` and its `create` action — the terminal

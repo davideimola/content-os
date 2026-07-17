@@ -21,6 +21,9 @@ func unusedRunner(string, ...string) (string, string, error) {
 	return "", "", errors.New("gh runner unexpectedly invoked")
 }
 
+// unusedOpener stands in for the browser seam on paths that must never open one.
+func unusedOpener(string) error { return errors.New("browser opener unexpectedly invoked") }
+
 // execCmd drives the command tree with args and captured IO, returning the
 // subcommand exit code, stdout, stderr, and any structural error from Execute.
 // It wires the gh seam to unusedRunner — for the idea-create path, use
@@ -34,7 +37,7 @@ func execCmd(t *testing.T, args []string, stdin string, getenv func(string) stri
 // wiring can be exercised end-to-end through cobra without touching GitHub.
 func execCmdWithRunner(t *testing.T, args []string, stdin string, getenv func(string) string, run idea.Commander) (code int, stdout, stderr string, err error) {
 	t.Helper()
-	root := newRootCmd(strings.NewReader(stdin), getenv, run, &code)
+	root := newRootCmd(strings.NewReader(stdin), getenv, run, unusedOpener, &code)
 	var out, errb strings.Builder
 	root.SetArgs(args)
 	root.SetOut(&out)
@@ -55,6 +58,29 @@ func TestNotifyWiring_PropagatesExitAndStderr(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "TELEGRAM_BOT_TOKEN") {
 		t.Errorf("stderr = %q, want the notify diagnostic (proves wiring)", stderr)
+	}
+}
+
+// The open subcommand is exercised in depth in internal/open; here we only prove
+// the wiring: args reach open.Run, the browser seam is invoked with the resolved
+// URL, and the exit code flows back through cobra.
+func TestOpenWiring_ResolvesTargetAndOpens(t *testing.T) {
+	var opened string
+	rec := func(u string) error { opened = u; return nil }
+	var code int
+	root := newRootCmd(strings.NewReader(""), noEnv, unusedRunner, rec, &code)
+	var out, errb strings.Builder
+	root.SetArgs([]string{"open", "board"})
+	root.SetOut(&out)
+	root.SetErr(&errb)
+	if err := root.Execute(); err != nil {
+		t.Fatalf("Execute returned a structural error: %v", err)
+	}
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0; stderr=%q", code, errb.String())
+	}
+	if !strings.Contains(opened, "/projects/2") {
+		t.Errorf("opened %q, want the Calendar board URL (proves wiring)", opened)
 	}
 }
 
