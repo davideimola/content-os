@@ -73,12 +73,17 @@ lacks. Run these once.
      --single-select-options "idea,proposed,slotted,in-production,published"
    ```
 
-4. **Configure the views in the web UI** (grouping and filters are not settable over the CLI):
-   - Rename the default view to **Pipeline**, set layout **Board**, group by **Stage**.
-   - Add a view **This week**, layout **Table**, sort by **Date** ascending, and add a filter
-     `date:@today..` narrowed to the week (or just sort by `Date` and read top-down).
-   - Add a view **Talks & CFP**, layout **Table**, filter `label:talk,cfp`, sort by **Date**: the
-     speaker slice (all public output stays on this one board — user story 9 — this is just its filter).
+4. **Configure the views in the web UI** (grouping and filters are not settable over the CLI).
+   Two different controls: **layout / group / sort** live in the view's **⌄ menu** (the chevron next
+   to the view name); the **filter** is typed in the **filter bar at the top** ("Filter by keyword or
+   by field"). After a change the view tab shows a dot — **⌄ menu → Save changes** to persist it.
+   - **Pipeline** — rename the default view; ⌄ menu → layout **Board**, group by **Stage**. No filter.
+   - **This week** — new view, layout **Table**; ⌄ menu → sort by **Date** ascending; filter bar:
+     `date:@today..@today+1w` (today through the next week — a standing window that never goes stale).
+   - **Talks & CFP** — new view, layout **Table**; ⌄ menu → sort by **Date**; filter bar:
+     `label:talk,cfp` (the speaker slice — all public output stays on this one board, user story 9;
+     this is just its filter). All filter strings above are valid Projects filter syntax (the same
+     the CLI `--query` uses).
 
 5. **Record the IDs the Beats need.** The recipes below take the project id and field/option ids.
    For this board they are fixed under [Current board coordinates](#current-board-coordinates); a Beat
