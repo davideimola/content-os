@@ -42,6 +42,10 @@ The first of three Beats: a scheduled Monday-morning session that judges new Ide
 
 The second Beat: a scheduled Thursday session guarding the Cadence floor's weekly LinkedIn slot. One question — has this week's LinkedIn shipped, or is it credibly scheduled (published this week, or `slotted`/`in-production` dated today→Sunday)? On track → **stays silent** (silence is the all-clear; Cadence is a floor, not a nag, user story 14). At risk → pings exactly **one** most-ready `linkedin` proposal with the single next action, so recovering the week costs one decision (user stories 12–13). Reads `linkedin` pieces + their Calendar dates; writes at most one `contentos notify` ping — or nothing; never touches labels or the board (Monday plans, Thursday only guards). Hands, not brain (ADR-0003); never drafts content (ADR-0002). Trigger-agnostic — same mechanism as the Monday Beat, Thursday cron. Verified by a two-branch dry-run (at-risk→ping, on-track→silence) at the tracker seam; no unit tests. See `docs/agents/thursday-beat.md`.
 
+### Monthly review Beat
+
+The third Beat: a monthly session that turns a month of output into next month's steer. It guides the Metrics snapshot ritual (asks Davide for the LinkedIn export + Vercel site numbers — no programmatic pull, see the research doc), runs `contentos metrics-ingest` to normalize the raw inputs into `metrics/<YYYY-MM>/` and commits them, crosses the numbers with the Calendar's published pieces (Flag/Side + channel), reports the realized mix vs ~70% Flag and Cadence vs the floor, checks next month's blog slot + the CFP horizon, and pings a digest whose recommendations cite the numbers behind them (user stories 15–19). Semi-interactive by nature (the export needs a human); hands, not brain (ADR-0003 — metrics-ingest does the normalization); never drafts content (ADR-0002). Trigger-agnostic — same mechanism as the other Beats, monthly cron. Verified by a fixture-data dry-run at the tracker seam; no unit tests. See `docs/agents/monthly-beat.md`.
+
 ### Domain docs
 
 Single-context: `CONTEXT.md` + ADRs in `docs/adr/` at the repo root. See `docs/agents/domain.md`.
