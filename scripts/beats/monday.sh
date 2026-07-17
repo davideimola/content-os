@@ -25,7 +25,7 @@ PID="PVT_kwHOAN8k8s4Bdpom"                       # project id (see docs/agents/c
 DATE_FID="PVTF_lAHOAN8k8s4BdpomzhYJsS8"          # Date field
 STAGE_FID="PVTSSF_lAHOAN8k8s4BdpomzhYJsTA"       # Stage field
 STAGE_SLOTTED="4cd2f423"                          # Stage option: slotted
-MODEL="${GEMINI_MODEL:-gemini-2.5-flash}"
+MODEL="${GEMINI_MODEL:-gemini-flash-latest}"   # stable alias; override with GEMINI_MODEL
 BEAT_DOC="docs/agents/monday-beat.md"
 here() { cd "$(git rev-parse --show-toplevel)"; }
 
