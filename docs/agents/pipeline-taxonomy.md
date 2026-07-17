@@ -43,6 +43,34 @@ Dimensions describe the piece and steer the mix. A judged piece (`proposed` onwa
 | --- | --- |
 | `cfp` | A CFP opportunity tracked with its deadline and outcome. Pairs with `talk`. |
 
+## CFP lifecycle
+
+A `cfp` issue carries an **outcome** — where the opportunity stands — captured as the **Outcome**
+field in the issue body (the CFP template's dropdown, `.github/ISSUE_TEMPLATE/cfp.yml`), **not** as a
+label. It is a **separate axis** from the Pipeline state above: the state says where the *piece* is,
+the outcome says whether the *submission* is in. Advance it by editing the issue body.
+
+| Outcome | Meaning |
+| --- | --- |
+| `to submit` | Identified; proposal not yet sent. The default at capture. |
+| `submitted` | Proposal sent; awaiting the committee. |
+| `accepted` | In — the talk is happening. |
+| `rejected` | Declined. Terminal for this opportunity. |
+
+How the two axes interact: a `to submit`/`submitted` CFP sits on the Calendar by its **deadline**, and
+a Beat surfaces it as the deadline approaches (user stories 20–21). Once **`accepted`**, the talk
+rides the normal state labels — `slotted` when dated on the Calendar (by the **conference date**),
+`in-production` while the slides are built in the [`presentations` Factory](../../CONTEXT.md),
+`published` once delivered. The talk brief it reuses lives as an issue in that Factory and is linked
+from the CFP issue's body.
+
+**One brief, many CFPs.** A talk pitched to several conferences is **one brief** (in the Factory,
+written once) and **one CFP issue per conference** (here), each linking that same brief and carrying
+its own deadline, outcome, and Calendar date. Each acceptance becomes its own `slotted` talk on that
+conference's date — the same talk legitimately delivered more than once, not duplicate content. From
+the brief you see every conference it has gone to; from each CFP you reach the brief — navigable both
+ways (user story 24).
+
 ## How issues acquire labels
 
 - **Idea template** (`.github/ISSUE_TEMPLATE/idea.yml`) applies `idea` on creation. Nothing else — no format, channel, or quality decision at capture time.

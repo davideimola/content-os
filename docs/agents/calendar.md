@@ -203,7 +203,7 @@ No unit tests — the board is external GitHub state, verified by driving it and
 
 ## Seeding the real first entries
 
-Out of scope for the board's creation, but the intended first content: the already-committed talks —
-ComeToCode (Sept 2026), GoLab (Nov 2026), reactjsday (Nov 2026) — added with their deadlines as
-`Date`, plus the open blog issues once migrated from `davideimola.dev`. Add each with the recipes
-above.
+The three committed 2026 talks are on the board as CFP-tracked, `slotted` talks (issue #8): ComeToCode
+(#25, 26 Sep), GoLab (#26, 1 Nov), reactjsday (#27, 19 Nov) — each dated by its conference date and
+linking its brief in the `presentations` Factory. Still to seed: the open blog issues once migrated
+from `davideimola.dev` (#13). Add each with the recipes above.
