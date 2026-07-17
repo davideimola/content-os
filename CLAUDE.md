@@ -34,6 +34,10 @@ The second capture door onto the Pipeline — the sibling of the terminal `conte
 
 `contentos metrics-ingest` turns the raw monthly inputs into normalized, versioned plain-text files under `metrics/<YYYY-MM>/`; the monthly review reads only the normalized form. Two paths: `metrics-ingest linkedin --file <csv> --month YYYY-MM` (a per-post export CSV → `linkedin-posts.csv`) and `metrics-ingest site --month YYYY-MM --visitors N --page-views N` (manual numbers → `site.csv`). Deterministic and idempotent — re-running on the same input is byte-identical. Hands, not brain (ADR-0003): producing the LinkedIn CSV from the raw export is the review Beat's job. Tests: `go test ./...` (the golden-sample test lives in `internal/metrics`). See `docs/agents/metrics-ingest.md`.
 
+### Monday planning Beat
+
+The first of three Beats: a scheduled Monday-morning session that judges new Ideas into proposals (editorial signals: thesis vs observation, heat, narrative material, voice match), assigns Flag/Side + channel, checks overlap against published/in-flight, slots the week on the Calendar defending the Cadence floor (1 LinkedIn/week, 1 blog/month) toward the ~70% Flag mix, and sends one plan ping via `contentos notify`. Hands, not brain (ADR-0003): deterministic moves via `contentos`/`gh`, editorial judgement in the prompt; it never drafts content (ADR-0002, user story 27). Trigger-agnostic — the schedule mechanism (native Claude routine vs GitHub Actions cron) is chosen separately (ADR-0003); the prompt is the same either way. Verified by dry-run on a seeded Pipeline at the tracker seam; no unit tests. See `docs/agents/monday-beat.md`.
+
 ### Domain docs
 
 Single-context: `CONTEXT.md` + ADRs in `docs/adr/` at the repo root. See `docs/agents/domain.md`.
