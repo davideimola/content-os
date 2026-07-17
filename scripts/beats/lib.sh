@@ -10,6 +10,7 @@ PID="PVT_kwHOAN8k8s4Bdpom"                   # project id (docs/agents/calendar.
 DATE_FID="PVTF_lAHOAN8k8s4BdpomzhYJsS8"      # Date field
 STAGE_FID="PVTSSF_lAHOAN8k8s4BdpomzhYJsTA"   # Stage field
 STAGE_SLOTTED="4cd2f423"                      # Stage option: slotted
+STAGE_PROPOSED="744a04fe"                     # Stage option: proposed (de-slot target)
 MODEL="${GEMINI_MODEL:-gemini-flash-lite-latest}"   # free-tier daily quota is small & per-model
 
 reporoot() { cd "$(git rev-parse --show-toplevel)"; }
@@ -59,6 +60,18 @@ slot_issue() {
           --url "https://github.com/$REPO/issues/$n" --format json --jq .id)
   gh project item-edit --project-id "$PID" --id "$item" --field-id "$DATE_FID"  --date "$dt" >/dev/null
   gh project item-edit --project-id "$PID" --id "$item" --field-id "$STAGE_FID" --single-select-option-id "$STAGE_SLOTTED" >/dev/null
+}
+
+# deslot_issue <issue> — reverse of slot_issue (the Desk's de-slot, ADR-0007): back to
+# proposed, off the week. Label-first (source of truth), then mirror onto the board —
+# Stage -> proposed and the Date cleared (a proposed piece has no publish date).
+deslot_issue() {
+  local n="$1" item
+  gh issue edit "$n" --repo "$REPO" --add-label proposed --remove-label slotted || true
+  item=$(gh project item-add "$PROJECT" --owner "$OWNER" \
+          --url "https://github.com/$REPO/issues/$n" --format json --jq .id)
+  gh project item-edit --project-id "$PID" --id "$item" --field-id "$STAGE_FID" --single-select-option-id "$STAGE_PROPOSED" >/dev/null
+  gh project item-edit --project-id "$PID" --id "$item" --field-id "$DATE_FID" --clear >/dev/null
 }
 
 # notify_ping <text> — send one Telegram ping, or nothing if empty (silence is valid).

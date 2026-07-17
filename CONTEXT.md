@@ -60,6 +60,10 @@ _Avoid_: board, content plan
 One of the three scheduled proactive sessions: weekly planning (Monday), cadence guard (Thursday), monthly review. A Beat works the Pipeline on its own and pings Davide on Telegram when there is something for him.
 _Avoid_: cron job, reminder (the ping is the message, the Beat is the session)
 
+**Desk**:
+The interactive counterpart to a Beat: an on-demand editorial session Davide opens himself to work the Pipeline by hand, present in the loop — where a Beat runs on a schedule and pings him because he is absent. It plans by the same editorial judgement as the Monday Beat, but the judging is a live conversation rather than an autonomous one, and it changes nothing until Davide approves the plan.
+_Avoid_: interactive Beat, console, dashboard
+
 **Metrics snapshot**:
 The monthly capture of channel data (LinkedIn analytics export, site analytics numbers), stored in the repo and crossed with the Calendar by the monthly review to judge what worked.
 _Avoid_: report, stats dump
