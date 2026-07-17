@@ -1,0 +1,84 @@
+name: Content OS Beats
+
+# The three Beats run here (GitHub Actions cron), not as native Claude routines:
+# the routines' cloud env proxies GitHub access and cannot reach Projects v2 (the
+# Calendar board). An Actions runner has full GitHub + internet egress. The model
+# is a free Google Gemini key via the official Gemini CLI action; the Beat prompts
+# stay model-agnostic (they live in docs/agents/*-beat.md), so the model/harness
+# is swappable. See docs/agents/beat-scheduling.md and docs/research/zero-cost-agentic-ci.md.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Monday planning  — 06:00 UTC (~08:00 Europe/Rome, summer)
+    - cron: "0 6 * * 4"   # Thursday guard   — 06:00 UTC
+    - cron: "0 6 1 * *"   # Monthly review   — 1st of month, 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      beat:
+        description: Which Beat to run (manual test)
+        type: choice
+        options: [monday, thursday, monthly]
+        default: monday
+
+permissions:
+  contents: read
+  issues: write        # gh issue edits via the default token; the board uses GH_TOKEN (a PAT)
+
+concurrency:
+  group: contentos-beats
+  cancel-in-progress: false
+
+jobs:
+  beat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build contentos onto PATH
+        run: |
+          go build -o "$HOME/.local/bin/contentos" ./cmd/contentos
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Select the Beat (from the cron that fired, or the manual input)
+        id: sel
+        run: |
+          case "${{ github.event.schedule }}" in
+            "0 6 * * 1") beat=monday ;;
+            "0 6 * * 4") beat=thursday ;;
+            "0 6 1 * *") beat=monthly ;;
+            *)           beat="${{ github.event.inputs.beat }}"; beat="${beat:-monday}" ;;
+          esac
+          echo "beat=$beat" >> "$GITHUB_OUTPUT"
+          echo "Running the $beat Beat"
+
+      - name: Run the Beat (Gemini CLI)
+        uses: google-github-actions/run-gemini-cli@v0
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          # Auto-approve tools so the agent can run gh/go/contentos unattended.
+          settings: '{"approvalMode":"yolo","tools":{"sandbox":false}}'
+          prompt: |
+            You are running the Content OS "${{ steps.sel.outputs.beat }}" Beat for Davide Imola.
+            The repo davideimola/content-os is checked out in the working directory. On PATH: `go`,
+            `gh`, and the `contentos` CLI. Environment: GH_TOKEN (a GitHub PAT with repo+project
+            scope — gh reads it automatically), TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID.
+
+            Read docs/agents/${{ steps.sel.outputs.beat }}-beat.md (the full procedure), plus
+            CLAUDE.md and the docs it links (calendar.md, pipeline-taxonomy.md, notify.md,
+            metrics-ingest.md as relevant), then EXECUTE that Beat's procedure exactly as written —
+            using `gh` for issues and the Projects v2 Calendar board (project #2, owner davideimola)
+            and `contentos notify` for the single Telegram ping.
+
+            Check prerequisites FIRST: `gh` authenticated with repo+project scope (`gh auth status`
+            and a `gh project view 2 --owner davideimola` smoke check), `go`, and the two TELEGRAM_*
+            vars. If any is missing, STOP and report which one — do not do a partial run.
+
+            NEVER draft content — judge and route only (ADR-0002). Follow the doc; do not invent steps.
+        env:
+          GH_TOKEN: ${{ secrets.GH_PROJECT_PAT }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
