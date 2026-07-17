@@ -13,10 +13,8 @@ name: Content OS Beats
 on:
   schedule:
     - cron: "0 6 * * 1"   # Monday planning  — 06:00 UTC (~08:00 Europe/Rome, summer)
-    # Thursday + Monthly crons are enabled once scripts/beats/{thursday,monthly}.sh land
-    # (only monday.sh exists + is verified so far). Both remain runnable via workflow_dispatch.
-    # - cron: "0 6 * * 4"   # Thursday guard  — 06:00 UTC
-    # - cron: "0 6 1 * *"   # Monthly review  — 1st of month, 06:00 UTC
+    - cron: "0 6 * * 4"   # Thursday guard   — 06:00 UTC
+    - cron: "0 6 1 * *"   # Monthly review   — 1st of month, 06:00 UTC
   workflow_dispatch:
     inputs:
       beat:
