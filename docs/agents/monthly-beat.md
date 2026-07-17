@@ -66,11 +66,11 @@ site — then attribute performance to the published set (top performer, laggard
 for next month)? Any **CFP deadlines** approaching in the `Talks & CFP` view (user story 21)? Name
 them so the digest ends forward-looking.
 
-**6 — Ping the digest (user story 19).** One `contentos notify` — the month in numbers, mix and
+**6 — Ping the digest (user story 19).** One ping via the [notify seam](notify.md) — the month in numbers, mix and
 Cadence vs targets, the horizon, and **grounded recommendations that cite the numbers**:
 
 ```sh
-contentos notify "June review 📊
+notify_ping "June review 📊
 LinkedIn: 4 posts · 12,400 impressions · top: <thesis> (4,210). Site: 1,850 visitors.
 Mix: 67% Flag (target ~70%) · Cadence: LinkedIn floor met (4), blog met (1).
 Next: July blog slot empty ⚠️ · CFP <event> closes <date>.
@@ -110,5 +110,5 @@ throwaway metrics dir (repo `metrics/` untouched), three `published` pieces seed
 June (2 Flag / 1 Side; 2 LinkedIn + 1 blog). The digest **crossed** the metrics with the June
 published set, reported the **mix** (67% Flag vs ~70%) and **Cadence** (LinkedIn 2/mo — under the ~4
 floor; blog 1 — met) against their targets, and every recommendation **cited its figure** (the Flag
-post's 4,210 impressions beat the Side post's 1,100 ~3.8×); delivered via `contentos notify` (exit 0).
+post's 4,210 impressions beat the Side post's 1,100 ~3.8×); delivered via the notify seam (exit 0).
 Seed and temp dir cleaned up. The trigger (AC4) is deferred with the shared mechanism choice.

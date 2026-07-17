@@ -1,6 +1,8 @@
 # No app: the Content OS is a repo plus Claude routines
 
 > **Amended by [ADR-0003](0003-contentos-cli-operations-surface.md):** the Telegram bot is no longer the only custom-built piece — it becomes the `notify` subcommand of the `contentos` CLI. The "not software" principle stands, refined: content-os grows exactly one deterministic, stateless CLI (hands, not brain), never an app that thinks or holds state.
+>
+> **Further amended by [ADR-0009](0009-contentos-narrows-to-local-surface.md):** the Telegram ping is no longer a custom-built piece at all — `notify` leaves the `contentos` CLI and returns to the Beats as inline `curl` in `scripts/beats/lib.sh`. The "not software" principle is unchanged; the outbound ping is now a few lines of bash inside the (GitHub Actions) Beat, not a subcommand.
 
 The Content OS could have been a web app (Vercel/Supabase free tier dashboard). We decided it is deliberately **not** software: a git repo (issues, CONTEXT.md, metrics files, a GitHub Projects board) operated by Claude Code skills and scheduled Claude routines ("Beats"), with a Telegram bot for outbound pings as the only custom-built piece (send-only, no server).
 

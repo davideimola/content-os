@@ -7,7 +7,7 @@
 >
 > **Scope:** the recurring task is *agentic* — each of ~9 low-frequency runs/month (2 weekly Beats + 1
 > monthly) must check out the repo, read Markdown instruction docs, run arbitrary bash (`gh` issues +
-> `gh project`, `go build`/run the `contentos` CLI), make editorial judgments, and send one Telegram
+> `gh project`), make editorial judgments, and send one Telegram
 > message, unattended on an `ubuntu` runner. So it needs an **agentic harness** (file read + bash/tool
 > use + multi-step loop), not a single chat completion, and a model with a **large enough context to hold
 > 50k–300k tokens per run**. This doc lives alongside `linkedin-personal-analytics-api.md` under the
@@ -263,8 +263,6 @@ Actions workflow.** Concretely:
       runs-on: ubuntu-latest
       steps:
         - uses: actions/checkout@v4
-        - uses: actions/setup-go@v5
-        - run: go install ./cmd/contentos      # build/run the CLI
         - uses: google-github-actions/run-gemini-cli@v0
           with:
             gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
@@ -285,7 +283,7 @@ The Beats need real editorial judgment (what to slot, kill, recycle), and the **
 Flash-class**. Flash is materially weaker than Gemini Pro or Claude at nuanced, taste-driven calls — the
 single biggest risk in this plan. It is a *quality* risk, not a plumbing one. Manage it by:
 
-1. **Keep Davide as the final judge.** Every Beat already ends by pinging Telegram (`contentos notify`),
+1. **Keep Davide as the final judge.** Every Beat already ends by pinging Telegram (the notify seam),
    and the repo's philosophy is explicitly "capture first, judge later." Have the agent *propose* editorial
    moves and let the human ratify — a Flash-class model is adequate as a well-instructed *drafter/triager*,
    riskier as an autonomous *decider*.

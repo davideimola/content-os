@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Monthly review Beat — separated runner (ADR-0003). Reviews the just-ended month:
-#   GATHER (gh + metrics files) -> DECIDE (Gemini) -> APPLY (one contentos notify).
+#   GATHER (gh + metrics files) -> DECIDE (Gemini) -> APPLY (one Telegram ping).
 # Semi-interactive: the LinkedIn export can't be pulled, so on a run with no metrics yet the DECIDE
 # produces the opening ASK ping (request export + site numbers); when metrics/<month>/ already exist
 # it produces the digest (mix vs ~70%, Cadence vs floor, CFP horizon, number-cited recs). The

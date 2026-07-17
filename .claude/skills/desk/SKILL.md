@@ -95,7 +95,7 @@ printf '%s' "$DECISIONS_JSON" | bash scripts/beats/monday.sh apply -
 ```
 
 Keep `"ping":""` — the Desk does not ping (Davide is in the room), and an empty ping makes `apply`
-stay silent with no Telegram or `contentos` dependency.
+stay silent (`notify_ping ""` sends nothing).
 
 ### 6 — Ping (opt-in only)
 
@@ -103,7 +103,8 @@ Off by default. Only if Davide asks "send it to me", ping the plan so it lands i
 the Beats':
 
 ```sh
-contentos notify "<one-line plan summary + issue/board links>"
+source scripts/beats/lib.sh
+notify_ping "<one-line plan summary + issue/board links>"
 ```
 
 ## Guardrails

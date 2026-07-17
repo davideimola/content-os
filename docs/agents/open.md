@@ -51,9 +51,12 @@ picker of its own.
 
 ## Building the CLI
 
-Same as the rest of `contentos` (see [notify.md](notify.md#building-the-cli)). Because `open` is a
-handy day-to-day shortcut, install it where your `PATH` will find it: `make install-bin` drops the
-binary in `/usr/local/bin` (override `PREFIX`), sidestepping the mise-managed `GOBIN`.
+`contentos` is a Go binary built from this repo; no compiled binaries are committed. Because `open` is
+a handy day-to-day shortcut, install it where your `PATH` will find it: `make install-bin` drops the
+binary in `~/.local/bin` (no sudo; override `PREFIX`, e.g. `PREFIX=/usr/local`), sidestepping the
+mise-managed `GOBIN`. From a checkout, `go run ./cmd/contentos open ...` works too. `open` is the
+daily driver that keeps the binary on `PATH` for the monthly `metrics-ingest`
+([ADR-0009](../adr/0009-contentos-narrows-to-local-surface.md)).
 
 ## Testing
 

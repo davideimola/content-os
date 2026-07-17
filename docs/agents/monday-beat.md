@@ -7,7 +7,7 @@ on the [Calendar](../../CONTEXT.md) → (recycle or prompt if the week is dry) �
 Monday starts with Davide knowing exactly what to do (user stories 5–11).
 
 Like the rest of the system it splits **hands from brain** (ADR-0003): the deterministic moves go
-through `contentos` and `gh` (they never judge), and the editorial judgement — what is worth
+through `gh` and the [notify seam](notify.md) (they never judge), and the editorial judgement — what is worth
 proposing, where it goes, what the week looks like — is *this prompt*. The Beat **never drafts
 content** (ADR-0002, user story 27): it judges and routes; the Factory writing skills write.
 
@@ -28,9 +28,8 @@ swappable".
 
 - `gh` installed and authenticated, with the `repo` **and** `project` scopes (the board lives under
   `gh project`, see [calendar.md](calendar.md)).
-- `contentos` available — `go run ./cmd/contentos` from a checkout, or installed (see
-  [notify.md](notify.md#building-the-cli)).
-- `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in the environment for the ping (routine/CI secrets,
+- `jq` available (the beat scripts parse JSON with it), and `curl` for the ping.
+- `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in the environment for the ping (CI secrets,
   never committed).
 
 ## The procedure
@@ -107,7 +106,7 @@ the week is fine; skip this step. This is the **dry-pipeline fallback**
 - **Scope.** A dry monthly **blog** floor is **not** recycled (a blog cannot be honestly recycled) — it
   falls to the prompt.
 
-**6 — Ping the plan.** One `contentos notify` with the week's plan: a one-line summary, then each
+**6 — Ping the plan.** One ping via the [notify seam](notify.md) with the week's plan: a one-line summary, then each
 actionable item with a **direct link** (the issue URL, or the board's `This week` view). Keep it
 scannable (see the [ping format](notify.md#ping-format)). On a **dry week** this same single ping is
 either the **recycle pick, naming its source** ("nothing new this week → slotted an amplifier of your
@@ -115,7 +114,7 @@ blog *X*"), or — if recycle found nothing — the **prompt**: one line, one mo
 week's LinkedIn is open → capture one idea, Perplexity ~20s"). Still exactly one ping, still no guilt.
 
 ```sh
-contentos notify "Monday plan — 1 LinkedIn + blog draft this week.
+notify_ping "Monday plan — 1 LinkedIn + blog draft this week.
 LinkedIn: <thesis> → <issue url>
 Blog: <thesis> (draft) → <issue url>
 Board: https://github.com/users/davideimola/projects/2"
@@ -153,8 +152,7 @@ The trigger is **chosen separately and pending** — the Beat body above is the 
   cost) — subscription OAuth tokens are ToS-restricted to Claude Code/claude.ai (2026-02). Secrets as
   Actions secrets; `gh` and `go` are on the runner.
 
-Whichever is chosen: the routine/job builds `contentos` from source, `gh` authenticates from the
-token, and the ping proves the run reached Davide.
+Whichever is chosen: `gh` authenticates from the token, and the ping proves the run reached Davide.
 
 ## Verification (tracker seam, dry-run)
 
@@ -164,7 +162,7 @@ Pipeline** and checking outcomes at the tracker seam:
 1. Seed a few `idea` issues of varied strength; run steps 1–6 by hand.
 2. Assert: strong ideas are now `proposed` with a Flag/Side **and** a channel, weak ones stayed
    `idea`/`needs-info` (AC1); the week's pieces are on board #2 with a `Date` this week and a `Stage`
-   (AC2); a `contentos notify` ping reached the phone with the plan summary and direct links (AC3).
+   (AC2); a ping reached the phone via the notify seam with the plan summary and direct links (AC3).
 3. Clean up the seed (close the test issues, archive the board items).
 
 **Dry-week branch** ([ADR-0006](../adr/0006-dry-pipeline-recycle-and-prompt-never-generate.md)) — two
@@ -180,5 +178,5 @@ Not yet dry-run verified — pending its own seeded run.
 
 Verified **2026-07-17** on three seeded ideas: two promoted with a Flag/Side and a channel and
 slotted this week on board #2, one held as `idea` with a sharpening comment; the week's plan ping was
-delivered via `contentos notify` (exit 0). Seed cleaned up afterwards. The trigger (AC4) is deferred
+delivered via the notify seam (exit 0). Seed cleaned up afterwards. The trigger (AC4) is deferred
 pending the mechanism choice above — the body here is the prompt whichever trigger is wired.

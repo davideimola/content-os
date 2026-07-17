@@ -11,37 +11,20 @@ import (
 // testdataDir points at the metrics package's fixtures from this package's dir.
 var testdataDir = filepath.Join("..", "..", "internal", "metrics", "testdata")
 
-func noEnv(string) string { return "" }
-
 // unusedOpener stands in for the browser seam on paths that must never open one.
 func unusedOpener(string) error { return errors.New("browser opener unexpectedly invoked") }
 
 // execCmd drives the command tree with args and captured IO, returning the
 // subcommand exit code, stdout, stderr, and any structural error from Execute.
-func execCmd(t *testing.T, args []string, stdin string, getenv func(string) string) (code int, stdout, stderr string, err error) {
+func execCmd(t *testing.T, args []string, stdin string) (code int, stdout, stderr string, err error) {
 	t.Helper()
-	root := newRootCmd(strings.NewReader(stdin), getenv, unusedOpener, &code)
+	root := newRootCmd(strings.NewReader(stdin), unusedOpener, &code)
 	var out, errb strings.Builder
 	root.SetArgs(args)
 	root.SetOut(&out)
 	root.SetErr(&errb)
 	err = root.Execute()
 	return code, out.String(), errb.String(), err
-}
-
-// The notify subcommand is exercised in depth in internal/notify; here we only
-// prove the wiring: args, stderr, and exit code flow through cobra untouched.
-func TestNotifyWiring_PropagatesExitAndStderr(t *testing.T) {
-	code, _, stderr, err := execCmd(t, []string{"notify", "hi"}, "", noEnv)
-	if err != nil {
-		t.Fatalf("Execute returned a structural error: %v", err)
-	}
-	if code != 1 {
-		t.Fatalf("exit = %d, want 1 (notify reports the missing token)", code)
-	}
-	if !strings.Contains(stderr, "TELEGRAM_BOT_TOKEN") {
-		t.Errorf("stderr = %q, want the notify diagnostic (proves wiring)", stderr)
-	}
 }
 
 // The open subcommand is exercised in depth in internal/open; here we only prove
@@ -51,7 +34,7 @@ func TestOpenWiring_ResolvesTargetAndOpens(t *testing.T) {
 	var opened string
 	rec := func(u string) error { opened = u; return nil }
 	var code int
-	root := newRootCmd(strings.NewReader(""), noEnv, rec, &code)
+	root := newRootCmd(strings.NewReader(""), rec, &code)
 	var out, errb strings.Builder
 	root.SetArgs([]string{"open", "board"})
 	root.SetOut(&out)
@@ -67,21 +50,30 @@ func TestOpenWiring_ResolvesTargetAndOpens(t *testing.T) {
 	}
 }
 
-func TestHelp_ListsNotify(t *testing.T) {
-	code, stdout, _, err := execCmd(t, []string{"--help"}, "", noEnv)
+func TestHelp_ListsOpen(t *testing.T) {
+	code, stdout, _, err := execCmd(t, []string{"--help"}, "")
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
 	if code != 0 {
 		t.Fatalf("exit = %d, want 0", code)
 	}
-	if !strings.Contains(stdout, "notify") {
-		t.Errorf("help = %q, want it to list the notify subcommand", stdout)
+	if !strings.Contains(stdout, "open") {
+		t.Errorf("help = %q, want it to list the open subcommand", stdout)
+	}
+}
+
+// notify left the CLI (ADR-0009): it is no longer a subcommand, so invoking it
+// is an unknown command — the same structural error as any other bogus verb.
+func TestNotify_IsNoLongerASubcommand(t *testing.T) {
+	_, _, _, err := execCmd(t, []string{"notify", "hi"}, "")
+	if err == nil {
+		t.Fatalf("Execute returned nil, want an error — notify is no longer a subcommand")
 	}
 }
 
 func TestUnknownSubcommand_Errors(t *testing.T) {
-	_, _, _, err := execCmd(t, []string{"bogus"}, "", noEnv)
+	_, _, _, err := execCmd(t, []string{"bogus"}, "")
 	if err == nil {
 		t.Fatalf("Execute returned nil, want an error for an unknown subcommand")
 	}
@@ -93,7 +85,7 @@ func TestUnknownSubcommand_Errors(t *testing.T) {
 func TestMetricsIngestLinkedInWiring_PropagatesExitAndStderr(t *testing.T) {
 	code, _, stderr, err := execCmd(t, []string{
 		"metrics-ingest", "linkedin", "--file", "nope.csv", "--month", "2026-13",
-	}, "", noEnv)
+	}, "")
 	if err != nil {
 		t.Fatalf("Execute returned a structural error: %v", err)
 	}
@@ -108,7 +100,7 @@ func TestMetricsIngestLinkedInWiring_PropagatesExitAndStderr(t *testing.T) {
 func TestMetricsIngestSiteWiring_PropagatesExitAndStderr(t *testing.T) {
 	code, _, stderr, err := execCmd(t, []string{
 		"metrics-ingest", "site", "--month", "2026-06",
-	}, "", noEnv)
+	}, "")
 	if err != nil {
 		t.Fatalf("Execute returned a structural error: %v", err)
 	}
@@ -130,7 +122,7 @@ func TestMetricsIngestLinkedIn_GoldenThroughSubcommand(t *testing.T) {
 		"--file", filepath.Join(testdataDir, "linkedin-sample.csv"),
 		"--month", "2026-06",
 		"--metrics-dir", dir,
-	}, "", noEnv)
+	}, "")
 	if err != nil {
 		t.Fatalf("Execute returned a structural error: %v", err)
 	}
@@ -151,14 +143,14 @@ func TestMetricsIngestLinkedIn_GoldenThroughSubcommand(t *testing.T) {
 }
 
 func TestMetricsIngestLinkedIn_RequiresFileAndMonth(t *testing.T) {
-	_, _, _, err := execCmd(t, []string{"metrics-ingest", "linkedin"}, "", noEnv)
+	_, _, _, err := execCmd(t, []string{"metrics-ingest", "linkedin"}, "")
 	if err == nil {
 		t.Fatalf("Execute returned nil, want an error for the missing required flags")
 	}
 }
 
 func TestHelp_ListsMetricsIngest(t *testing.T) {
-	code, stdout, _, err := execCmd(t, []string{"--help"}, "", noEnv)
+	code, stdout, _, err := execCmd(t, []string{"--help"}, "")
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}

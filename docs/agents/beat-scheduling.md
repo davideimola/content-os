@@ -13,7 +13,7 @@ Each Beat is `scripts/beats/<beat>.sh` with three stages — the model is a **pu
 ```
 GATHER  (deterministic gh)                    → state JSON
 DECIDE  (one Gemini REST call, JSON mode)     → decisions JSON   ← the only AI step, NON-agentic
-APPLY   (deterministic gh + contentos notify) → labels, board slots, one Telegram ping
+APPLY   (deterministic gh + a Telegram curl)  → labels, board slots, one Telegram ping
 ```
 
 The editorial **judgement** (signals, recycle/dry-week, cadence) lives in `docs/agents/<beat>-beat.md`;
@@ -23,10 +23,10 @@ are separately runnable for debugging: `scripts/beats/monday.sh {gather|decide <
 
 ## The workflow
 
-[`.github/workflows/beats.yml`](../../.github/workflows/beats.yml): checkout → build `contentos` onto
-PATH → select the beat (`github.event.schedule` → `monday`/`thursday`/`monthly`) → a deterministic
-prereq smoke-check → `bash scripts/beats/<beat>.sh run`. Also `workflow_dispatch` (a `beat` input) for
-manual/test runs.
+[`.github/workflows/beats.yml`](../../.github/workflows/beats.yml): checkout → select the beat
+(`github.event.schedule` → `monday`/`thursday`/`monthly`) → a deterministic prereq smoke-check →
+`bash scripts/beats/<beat>.sh run`. Pure bash — `gh` + `curl` + `jq`, no Go build (ADR-0009). Also
+`workflow_dispatch` (a `beat` input) for manual/test runs.
 
 - **Monday** is live + verified end-to-end (cron `0 6 * * 1` ≈ 08:00 Europe/Rome summer). **Thursday**
   and **Monthly** crons are commented out until `scripts/beats/{thursday,monthly}.sh` land (only
@@ -55,8 +55,8 @@ Default **`gemini-flash-lite-latest`** via the Gemini REST API on a free Google 
 | ------ | ---- | ----- |
 | `GEMINI_API_KEY` | free Google AI Studio key | aistudio.google.com → Get API key; **do not enable billing** on its project → free tier, cannot be charged |
 | `GH_PROJECT_PAT` | GitHub PAT (classic), scopes **`repo` + `project` + `read:org`** | `read:org` is required too — `gh project --owner <user>` needs it to resolve the owner (else "unknown owner type"). `gh` reads it via `GH_TOKEN`. |
-| `TELEGRAM_BOT_TOKEN` | BotFather token | read by `contentos notify` |
-| `TELEGRAM_CHAT_ID` | Davide's chat id | read by `contentos notify` |
+| `TELEGRAM_BOT_TOKEN` | BotFather token | read by the notify seam (`notify_ping`) |
+| `TELEGRAM_CHAT_ID` | Davide's chat id | read by the notify seam (`notify_ping`) |
 
 ## Testing / operating
 

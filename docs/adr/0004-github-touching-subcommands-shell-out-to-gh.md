@@ -4,6 +4,11 @@
 > ADR was decided for, is now a Claude skill. The skill still reaches GitHub through `gh`, so the `gh`
 > decision below stands — it just no longer rides a `contentos` subcommand (none remain that touch
 > GitHub). The injected-runner seam (`idea.Commander`) is gone with the package.
+>
+> **Obsoleted by [ADR-0009](0009-contentos-narrows-to-local-surface.md):** with the CLI narrowed to
+> `metrics-ingest` + `open`, no `contentos` subcommand touches GitHub — the binary shells out to `gh`
+> nowhere. `gh` remains the one GitHub mechanism, but used directly by the skills, never wrapped by the
+> CLI. This ADR is kept for the historical record.
 
 ADR-0003 built `contentos` as the operations surface over the Pipeline and explicitly deferred one question until it was first needed: whether the subcommands that touch GitHub (the Pipeline's home, ADR-0001) shell out to the `gh` CLI or embed a Go GitHub client. The capture door — `contentos idea create` (issue #5) — is the first such subcommand, so the decision is now due. We decided **`contentos` reaches GitHub by shelling out to `gh`**, not by embedding a GitHub client with its own token handling.
 

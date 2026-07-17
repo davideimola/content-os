@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Thursday cadence guard Beat — separated runner (ADR-0003). Guards the week's LinkedIn slot:
-#   GATHER (gh) -> DECIDE (Gemini) -> APPLY (at most one contentos notify, or nothing).
+#   GATHER (gh) -> DECIDE (Gemini) -> APPLY (at most one Telegram ping, or nothing).
 # It never changes labels or the board (Monday plans; Thursday only guards). Judgement lives in
 # docs/agents/thursday-beat.md. Stages: thursday.sh {gather|decide <s>|apply <d>|run}.
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"

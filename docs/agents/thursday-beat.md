@@ -53,10 +53,10 @@ covered** — the slot is slipping, so the guard treats it as at-risk.
 - **At risk** (nothing shipped and nothing credibly scheduled) → pick the **single most-ready**
   `linkedin` proposal and ping it with the one next action (below).
 
-**4 — The rescue ping (at-risk only).** One `contentos notify` naming one proposal and one action:
+**4 — The rescue ping (at-risk only).** One ping via the [notify seam](notify.md) naming one proposal and one action:
 
 ```sh
-contentos notify "This week's LinkedIn hasn't shipped yet — one move rescues it.
+notify_ping "This week's LinkedIn hasn't shipped yet — one move rescues it.
 → <thesis of the most-ready proposal>
 Next: write & post it today. <issue url>"
 ```
@@ -102,6 +102,6 @@ the check on a seeded week:
 3. Clean up the seed.
 
 Verified **2026-07-17**: with a ready `proposed,flag,linkedin` proposal and no covered slot, the
-check reported *at-risk* and a rescue ping was delivered (`contentos notify`, exit 0); after slotting
+check reported *at-risk* and a rescue ping was delivered (the notify seam, exit 0); after slotting
 that piece this week, the re-check reported *on-track* and **no** ping was sent. Seed cleaned up. The
 trigger (AC3) is deferred with the Monday Beat's shared mechanism choice.

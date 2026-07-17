@@ -6,8 +6,8 @@ name: Content OS Beats
 #
 # Architecture is SEPARATED (ADR-0003 hands/brain): each scripts/beats/<beat>.sh does
 #   GATHER (deterministic gh) -> DECIDE (one Gemini REST call, JSON mode, non-agentic) -> APPLY
-#   (deterministic gh + contentos). The model is a pure function state->decisions; all side effects
-#   (labels, board, Telegram) are deterministic bash. No agent tool-loop.
+#   (deterministic gh + a Telegram curl). The model is a pure function state->decisions; all side
+#   effects (labels, board, Telegram) are deterministic bash. No agent tool-loop, no compiled deps.
 # See docs/agents/beat-scheduling.md and docs/research/zero-cost-agentic-ci.md.
 
 on:
@@ -36,15 +36,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Build contentos onto PATH
-        run: |
-          go build -o "$HOME/.local/bin/contentos" ./cmd/contentos
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
       - name: Select the Beat (from the cron that fired, or the manual input)
         id: sel
         run: |
@@ -64,9 +55,8 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          echo "go:        $(go version)"
           echo "gh:        $(gh --version | head -1)"
-          echo "contentos: $(command -v contentos || echo MISSING)"
+          echo "jq:        $(jq --version)"
           echo "GEMINI_API_KEY set: ${GEMINI_API_KEY:+yes}${GEMINI_API_KEY:-NO}"
           echo "TELEGRAM_BOT_TOKEN set: ${TELEGRAM_BOT_TOKEN:+yes}${TELEGRAM_BOT_TOKEN:-NO}"
           echo "TELEGRAM_CHAT_ID set:   ${TELEGRAM_CHAT_ID:+yes}${TELEGRAM_CHAT_ID:-NO}"

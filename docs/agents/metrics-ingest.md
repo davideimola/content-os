@@ -15,9 +15,11 @@ not in the CLI.
 
 ## Building the CLI
 
-Same as the rest of `contentos` (see [notify.md](notify.md#building-the-cli)): `go install`
-for other repos, `go run ./cmd/contentos` or `go build` from a checkout. No compiled binaries
-are committed.
+`contentos` is a Go binary built from this repo; no compiled binaries are committed. Install it where
+your `PATH` finds it with `make install-bin` (default `~/.local/bin`, no sudo; override `PREFIX`), or
+run from a checkout with `go run ./cmd/contentos` (or `go build -o contentos ./cmd/contentos`). It is
+Davide's local tool ([ADR-0009](../adr/0009-contentos-narrows-to-local-surface.md)): the monthly
+review runs it by hand, and the Beats neither build nor use it.
 
 ## The two input paths
 

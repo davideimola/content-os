@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Monday planning Beat — separated runner (ADR-0003 hands/brain).
-#   GATHER (gh) -> DECIDE (one Gemini REST call, JSON mode, non-agentic) -> APPLY (gh + contentos).
+#   GATHER (gh) -> DECIDE (one Gemini REST call, JSON mode, non-agentic) -> APPLY (gh + a Telegram ping).
 # The editorial judgement lives in docs/agents/monday-beat.md; this feeds it to the model and only
 # executes the JSON returned. Stages runnable standalone: monday.sh {gather|decide <s>|apply <d>|run}.
 # See docs/agents/beat-scheduling.md. Env: GEMINI_API_KEY, GH_TOKEN (repo+project+read:org), TELEGRAM_*.

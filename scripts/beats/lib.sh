@@ -75,6 +75,27 @@ deslot_issue() {
 }
 
 # notify_ping <text> — send one Telegram ping, or nothing if empty (silence is valid).
+# ADR-0009: the send is inline curl to the Bot API's sendMessage (no CLI). Exit status is
+# the contract: 0 delivered, non-zero (reason on stderr) not. Plain text, link previews off.
+# The bot token lives only in the URL handed to curl — never echoed — and GitHub Actions
+# masks it in logs. TELEGRAM_API_BASE overrides the host (default api.telegram.org; tests
+# point it at a fake server). Env: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID.
 notify_ping() {
-  if [ -n "${1:-}" ]; then echo "notify"; contentos notify "$1"; else echo "(no ping — silent)"; fi
+  local text="${1:-}"
+  if [ -z "$text" ]; then echo "(no ping — silent)"; return 0; fi
+  if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+    echo "notify_ping: TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set" >&2; return 1
+  fi
+  echo "notify"
+  local base resp
+  base="${TELEGRAM_API_BASE:-https://api.telegram.org}"
+  resp=$(curl -sS -X POST "${base}/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+           --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+           --data-urlencode "text=${text}" \
+           --data-urlencode "disable_web_page_preview=true") \
+    || { echo "notify_ping: curl could not reach Telegram" >&2; return 1; }
+  if ! echo "$resp" | jq -e '.ok == true' >/dev/null 2>&1; then
+    echo "notify_ping: Telegram rejected the message: $(echo "$resp" | jq -r '.description // "unknown error"')" >&2
+    return 1
+  fi
 }
