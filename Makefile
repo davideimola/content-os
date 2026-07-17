@@ -8,9 +8,9 @@ BINARY  := contentos
 BIN_DIR := bin
 BIN     := $(BIN_DIR)/$(BINARY)
 
-# Where `install-bin` drops the binary — a normal PATH dir, NOT the mise-managed GOBIN
-# (override, e.g. `make install-bin PREFIX=$HOME/.local`).
-PREFIX  ?= /usr/local
+# Where `install-bin` drops the binary — a normal PATH dir, NOT the mise-managed GOBIN.
+# Defaults to ~/.local/bin (no sudo); override, e.g. `make install-bin PREFIX=/usr/local`.
+PREFIX  ?= $(HOME)/.local
 
 # Arguments for `make run`, e.g. `make run ARGS="idea create 'a spark'"`.
 ARGS ?=
@@ -31,7 +31,7 @@ install: ## Install contentos into GOBIN (go install ./cmd/contentos)
 	$(GO) install $(CMD)
 
 .PHONY: install-bin
-install-bin: build ## Install contentos into PREFIX/bin (default /usr/local/bin — a normal PATH dir; use sudo or PREFIX=$$HOME/.local if not writable)
+install-bin: build ## Install contentos into PREFIX/bin (default ~/.local/bin — no sudo; override PREFIX, e.g. PREFIX=/usr/local)
 	@install -d "$(PREFIX)/bin"
 	install -m 0755 "$(BIN)" "$(PREFIX)/bin/$(BINARY)"
 	@echo "installed $(BINARY) -> $(PREFIX)/bin/$(BINARY)"
