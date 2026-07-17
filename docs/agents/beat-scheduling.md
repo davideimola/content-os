@@ -3,7 +3,8 @@
 The three [Beats](../../CONTEXT.md) run on **GitHub Actions cron**, not native Claude routines: the
 routines' cloud env proxies GitHub access to a pinned PR-review set and **cannot reach Projects v2**
 (the [Calendar board](calendar.md)), which every Beat needs. An Actions runner has full GitHub +
-internet egress. See [the zero-cost research](../research/zero-cost-agentic-ci.md).
+internet egress. See [ADR-0010](../adr/0010-beats-run-as-github-actions-not-claude-routines.md) and
+[the zero-cost research](../research/zero-cost-agentic-ci.md).
 
 ## Separated architecture (ADR-0003 hands/brain)
 
@@ -28,9 +29,9 @@ are separately runnable for debugging: `scripts/beats/monday.sh {gather|decide <
 `bash scripts/beats/<beat>.sh run`. Pure bash — `gh` + `curl` + `jq`, no Go build (ADR-0009). Also
 `workflow_dispatch` (a `beat` input) for manual/test runs.
 
-- **Monday** is live + verified end-to-end (cron `0 6 * * 1` ≈ 08:00 Europe/Rome summer). **Thursday**
-  and **Monthly** crons are commented out until `scripts/beats/{thursday,monthly}.sh` land (only
-  `monday.sh` exists so far); both stay runnable via `workflow_dispatch`.
+- **All three Beats are live** — `monday.sh`, `thursday.sh`, and `monthly.sh` all exist and their crons
+  are active (`0 6 * * 1`, `0 6 * * 4`, `0 6 1 * *`; ≈ 08:00 Europe/Rome summer). Any can also be run
+  on demand via `workflow_dispatch`.
 
 ## Model: free Google Gemini
 

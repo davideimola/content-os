@@ -23,7 +23,7 @@ what the numbers mean, where to point next — is this prompt. It **never drafts
 
 Preconditions and the trigger mechanism are shared with the other Beats — see
 [monday-beat.md](monday-beat.md#preconditions) and [Scheduling](monday-beat.md#scheduling-ac4). The
-Beat is **trigger-agnostic** (ADR-0003).
+Beat **runs on GitHub Actions cron** (ADR-0010).
 
 ## The procedure
 
@@ -90,9 +90,9 @@ recommendation is one tap from acting.
 
 ## Scheduling (AC4)
 
-Same mechanism as the [Monday Beat](monday-beat.md#scheduling-ac4) (one choice for all Beats,
-pending), monthly: **early in the month, Europe/Rome** — GitHub Actions form `cron: '0 6 1 * *'` (the
-1st). The body here is the prompt whichever trigger is wired.
+Same mechanism as the [Monday Beat](monday-beat.md#scheduling-ac4) — **GitHub Actions cron**
+(ADR-0010) — monthly: **early in the month, Europe/Rome**, `cron: '0 6 1 * *'` (the 1st). The body
+here is the decide prompt.
 
 ## Verification (tracker seam, dry-run)
 

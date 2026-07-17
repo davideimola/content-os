@@ -10,6 +10,11 @@
 > (the Factories reach GitHub via `gh` directly), so the CLI narrows to Davide's local, interactive
 > surface: `metrics-ingest` + `open`. `notify` leaves for the Beats' bash. The "hands, not brain"
 > principle still stands.
+>
+> **Superseded in part by [ADR-0010](0010-beats-run-as-github-actions-not-claude-routines.md):** the
+> "Beats remain Claude routines, with GitHub Actions cron as the fallback" decision below is reversed —
+> Actions is the primary (and only) trigger, and the Beats' one decide step runs on Gemini, not Claude.
+> The trigger is decided, not swappable or pending.
 
 Before this decision the only custom-built piece was `bin/notify`, a bash script wrapping the Telegram Bot API (ADR-0002). But the editorial pipeline is centralized on content-os (ADR-0001), so skills in the Factories (`davideimola.dev`, `presentations`) increasingly need to run the same deterministic operations against it — create an idea, query the Pipeline, read analytics — and today that means each Factory references skills living in another repo, which is fragile and duplicative. We decided content-os grows exactly one custom-built piece: **`contentos`, a Go CLI** that is the single, shared, deterministic operations surface. It is **hands, not brain**: it runs fixed operations over the Pipeline (GitHub issues) and never embeds AI nor holds its own state — the skills and Claude routines stay the intelligence, the GitHub issues stay the single source of truth (ADR-0001). `bin/notify` is retired; `notify` becomes its first subcommand (`contentos notify`).
 

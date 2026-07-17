@@ -22,7 +22,7 @@ content** (ADR-0002): it reads the Pipeline, decides ship-vs-rescue, and at most
 
 Preconditions and the trigger mechanism are the same as the Monday Beat — see
 [monday-beat.md](monday-beat.md#preconditions) and its [Scheduling](monday-beat.md#scheduling-ac4)
-section. The Beat is **trigger-agnostic** (ADR-0003).
+section. The Beat **runs on GitHub Actions cron** (ADR-0010).
 
 ## The procedure
 
@@ -84,10 +84,9 @@ One, not a shortlist: a list is a brainstorm, and the guard's job is to remove t
 
 ## Scheduling (AC3)
 
-Same mechanism as the [Monday Beat](monday-beat.md#scheduling-ac4) (native Claude routine **or**
-GitHub Actions cron — one choice for all Beats, pending), only the day differs: **Thursday morning,
-Europe/Rome** — GitHub Actions form `cron: '0 6 * * 4'`. The body here is the prompt whichever trigger
-is wired.
+Same mechanism as the [Monday Beat](monday-beat.md#scheduling-ac4) — **GitHub Actions cron**
+(ADR-0010) — only the day differs: **Thursday morning, Europe/Rome**, `cron: '0 6 * * 4'`. The body
+here is the decide prompt.
 
 ## Verification (tracker seam, dry-run)
 

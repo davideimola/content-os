@@ -20,9 +20,8 @@ content** (ADR-0002, user story 27): it judges and routes; the Factory writing s
   [notify seam](notify.md).
 - Issues stay the source of truth (ADR-0001); the board is the by-date view.
 
-The Beat is **trigger-agnostic**: the scheduling trigger is chosen separately (see
-[Scheduling](#scheduling-ac4)) and never changes the body below — ADR-0003's "the trigger is
-swappable".
+The Beat **runs on GitHub Actions cron** (ADR-0010, see [Scheduling](#scheduling-ac4)); the body below
+is the decide prompt, independent of the trigger.
 
 ## Preconditions
 
@@ -140,19 +139,11 @@ home), a sharp single-point take tends to `linkedin` (the amplifier), a big arc 
 
 ## Scheduling (AC4)
 
-The trigger is **chosen separately and pending** — the Beat body above is the prompt regardless
-(ADR-0003, "the trigger is swappable"). Target: **Monday morning, Europe/Rome**. Two options:
-
-- **Native Claude routine** (`/schedule`, or claude.ai/code/routines): runs on Davide's Claude plan
-  (zero marginal cost — the ADR-0002 premise), research-preview. Secrets (`TELEGRAM_*`, a GitHub
-  token) go in the routine environment; add the repo; enable unrestricted branch pushes if the Beat
-  should push to `main`.
-- **GitHub Actions cron** (`anthropics/claude-code-action@v1`, GA): `cron: '0 6 * * 1'` (≈ 07:00–08:00
-  Rome). Stable and auditable, but to stay within Anthropic's ToS it needs an **API key** (per-token
-  cost) — subscription OAuth tokens are ToS-restricted to Claude Code/claude.ai (2026-02). Secrets as
-  Actions secrets; `gh` and `go` are on the runner.
-
-Whichever is chosen: `gh` authenticates from the token, and the ping proves the run reached Davide.
+The trigger is **GitHub Actions cron** (ADR-0010): `cron: '0 6 * * 1'` — 06:00 UTC, ≈ 08:00
+Europe/Rome in summer. Each run is separated bash — GATHER (`gh`) → DECIDE (one free-Gemini REST call)
+→ APPLY (`gh` + a Telegram `curl`) — with the beat body above as the decide prompt. `gh` authenticates
+from the `GH_PROJECT_PAT` secret, and the ping proves the run reached Davide. See
+[beat-scheduling.md](beat-scheduling.md) for the workflow, secrets, and model.
 
 ## Verification (tracker seam, dry-run)
 
@@ -178,5 +169,5 @@ Not yet dry-run verified — pending its own seeded run.
 
 Verified **2026-07-17** on three seeded ideas: two promoted with a Flag/Side and a channel and
 slotted this week on board #2, one held as `idea` with a sharpening comment; the week's plan ping was
-delivered via the notify seam (exit 0). Seed cleaned up afterwards. The trigger (AC4) is deferred
-pending the mechanism choice above — the body here is the prompt whichever trigger is wired.
+delivered via the notify seam (exit 0). Seed cleaned up afterwards. The trigger (AC4) is GitHub
+Actions cron (ADR-0010) — the body here is the decide prompt.
