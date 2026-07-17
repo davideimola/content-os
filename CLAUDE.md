@@ -38,6 +38,10 @@ The second capture door onto the Pipeline — the sibling of the terminal `conte
 
 The first of three Beats: a scheduled Monday-morning session that judges new Ideas into proposals (editorial signals: thesis vs observation, heat, narrative material, voice match), assigns Flag/Side + channel, checks overlap against published/in-flight, slots the week on the Calendar defending the Cadence floor (1 LinkedIn/week, 1 blog/month) toward the ~70% Flag mix, and sends one plan ping via `contentos notify`. Hands, not brain (ADR-0003): deterministic moves via `contentos`/`gh`, editorial judgement in the prompt; it never drafts content (ADR-0002, user story 27). Trigger-agnostic — the schedule mechanism (native Claude routine vs GitHub Actions cron) is chosen separately (ADR-0003); the prompt is the same either way. Verified by dry-run on a seeded Pipeline at the tracker seam; no unit tests. See `docs/agents/monday-beat.md`.
 
+### Thursday cadence guard Beat
+
+The second Beat: a scheduled Thursday session guarding the Cadence floor's weekly LinkedIn slot. One question — has this week's LinkedIn shipped, or is it credibly scheduled (published this week, or `slotted`/`in-production` dated today→Sunday)? On track → **stays silent** (silence is the all-clear; Cadence is a floor, not a nag, user story 14). At risk → pings exactly **one** most-ready `linkedin` proposal with the single next action, so recovering the week costs one decision (user stories 12–13). Reads `linkedin` pieces + their Calendar dates; writes at most one `contentos notify` ping — or nothing; never touches labels or the board (Monday plans, Thursday only guards). Hands, not brain (ADR-0003); never drafts content (ADR-0002). Trigger-agnostic — same mechanism as the Monday Beat, Thursday cron. Verified by a two-branch dry-run (at-risk→ping, on-track→silence) at the tracker seam; no unit tests. See `docs/agents/thursday-beat.md`.
+
 ### Domain docs
 
 Single-context: `CONTEXT.md` + ADRs in `docs/adr/` at the repo root. See `docs/agents/domain.md`.
