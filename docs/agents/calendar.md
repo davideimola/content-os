@@ -3,17 +3,19 @@
 The [Calendar](../../CONTEXT.md) is a **GitHub Projects (v2) board** over `davideimola/content-os`
 issues: the by-date view of what publishes when, plus CFP and talk deadlines. It is not a second
 backlog — the [Pipeline](../../CONTEXT.md) issues stay the **source of truth** (ADR-0001); the board
-is a projection the [Beats](../../CONTEXT.md) keep fresh so Davide can see the week at a glance.
+is a projection the [Desk](../../CONTEXT.md) keeps fresh so Davide can see the week at a glance (the
+[Beats](../../CONTEXT.md) only **read** it to detect staleness — they never write it).
 
 The board adds exactly **one thing the issues can't express: a date**. State already lives on the
-issues as [state labels](pipeline-taxonomy.md) (`idea` → `proposed` → `slotted` → `in-production` →
-`published`); the board carries a `Stage` field that **mirrors that label 1:1** only so a board
-layout can show state-based columns. When a label and its mirror disagree, the **label wins** — the
-Beat's job is to keep them in step, the same way the two capture doors are kept in step
-(see [app-capture.md](app-capture.md)).
+issues as [state labels](pipeline-taxonomy.md); the board carries a `Stage` field that **mirrors the
+Piece lifecycle 1:1** (`proposed` → `slotted` → `in-production` → `published`) only so a board layout
+can show state-based columns. **Ideas are never board items** — an Idea carries no date and no
+Piece-lifecycle state, so the board holds only Pieces and CFPs (the dated things). When a label and its
+mirror disagree, the **label wins** — the Desk's job is to keep them in step, the same way the two
+capture doors are kept in step (see [app-capture.md](app-capture.md)).
 
 Like everything else here it is **hands, not brain** (ADR-0003): the board holds no judgement and no
-state of its own. Today the Beats maintain it by shelling out to the `gh` CLI directly (the recipes
+state of its own. Today the **Desk** maintains it by shelling out to the `gh` CLI directly (the recipes
 below); folding these into a `contentos` Calendar subcommand is a later slice, not this one.
 
 ## What's on the board
@@ -26,7 +28,7 @@ Owner **`davideimola`** (a user project, not org), titled **`Content OS — Cale
 | Field   | Type            | Meaning |
 | ------- | --------------- | ------- |
 | `Date`  | Date            | The target **publish date** (blog / linkedin) or the **deadline** (talk / cfp). The Calendar's spine. |
-| `Stage` | Single-select   | Mirror of the state label. Options are the exact label strings: `idea`, `proposed`, `slotted`, `in-production`, `published`. |
+| `Stage` | Single-select   | Mirror of the Piece-lifecycle state label. Options are the exact label strings: `proposed`, `slotted`, `in-production`, `published`. No `idea` — Ideas are never board items. |
 
 The built-in `Status` field (Todo / In Progress / Done) is **not** the state field — `Stage` is, so
 its options can be set once from the CLI and match the labels verbatim, no translation. GitHub's
@@ -72,14 +74,15 @@ lacks. Run these once.
    gh project link <number> --owner davideimola --repo content-os
    ```
 
-3. **Create the two fields.** (The `Date` field, and the `Stage` mirror with all five options.)
+3. **Create the two fields.** (The `Date` field, and the `Stage` mirror with the four Piece-lifecycle
+   options — no `idea`.)
 
    ```sh
    gh project field-create <number> --owner davideimola --name "Date" --data-type DATE
 
    gh project field-create <number> --owner davideimola --name "Stage" \
      --data-type SINGLE_SELECT \
-     --single-select-options "idea,proposed,slotted,in-production,published"
+     --single-select-options "proposed,slotted,in-production,published"
    ```
 
 4. **Configure the views in the web UI** (grouping and filters are not settable over the CLI).
@@ -94,9 +97,9 @@ lacks. Run these once.
      this is just its filter). All filter strings above are valid Projects filter syntax (the same
      the CLI `--query` uses).
 
-5. **Record the IDs the Beats need.** The recipes below take the project id and field/option ids.
-   For this board they are fixed under [Current board coordinates](#current-board-coordinates); a Beat
-   can also re-fetch them at run time (they are stable):
+5. **Record the IDs the recipes need.** The recipes below take the project id and field/option ids.
+   For this board they are fixed under [Current board coordinates](#current-board-coordinates); the
+   Desk can also re-fetch them at run time (they are stable):
 
    ```sh
    gh project view <number> --owner davideimola --format json --jq '.id'          # project id  PVT_…
@@ -106,7 +109,7 @@ lacks. Run these once.
 
 ## Current board coordinates
 
-The live board, created once against `davideimola`. The IDs are stable; a Beat may hardcode them or
+The live board, created once against `davideimola`. The IDs are stable; the Desk may hardcode them or
 re-fetch with the recipe above.
 
 | What | Value |
@@ -116,11 +119,12 @@ re-fetch with the recipe above.
 | Project id (`--project-id`) | `PVT_kwHOAN8k8s4Bdpom` |
 | `Date` field id | `PVTF_lAHOAN8k8s4BdpomzhYJsS8` |
 | `Stage` field id | `PVTSSF_lAHOAN8k8s4BdpomzhYJsTA` |
-| `Stage` options (`--single-select-option-id`) | `idea`=`b923b548` · `proposed`=`744a04fe` · `slotted`=`4cd2f423` · `in-production`=`5bcf9849` · `published`=`3afb71a2` |
+| `Stage` options (`--single-select-option-id`) | `proposed`=`744a04fe` · `slotted`=`4cd2f423` · `in-production`=`5bcf9849` · `published`=`3afb71a2` (the `idea` option was retired — Ideas are never board items) |
 
-## CLI recipes (for the Beats)
+## CLI recipes
 
-Everything a Beat does to the Calendar, over `gh`. Placeholders: `<n>` project number,
+Everything the **Desk** does to the Calendar, over `gh` (the Thursday Beat reuses only the **This
+week** read below to detect staleness — it never writes). Placeholders: `<n>` project number,
 `<pid>` project id (`PVT_…`), `<date-fid>`/`<stage-fid>` field ids, `<opt-id>` a Stage option id,
 `<item-id>` a project item id (`PVTI_…`).
 
@@ -181,7 +185,8 @@ No unit tests — the board is external GitHub state, verified by driving it and
 (the spec's tracker-seam rule). The acceptance check, run once after setup and re-runnable any time:
 
 1. **The board exists** with the `Date` field and a state-grouped `Pipeline` view — `gh project
-   field-list 2 --owner davideimola` shows `Date` and `Stage` (five options); the web UI shows the views.
+   field-list 2 --owner davideimola` shows `Date` and `Stage` (four options — no `idea`); the web UI
+   shows the views.
 2. **A slotted issue with a date shows up in the week view.** Create a throwaway issue, add it, set
    its `Date` inside the current week, set `Stage` to `slotted` (ids from
    [Current board coordinates](#current-board-coordinates)):

@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Track the opportunity here. The talk brief it reuses lives in the `presentations` Factory — link it below once it exists.
+        Track the opportunity here. A CFP is one submission of one **Talk Piece** to one conference — link that Piece (`content-os#<n>`) below. One Talk Piece can have many CFPs, one per conference. The talk brief it reuses lives in the `presentations` Factory — link it too, once it exists.
   - type: input
     id: event
     attributes:
@@ -39,6 +39,12 @@ body:
         - accepted
         - rejected
       default: 0
+  - type: input
+    id: piece
+    attributes:
+      label: Talk Piece (content-os)
+      description: The Talk Piece this CFP submits, as content-os#<n>. One Talk Piece, many CFPs.
+      placeholder: content-os#42
   - type: input
     id: brief
     attributes:

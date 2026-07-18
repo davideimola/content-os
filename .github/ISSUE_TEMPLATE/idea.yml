@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Dump the spark and go — this should take under 30 seconds.
-        Don't decide the format, the channel, or whether it's any good; the Monday planning Beat judges it later.
+        Don't decide the format, the channel, or whether it's any good; you judge it later in the Desk (the Monday reminder nudges you when Ideas pile up).
   - type: textarea
     id: spark
     attributes:
