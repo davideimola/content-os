@@ -418,3 +418,8 @@ enabled = true
 # its own shared secret (x-capture-token), so Supabase's JWT gate is off here.
 [functions.capture-idea]
 verify_jwt = false
+
+# capture-mcp: the same door spoken as MCP (Perplexity / Claude custom connectors).
+# Same shared-secret auth (x-api-key / Bearer CAPTURE_TOKEN), so the JWT gate is off here too.
+[functions.capture-mcp]
+verify_jwt = false
