@@ -1,0 +1,48 @@
+name: Content OS — DB migrations
+
+# Applies pending Supabase migrations to the remote project whenever migration files
+# land on main (a merge, or a direct commit — Davide works on main). It runs the SAME
+# `supabase db push` as a local apply, so the migrations dir stays the single owner of
+# the schema (ADR-0014): local and CI both apply the same tracked files idempotently
+# (supabase_migrations.schema_migrations deduplicates — whoever runs first wins).
+#
+# Deliberately NOT the Supabase GitHub integration: that bundles preview branches per PR,
+# which don't fit a commit-to-main, no-branches solo workflow, and would be a second path
+# applying the schema. This is plain CI over the CLI we already use.
+#
+# Secrets required (repo → Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  — a personal access token (dashboard → Account → Access Tokens)
+#   SUPABASE_DB_PASSWORD   — the project's database password (set at project creation)
+#   SUPABASE_PROJECT_ID    — the project ref (dashboard URL / Settings → General → Reference ID)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+  workflow_dispatch: {}   # manual re-apply
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contentos-migrations
+  cancel-in-progress: false   # never interrupt a migration mid-apply
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1   # pinned to match mise.toml
+
+      - name: Link the project and push migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}"
+          supabase db push
