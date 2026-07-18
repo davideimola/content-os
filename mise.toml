@@ -3,3 +3,4 @@
 # Factory repos use the same pin so every environment builds the CLI the same way.
 [tools]
 go = "1.25"
+supabase = "latest"
