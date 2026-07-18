@@ -48,7 +48,7 @@ gh issue list --repo davideimola/content-os --state all --label published \
   --json number,title --limit 30
 ```
 
-**2 — Judge each Idea** with the editorial signal framework (below). For each idea, decide:
+**2 — Judge each Idea** with the [editorial signal framework](editorial-signals.md). For each idea, decide:
 
 - **Strong** (a thesis that matches the voice) → promote to `proposed`, assign **Flag/Side** and a
   **channel**, and remove `idea`:
@@ -124,18 +124,9 @@ week celebrated — the ping never guilt-trips.
 
 ## Editorial signal framework
 
-Four signals turn a raw idea into a judgement (they mirror the Factory's `editorial-route` skill so
-the HQ and the Factories judge the same way):
-
-| Signal | The question | Pulls toward |
-| --- | --- | --- |
-| **Thesis vs observation** | Is there a claim to defend, or just a noticing? | A thesis is publishable now; a bare observation needs a hook first. |
-| **Heat** | Is it timely — does it carry energy right now? | Hot → slot it sooner. |
-| **Narrative material** | Is there a real story or lived experience behind it? | Story-backed pieces are the strongest; route them to the blog. |
-| **Voice match** | Does it fit the [Positioning](../../CONTEXT.md)? | On-flag → `flag`; legitimate off-flag → deliberate `side`; off-voice → drop. |
-
-The signals set the routing, not the wording: a story-heavy thesis tends to `blog` (the canonical
-home), a sharp single-point take tends to `linkedin` (the amplifier), a big arc tends to a `talk`.
+The framework that judges an Idea (the four signals + routing) lives once in
+[editorial-signals.md](editorial-signals.md) — the shared editorial brain read by `/desk`, `/review`,
+and (per ADR-0012) the Factories. Read it there; it is not restated here.
 
 ## Scheduling (AC4)
 
