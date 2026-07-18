@@ -2,15 +2,15 @@
 
 `contentos metrics-ingest` turns the raw monthly inputs — a LinkedIn per-post export and
 manually reported site numbers — into **normalized, versioned plain-text files** under the
-repo's [Metrics snapshot](../../CONTEXT.md) area, `metrics/<YYYY-MM>/`. The monthly review
-[Beat](../../CONTEXT.md) reads **only** this normalized form; the raw export never enters the
-repo.
+repo's [Metrics snapshot](../../CONTEXT.md) area, `metrics/<YYYY-MM>/`. The monthly
+[Review](../../CONTEXT.md) (`/review`) reads **only** this normalized form; the raw export never enters
+the repo.
 
 It is a subcommand of the `contentos` CLI (ADR-0003), and like the rest of the CLI it is
 **hands, not brain**: the transform is deterministic and **idempotent** — re-running on the
 same input produces byte-identical output — so month-over-month git diffs reflect real data
 changes, not reformatting noise. The intelligence that turns a messy raw export into the input
-contract lives in the review Beat (see [Producing the LinkedIn CSV](#producing-the-linkedin-csv-agent-skill)),
+contract lives in the monthly Review (see [Producing the LinkedIn CSV](#producing-the-linkedin-csv-agent-skill)),
 not in the CLI.
 
 ## Building the CLI
@@ -32,7 +32,7 @@ contentos metrics-ingest site --month 2026-06 --visitors 1234 --page-views 5678
 ```
 
 Both write under `metrics/` in the current directory by default; override with `--metrics-dir`.
-The review Beat runs from the content-os checkout, so the default is correct. On success each
+The Review runs from the content-os checkout, so the default is correct. On success each
 prints a one-line confirmation to stdout; **exit status is the contract** — `0` written,
 non-zero (with a reason on stderr) not, mirroring the [notify seam](notify.md).
 
@@ -104,8 +104,8 @@ meaningful.
 
 ## Producing the LinkedIn CSV (agent skill)
 
-The CLI consumes the CSV contract above; getting there from LinkedIn's raw export is the review
-Beat's job (hands vs. brain, ADR-0003). During the monthly review:
+The CLI consumes the CSV contract above; getting there from LinkedIn's raw export is the monthly
+Review's job (hands vs. brain, ADR-0003). During the Review:
 
 1. **Ask Davide for the raw LinkedIn analytics export** for the month — the XLSX from the
    creator analytics "Export" button, or the per-post numbers read straight off the LinkedIn

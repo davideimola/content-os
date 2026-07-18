@@ -10,8 +10,9 @@ The board adds exactly **one thing the issues can't express: a date**. State alr
 issues as [state labels](pipeline-taxonomy.md); the board carries a `Stage` field that **mirrors the
 Piece lifecycle 1:1** (`proposed` → `slotted` → `in-production` → `published`) only so a board layout
 can show state-based columns. **Ideas are never board items** — an Idea carries no date and no
-Piece-lifecycle state, so the board holds only Pieces and CFPs (the dated things). When a label and its
-mirror disagree, the **label wins** — the Desk's job is to keep them in step, the same way the two
+Piece-lifecycle state, so the board holds only Pieces and **pending** CFPs (the dated things — a CFP
+sits by its deadline until accepted, when its Talk Piece takes the conference-date slot and the CFP
+leaves the board). When a label and its mirror disagree, the **label wins** — the Desk's job is to keep them in step, the same way the two
 capture doors are kept in step (see [app-capture.md](app-capture.md)).
 
 Like everything else here it is **hands, not brain** (ADR-0003): the board holds no judgement and no
@@ -208,7 +209,8 @@ No unit tests — the board is external GitHub state, verified by driving it and
 
 ## Seeding the real first entries
 
-The three committed 2026 talks are on the board as CFP-tracked, `slotted` talks (issue #8): ComeToCode
-(#25, 26 Sep), GoLab (#26, 1 Nov), reactjsday (#27, 19 Nov) — each dated by its conference date and
-linking its brief in the [`presentations` Factory](../../CONTEXT.md). Still to seed: the open blog issues once migrated
-from `davideimola.dev` (#13). Add each with the recipes above.
+The three committed 2026 talks are on the board as `slotted` **Talk Pieces** — ComeToCode (#66, 26 Sep),
+GoLab (#67, 1 Nov), reactjsday (#68, 19 Nov) — each dated by its conference date and linking its brief in
+the [`presentations` Factory](../../CONTEXT.md) and its own **CFP** (#25 / #26 / #27, `cfp` + `talk`,
+Outcome accepted — off the board, the submission record). The three blog Pieces (#36 / #37 / #38) sit
+under their umbrella Ideas (#63 / #64 / #65), `proposed`, not yet slotted. Add each with the recipes above.

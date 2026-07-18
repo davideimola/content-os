@@ -2,8 +2,9 @@
 
 The `/idea` **Claude skill** is the **machine-side capture door**: from any repo on the machine Davide
 files a raw [Idea](../../CONTEXT.md) onto the [Pipeline](../../CONTEXT.md) in seconds, asking **no
-format, channel, or quality question**. Capture first, judge later — the Monday planning
-[Beat](../../CONTEXT.md) judges the idea afterwards (see the [pipeline taxonomy](pipeline-taxonomy.md)).
+format, channel, or quality question**. Capture first, judge later — the Idea is judged afterwards in
+the [Desk](../../CONTEXT.md) (the Monday [Beat](../../CONTEXT.md) only reminds Davide to open it; see
+the [pipeline taxonomy](pipeline-taxonomy.md)).
 Davide has a spark → he runs `/idea <spark>` in Claude → an `idea`-labeled issue lands on
 `davideimola/content-os`, and he keeps working. Its sibling is the [AI-app door](app-capture.md),
 which files the **same shape** by voice or text from the phone; the two share one invariant.

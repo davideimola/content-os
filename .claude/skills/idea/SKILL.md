@@ -7,8 +7,9 @@ description: Capture a raw content spark onto the Content OS Pipeline as an `ide
 
 File the spark Davide just gave you as a raw Idea on his editorial Pipeline — the GitHub issues on
 `davideimola/content-os` — then reply with its URL. **Capture first, judge later**: your whole job is
-to file the spark faithfully, and the Monday planning Beat judges it afterwards. File it as-is and add
-nothing of your own — no channel, no format, no quality verdict, no draft or rewrite.
+to file the spark faithfully; it is judged later in the Desk (the Monday reminder only nudges Davide to
+open it). File it as-is and add nothing of your own — no channel, no format, no quality verdict, no
+draft or rewrite.
 
 The **spark** is whatever Davide gave you with the invocation — the words after `/idea`, or the idea
 he just expressed. With no spark, ask for it in one line and stop.

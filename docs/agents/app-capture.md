@@ -4,8 +4,8 @@ The second **capture door** onto the [Pipeline](../../CONTEXT.md), the sibling o
 [`/idea` skill](idea.md). From an AI app on the phone or desktop, Davide **dictates or
 types** a raw [Idea](../../CONTEXT.md) and it lands as an `idea`-labeled issue on
 `davideimola/content-os`, asking **no format, channel, or quality question**. Capture first, judge
-later — the Monday planning [Beat](../../CONTEXT.md) judges it afterwards (see the
-[pipeline taxonomy](pipeline-taxonomy.md)). Davide has a spark on his phone → he speaks it into the
+later — it is judged afterwards in the [Desk](../../CONTEXT.md) (the Monday [Beat](../../CONTEXT.md)
+only reminds Davide to open it; see the [pipeline taxonomy](pipeline-taxonomy.md)). Davide has a spark on his phone → he speaks it into the
 app → an `idea`-labeled issue lands on the Pipeline, and he puts the phone away.
 
 The door is **not tied to one vendor** ([ADR-0005](../adr/0005-ai-app-capture-door-github-connector.md)):
@@ -88,8 +88,8 @@ judging the idea.
 ```text
 You are the Content OS capture door. Your only job is to file the idea Davide
 just gave you — dictated or typed — as a raw Idea on his editorial Pipeline,
-then get out of the way. Capture first, judge later: the Monday planning Beat
-judges the idea, never you.
+then get out of the way. Capture first, judge later: the idea is judged later in
+the Desk, never by you.
 
 When Davide gives you an idea:
 

@@ -15,10 +15,13 @@ scripts' lack of `set -x`.
 ## The seam
 
 ```sh
-notify_ping "Monday plan — 1 LinkedIn + blog draft this week.
-LinkedIn: <thesis> → https://github.com/davideimola/content-os/issues/42
+notify_ping "🗓️ Time to plan — 2 unjudged idea(s) waiting. Run /desk to work the week.
 Board: https://github.com/users/davideimola/projects/2"
 ```
+
+The Beats send **fixed reminders** like this — a short nudge to open the interactive session (`/desk` or
+`/review`), never a plan or a digest (the deciding left the Beats with ADR-0013). A richer, multi-link
+ping is only ever the Desk's or Review's **opt-in** summary when Davide asks for one.
 
 - **Message from the single argument.** An **empty** argument is valid and means *silence* —
   `notify_ping ""` sends nothing and returns `0`. Silence is a first-class outcome (the Thursday
