@@ -25,11 +25,11 @@ LinkedIn — where content earns reach. A post must deliver its full value nativ
 _Avoid_: social channel, promo channel
 
 **Talk**:
-A conference appearance treated as editorial work: it has a CFP/deadline, preparation, and generates derived content for the other channels.
-_Avoid_: event, speech
+A first-class editorial object — a brief and deck — spawned from an accepted Idea; a sibling of Piece, **not** a kind of it. Dateless and delivered zero or more times through its CFPs; it carries a Flag/Side (counting toward the Flag mix, not Cadence) and runs proposed → in-production → ready.
+_Avoid_: event, speech, talk Piece
 
 **Pipeline**:
-The single editorial backlog on `content-os`, in three tiers: **Ideas** (raw sparks), the **Pieces** an accepted Idea spawns (one per channel), and the **CFPs** a Talk Piece is submitted through. Each Piece links its production artifact in the relevant Factory.
+The single editorial backlog, in tiers: **Ideas** (raw sparks); the **Pieces** and **Talks** an accepted Idea spawns; and the **CFPs** a Talk is submitted through. Each Piece and Talk links its production artifact in the relevant Factory.
 _Avoid_: backlog, content plan, board
 
 **Factory**:
@@ -49,15 +49,15 @@ A raw, unjudged content spark, captured as a content-os issue in under thirty se
 _Avoid_: draft, proposal, note
 
 **Piece**:
-A single channel-specific output derived from an accepted Idea — a blog post, a social post, or a talk. Each Piece carries its own channel, lifecycle (proposed → slotted → in-production → published), publish date, and production artifact, and lives its own life even when linked to sibling Pieces from the same Idea (e.g. a blog Piece blocks the social Piece that amplifies it).
+A single dated output on a cadence channel — a blog post or a LinkedIn post — derived from an accepted Idea (Talks are a separate type). Each Piece carries its channel, lifecycle (proposed → slotted → in-production → published), publish date, and production artifact, and lives its own life even when linked to sibling Pieces from the same Idea (e.g. a blog Piece blocks the LinkedIn Piece that amplifies it).
 _Avoid_: post, content, item
 
 **CFP**:
-A submission of a Talk Piece to a specific conference, tracked on content-os with its deadline and outcome (to submit / submitted / accepted / rejected). One Talk can have **many** CFPs — the Talk stays put; each CFP adapts the pitch's tone to its conference. The talk brief it reuses lives in the `presentations` Factory.
+A submission of a Talk to a specific conference and a child of that Talk, carrying the temporal state the Talk lacks — deadline, conference date, and outcome (to submit / submitted / accepted / rejected). One Talk can have **many** CFPs — the Talk stays put; each CFP adapts the pitch's tone to its conference. The talk brief it reuses lives in the `presentations` Factory.
 _Avoid_: call, submission (for the opportunity itself)
 
 **Calendar**:
-The by-date view over the Pipeline — what publishes when, plus CFP and talk deadlines — maintained as a GitHub Projects board on content-os. Issues stay the source of truth.
+The by-date view over the Pipeline — what publishes when, plus CFP deadlines and conference dates. A projection over the Pipeline, never a separate source of truth.
 _Avoid_: board, content plan
 
 **Beat**:
@@ -73,5 +73,5 @@ The interactive counterpart to the monthly Beat — an on-demand session Davide 
 _Avoid_: report, digest, dashboard
 
 **Metrics snapshot**:
-The monthly capture of channel data (LinkedIn analytics export, site analytics numbers), stored in the repo and crossed with the Calendar by the monthly review to judge what worked.
+The monthly capture of channel data (LinkedIn analytics export, site analytics numbers), stored with the Pipeline and crossed with the Calendar by the monthly review to judge what worked.
 _Avoid_: report, stats dump
