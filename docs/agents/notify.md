@@ -3,14 +3,14 @@
 The notify seam is how a [Beat](../../CONTEXT.md) pings Davide on Telegram: **`notify_ping "<text>"`**,
 a bash function in [`scripts/beats/lib.sh`](../../scripts/beats/lib.sh). It wraps the Telegram Bot
 API's `sendMessage` and nothing else — **send-only, no inbound webhook, no server** (ADR-0002). A Beat
-has something for Davide → its `apply` stage calls `notify_ping` → a message lands on his phone.
+has something for Davide → its `run` hands the detect result to `notify_ping` → a message lands on his
+phone (an empty result is silence).
 
 It used to be a `contentos notify` subcommand; [ADR-0009](../adr/0009-contentos-narrows-to-local-surface.md)
-moved it back into the Beats' bash. The Beats run as GitHub Actions — `gh` + one Gemini `curl` + this
-Telegram `curl` + `jq`, no compiled dependency — so the send lives where its only caller lives. The
-credential risk a compiled tool used to guard against is covered here by GitHub Actions' automatic
-secret masking, the beat scripts' lack of `set -x`, and the fact the Beat already calls Gemini the
-same way (an API key in a `curl` URL).
+moved it back into the Beats' bash. The Beats run as GitHub Actions — `gh` + this Telegram `curl` + `jq`,
+no compiled dependency — so the send lives where its only caller lives. The credential risk a compiled
+tool used to guard against is covered here by GitHub Actions' automatic secret masking and the beat
+scripts' lack of `set -x`.
 
 ## The seam
 

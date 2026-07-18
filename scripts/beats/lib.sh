@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Shared helpers for the Beat runners (scripts/beats/<beat>.sh) — the separated
-# GATHER -> DECIDE -> APPLY shape (ADR-0003 hands/brain). See docs/agents/beat-scheduling.md.
+# Shared helpers for the Beats and the Desk. The Beats are deterministic staleness
+# reminders — detect -> ping (ADR-0013), no model. The Desk hands (read/accept/reject/
+# block/slot) are the interactive planner's deterministic tracker writes (ADR-0007,
+# ADR-0011). Hands, not brain (ADR-0003). See docs/agents/beat-scheduling.md.
 set -euo pipefail
 
 REPO="davideimola/content-os"
@@ -11,7 +13,6 @@ DATE_FID="PVTF_lAHOAN8k8s4BdpomzhYJsS8"      # Date field
 STAGE_FID="PVTSSF_lAHOAN8k8s4BdpomzhYJsTA"   # Stage field
 STAGE_SLOTTED="4cd2f423"                      # Stage option: slotted
 STAGE_PROPOSED="744a04fe"                     # Stage option: proposed (de-slot target)
-MODEL="${GEMINI_MODEL:-gemini-flash-lite-latest}"   # free-tier daily quota is small & per-model
 
 reporoot() { cd "$(git rev-parse --show-toplevel)"; }
 
@@ -22,34 +23,6 @@ week_bounds() {
   mon=$(date -d "-$((dow-1)) days" +%F 2>/dev/null || date -v-$((dow-1))d +%F)
   sun=$(date -d "+$((7-dow)) days" +%F 2>/dev/null || date -v+$((7-dow))d +%F)
   echo "$mon $sun $today"
-}
-
-# gemini_decide <prompt> <schema-json> -> prints the model's decision JSON on stdout.
-# One non-agentic REST call, JSON mode. Retries transient 503 with backoff; 429 (usually the
-# small per-model daily free quota) once only, so we don't burn it hammering an exhausted limit.
-gemini_decide() {
-  local prompt="$1" schema="$2" payload attempt=0 max=5 resp code
-  payload=$(jq -n --arg p "$prompt" --argjson s "$schema" \
-    '{contents:[{parts:[{text:$p}]}],
-      generationConfig:{responseMimeType:"application/json", responseSchema:$s, temperature:0.2}}')
-  while :; do
-    attempt=$((attempt+1))
-    resp=$(curl -sS "https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}" \
-      -H 'Content-Type: application/json' -d "$payload")
-    if echo "$resp" | jq -e '.candidates[0].content.parts[0].text' >/dev/null 2>&1; then
-      echo "$resp" | jq -r '.candidates[0].content.parts[0].text'; return 0
-    fi
-    code=$(echo "$resp" | jq -r '.error.code // "?"')
-    if [ "$code" = "503" ] && [ "$attempt" -lt "$max" ]; then
-      echo "DECIDE: Gemini 503 (attempt $attempt/$max) — retrying in $((attempt*15))s" >&2
-      sleep $((attempt*15)); continue
-    fi
-    if [ "$code" = "429" ] && [ "$attempt" -lt 2 ]; then
-      echo "DECIDE: Gemini 429 — one retry in 12s" >&2; sleep 12; continue
-    fi
-    echo "DECIDE failed (code $code) after $attempt attempt(s) — Gemini response:" >&2
-    echo "$resp" >&2; return 1
-  done
 }
 
 # slot_issue <issue> <date> — label-first (source of truth), then mirror onto the board.
@@ -75,9 +48,10 @@ deslot_issue() {
 }
 
 # ─── Desk hands (ADR-0007, ADR-0011) ────────────────────────────────────────────────
-# Deterministic three-tier reads/writes the Desk (/desk) calls directly — it no longer
-# reuses monday.sh's gather/apply. Hands, not brain (ADR-0003): these never judge; the
-# Desk (Claude + Davide) decides, then calls these at the one approved gate.
+# Deterministic three-tier reads/writes the Desk (/desk) calls directly — the Beats are
+# reminders (detect -> ping) and share no planning path with the Desk. Hands, not brain
+# (ADR-0003): these never judge; the Desk (Claude + Davide) decides, then calls these at
+# the one approved gate.
 
 # read_pipeline — the Desk's three-tier read. Prints one JSON object:
 #   {week, ideas_unjudged, ideas_accepted, pieces, published, board}
@@ -174,4 +148,15 @@ notify_ping() {
     echo "notify_ping: Telegram rejected the message: $(echo "$resp" | jq -r '.description // "unknown error"')" >&2
     return 1
   fi
+}
+
+# beat_ping — a Beat's `run` stage: execute the calling script's detect() and hand its output
+# to notify_ping (empty ⇒ silent). detect runs at top level (a plain redirection, NOT a `$()`
+# subshell), so under errexit a failing `gh` inside it aborts the run fail-loud — never a false
+# silent all-clear (a swallowed gh error looking like "nothing stale") nor a false ping.
+beat_ping() {
+  local out; out=$(mktemp)
+  detect >"$out"
+  notify_ping "$(cat "$out")"
+  rm -f "$out"
 }

@@ -1,78 +1,34 @@
 #!/usr/bin/env bash
-# Thursday cadence guard Beat — separated runner (ADR-0003). Guards the week's LinkedIn slot:
-#   GATHER (gh) -> DECIDE (Gemini) -> APPLY (at most one Telegram ping, or nothing).
-# It never changes labels or the board (Monday plans; Thursday only guards). Judgement lives in
-# docs/agents/thursday-beat.md. Stages: thursday.sh {gather|decide <s>|apply <d>|run}.
+# Thursday cadence guard — deterministic staleness reminder (ADR-0013): detect -> ping.
+# Signal (observable, no state file): is this week's LinkedIn slot covered? Covered = a `linkedin`
+# Piece published this week, OR one `slotted`/`in-production` dated today..Sunday. Not covered ->
+# a FIXED nudge to run /desk or ship one; covered -> silent. It never names a specific proposal
+# (the Desk picks live) and never writes labels or the board. Stages: thursday.sh {detect|run}.
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
-BEAT_DOC="docs/agents/thursday-beat.md"
 
-gather() {
+# detect — prints the reminder text when the LinkedIn slot is open, nothing (silent) when covered.
+detect() {
   reporoot
-  local MON SUN TODAY pub_li board_li candidates ideas
+  local MON SUN TODAY pub sched
   read -r MON SUN TODAY <<<"$(week_bounds)"
-  pub_li=$(gh issue list --repo "$REPO" --state all --search "label:linkedin label:published" \
-            --json number,title,closedAt --jq '[.[] | {number, title, closedAt}]')
-  board_li=$(gh project item-list "$PROJECT" --owner "$OWNER" --query "label:linkedin" --format json -L 200 \
-            --jq '[.items[] | {number: .content.number, title: .content.title, date:(.date[0:10]), stage}]')
-  candidates=$(gh issue list --repo "$REPO" --state open --search "label:linkedin" \
-            --json number,title,labels --jq '[.[] | {number, title, labels:[.labels[].name]}]')
-  ideas=$(gh issue list --repo "$REPO" --state open --label idea \
-            --json number,title --jq '[.[] | {number, title}]')
-  jq -n --arg mon "$MON" --arg sun "$SUN" --arg today "$TODAY" \
-        --argjson published_linkedin "$pub_li" --argjson board_linkedin "$board_li" \
-        --argjson linkedin_candidates "$candidates" --argjson ideas "$ideas" \
-    '{week:{monday:$mon, sunday:$sun, today:$today},
-      published_linkedin:$published_linkedin, board_linkedin:$board_linkedin,
-      linkedin_candidates:$linkedin_candidates, ideas:$ideas}'
-}
-
-decision_schema() {
-  cat <<'JSON'
-{"type":"object","properties":{
-  "on_track":{"type":"boolean"},
-  "ping":{"type":"string"}},
-  "required":["on_track","ping"]}
-JSON
-}
-
-decide() {   # $1 = state json file
-  reporoot
-  local state prompt; state=$(cat "${1:--}")
-  prompt=$(cat <<EOF
-$(cat "$BEAT_DOC")
-
----
-You are executing the Thursday cadence guard above, but you do NOT run any tools. Given the current
-state JSON, return ONLY a decision object (matching the schema): decide whether this week's LinkedIn
-slot is covered (published this week, or a linkedin piece slotted/in-production dated today..Sunday —
-a slotted date already passed without publishing counts as NOT covered). If ON TRACK set on_track=true
-and ping="" (silence is the all-clear). If AT RISK set on_track=false and write ONE rescue ping naming
-the single most-ready linkedin proposal + the single next action + its link
-(https://github.com/$REPO/issues/<n>). Reference only issue numbers present in the state. Never draft
-content. Today is the state's week.today.
-
-CURRENT STATE:
-$state
-EOF
-)
-  gemini_decide "$prompt" "$(decision_schema)"
-}
-
-apply() {   # $1 = decisions json file — Thursday only ever sends (or withholds) one ping
-  reporoot
-  local d ping; d=$(cat "${1:--}")
-  if [ "$(echo "$d" | jq -r '.on_track')" = "true" ]; then
-    echo "on track — no ping"; return 0
+  # published this week? (a linkedin Piece closed within Mon..Sun)
+  pub=$(gh issue list --repo "$REPO" --state all --search "label:linkedin label:published" \
+          --json closedAt \
+          --jq "[.[] | select(.closedAt != null and (.closedAt[0:10]) >= \"$MON\" and (.closedAt[0:10]) <= \"$SUN\")] | length")
+  # credibly scheduled for the rest of the week? (a linkedin board item, slotted/in-production, dated today..Sunday)
+  sched=$(gh project item-list "$PROJECT" --owner "$OWNER" --query "label:linkedin" --format json -L 200 \
+          | jq --arg from "$TODAY" --arg to "$SUN" \
+              '[.items[] | select(.date != null and (.date[0:10]) >= $from and (.date[0:10]) <= $to
+                 and ((.stage == "slotted") or (.stage == "in-production")))] | length')
+  if [ "${pub:-0}" -gt 0 ] || [ "${sched:-0}" -gt 0 ]; then
+    return 0   # covered — silence is the all-clear
   fi
-  ping=$(echo "$d" | jq -r '.ping // empty')
-  notify_ping "$ping"
+  printf '%s\n' "📣 This week's LinkedIn slot is open → run /desk or ship one.
+Board: https://github.com/users/$OWNER/projects/$PROJECT"
 }
 
 case "${1:-run}" in
-  gather) gather ;;
-  decide) decide "${2:--}" ;;
-  apply)  apply  "${2:--}" ;;
-  run)    tmp_s=$(mktemp) tmp_d=$(mktemp)
-          gather >"$tmp_s"; decide "$tmp_s" >"$tmp_d"; apply "$tmp_d"; rm -f "$tmp_s" "$tmp_d" ;;
-  *) echo "usage: thursday.sh {gather|decide <state>|apply <decisions>|run}" >&2; exit 2 ;;
+  detect) detect ;;
+  run)    beat_ping ;;
+  *) echo "usage: thursday.sh {detect|run}" >&2; exit 2 ;;
 esac

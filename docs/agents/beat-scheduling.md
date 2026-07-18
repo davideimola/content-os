@@ -1,26 +1,38 @@
-# Beat scheduling: GitHub Actions, separated runner, free model
+# Beat scheduling: GitHub Actions, detect → ping
 
 The three [Beats](../../CONTEXT.md) run on **GitHub Actions cron**, not native Claude routines: the
 routines' cloud env proxies GitHub access to a pinned PR-review set and **cannot reach Projects v2**
-(the [Calendar board](calendar.md)), which every Beat needs. An Actions runner has full GitHub +
+(the [Calendar board](calendar.md)), which the Beats read. An Actions runner has full GitHub +
 internet egress. See [ADR-0010](../adr/0010-beats-run-as-github-actions-not-claude-routines.md) and
 [the zero-cost research](../research/zero-cost-agentic-ci.md).
 
-## Separated architecture (ADR-0003 hands/brain)
+## detect → ping (ADR-0013)
 
-Each Beat is `scripts/beats/<beat>.sh` with three stages — the model is a **pure function**
-`state → decisions`; every side effect is deterministic:
+Each Beat is `scripts/beats/<beat>.sh` — a **deterministic staleness reminder**, no model:
 
 ```
-GATHER  (deterministic gh)                    → state JSON
-DECIDE  (one Gemini REST call, JSON mode)     → decisions JSON   ← the only AI step, NON-agentic
-APPLY   (deterministic gh + a Telegram curl)  → labels, board slots, one Telegram ping
+DETECT  (deterministic gh + repo checks)   → the reminder text, or nothing (fresh → silence)
+PING    (a Telegram curl via notify_ping)  → one message, or silence
 ```
 
-The editorial **judgement** (signals, recycle/dry-week, cadence) lives in `docs/agents/<beat>-beat.md`;
-the runner feeds that doc to the model as the decision prompt and executes only the JSON it returns.
-No agent tool-loop — that fragility (trust dir, tool-approval) is why we left run-gemini-cli. Stages
-are separately runnable for debugging: `scripts/beats/monday.sh {gather|decide <state>|apply <dec>|run}`.
+`run` is just `DETECT` handed to `notify_ping` (the shared `beat_ping` helper) — an empty detect result
+is **silence**, a first-class outcome. `detect` runs under `errexit`, so a failing `gh` (auth, quota,
+network) **aborts the run non-zero** rather than emitting empty: a swallowed error never masquerades as
+a fresh all-clear (nor as a false nudge). No editorial judgement runs here (that left the Beats with Gemini, ADR-0013): the Beat detects
+staleness from **observable facts** — `gh` + the repo, with **no maintained state file** — and nudges
+Davide to open the interactive session that does the work: the [Desk](../../CONTEXT.md) (`/desk`) or the
+[Review](../../CONTEXT.md) (`/review`). The two stages are separately runnable for debugging:
+`scripts/beats/monday.sh {detect|run}` — `detect` shows the staleness call without sending.
+
+The staleness signal per Beat (each beat doc has the detail):
+
+- **Monday** ([monday-beat.md](monday-beat.md)) → open **unjudged Ideas** waiting → "time to plan: run
+  `/desk`"; none → silent.
+- **Thursday** ([thursday-beat.md](thursday-beat.md)) → this week's **LinkedIn slot open** (not published
+  this week, not `slotted`/`in-production` today→Sunday) → "run `/desk` or ship one"; covered → silent.
+- **Monthly** ([monthly-beat.md](monthly-beat.md), which is [`/review`](../../.claude/skills/review/SKILL.md)'s
+  procedure) → last month's `metrics/<YYYY-MM>/` **missing** → "import metrics + run `/review`"; present
+  → silent.
 
 ## The workflow
 
@@ -33,37 +45,36 @@ are separately runnable for debugging: `scripts/beats/monday.sh {gather|decide <
   are active (`0 6 * * 1`, `0 6 * * 4`, `0 6 1 * *`; ≈ 08:00 Europe/Rome summer). Any can also be run
   on demand via `workflow_dispatch`.
 
-## Model: free Google Gemini
-
-Default **`gemini-flash-lite-latest`** via the Gemini REST API on a free Google AI Studio key.
-
-- **Free-tier quota is small and per-model** — currently ~20 `generateContent` requests/day *per model*
-  (observed 2026-07-17; `gemini-3.5-flash` = `gemini-flash-latest` hit that limit under test). A real
-  Beat makes **one** decide call, so ~9 runs/month sits far inside it; heavy *testing* exhausts a day's
-  quota, so switch `GEMINI_MODEL` to another model (separate bucket) when iterating.
-- `GEMINI_MODEL` overrides the model. Decide retries transient `503` with backoff; a `429` (usually the
-  daily quota) is retried once only, to avoid burning the small free quota.
-- **Quality risk (mitigated):** a Flash-Lite-class free model is weaker at nuanced editorial calls, but
-  the Beat **proposes and Davide ratifies** — side effects are deterministic, the plan arrives as a
-  Telegram ping he can override, and publishing is always manual (user story 26). Because the prompts
-  are model-agnostic, swapping to a stronger model is a one-line `GEMINI_MODEL` change.
-- **Data term:** Google may train on / review free-tier prompts (<https://ai.google.dev/gemini-api/terms>);
-  Beat context is public editorial ideas + issues, so low-risk.
-
 ## Secrets (repo → Settings → Secrets and variables → Actions)
 
 | Secret | What | Notes |
 | ------ | ---- | ----- |
-| `GEMINI_API_KEY` | free Google AI Studio key | aistudio.google.com → Get API key; **do not enable billing** on its project → free tier, cannot be charged |
 | `GH_PROJECT_PAT` | GitHub PAT (classic), scopes **`repo` + `project` + `read:org`** | `read:org` is required too — `gh project --owner <user>` needs it to resolve the owner (else "unknown owner type"). `gh` reads it via `GH_TOKEN`. |
 | `TELEGRAM_BOT_TOKEN` | BotFather token | read by the notify seam (`notify_ping`) |
 | `TELEGRAM_CHAT_ID` | Davide's chat id | read by the notify seam (`notify_ping`) |
+
+No model key: the Beats call no model (ADR-0013), so there is nothing like a `GEMINI_API_KEY` to keep.
 
 ## Testing / operating
 
 - **Manual run:** Actions → *Content OS Beats* → *Run workflow* → pick the beat; or
   `gh workflow run beats.yml -f beat=monday`.
+- **Dry-run the decision (no ping):** `bash scripts/beats/<beat>.sh detect` prints the reminder text, or
+  nothing when the Beat is fresh — the staleness call seen without sending. `run` adds the ping.
 - **Read a run:** `gh run list --workflow beats.yml` → `gh run view <id> --log`. The prereq step and the
-  Beat's own `echo`s (promote/slot/notify) make a run legible; the deterministic APPLY means outcomes
-  are asserted on the tracker (`gh issue view`, `gh project item-list`), not inferred from an agent.
+  Beat's `detect` output make a run legible; the deterministic reminder means the ping (or its silence)
+  is the whole outcome — no agent to infer from.
 - The native routines created earlier are left **disabled** on claude.ai/code and can be deleted there.
+
+## Verification (tracker + notify seams, dry-run)
+
+No unit tests — a Beat is a deterministic reminder, driven and observed at the two seams (the spec's
+Testing Decisions). Each Beat is verified on **both branches** against a fake Telegram server
+(`TELEGRAM_API_BASE`, no live Bot API): the ping is **delivered** when stale, **withheld** (silent) when
+fresh. Monday and Thursday keep their recorded runs in [monday-beat.md](monday-beat.md#verification-tracker--notify-seams-dry-run)
+and [thursday-beat.md](thursday-beat.md#verification-tracker--notify-seams-dry-run).
+
+**Monthly** — verified **2026-07-18**: with last month's `metrics/2026-06/` absent, `monthly.sh detect`
+emitted the "import metrics + run `/review`" reminder and `run` **delivered** it (exit 0); after creating
+`metrics/2026-06/`, `detect` returned empty and `run` sent **nothing** (silent, exit 0). The throwaway
+dir was removed, leaving the repo's `metrics/` untouched.
