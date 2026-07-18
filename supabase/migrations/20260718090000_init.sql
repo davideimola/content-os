@@ -2,14 +2,13 @@
 -- Tiers: Idea -> {Piece, Talk} (many-to-many); Talk -> Engagement -> Event.
 -- Ideas are a live pool judged at the output; proposals are always persisted.
 
--- ── extensions ───────────────────────────────────────────────────────────────
-create extension if not exists pgcrypto;   -- gen_random_bytes for ids
-
 -- ── helpers ──────────────────────────────────────────────────────────────────
 -- Stripe-style prefixed ids: '<prefix>_<24 hex>'. Legible by type, non-enumerable.
+-- gen_random_uuid() is Postgres core (pg_catalog) — no pgcrypto / search_path issues
+-- (on Supabase pgcrypto lives in the `extensions` schema, off the migration path).
 create or replace function gen_prefixed_id(prefix text)
 returns text language sql volatile as $$
-  select prefix || '_' || encode(gen_random_bytes(12), 'hex');
+  select prefix || '_' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 24);
 $$;
 
 create or replace function set_updated_at()
