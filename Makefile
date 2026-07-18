@@ -16,10 +16,11 @@ PREFIX  ?= $(HOME)/.local
 # (ADR-0008). Override, e.g. `make install-skills SKILLS_DIR=/path/to/skills`.
 SKILLS_DIR ?= $(HOME)/.claude/skills
 
-# The skills that install user-level (personal, global reach). Project-scoped skills
-# like `desk` (ADR-0007) stay in-repo and are NOT listed here. Add a name to make a
-# skill global; the source of each is .claude/skills/<name>/SKILL.md.
-GLOBAL_SKILLS ?= idea
+# The skills that install user-level (personal, global reach) so a reminder's nudge can
+# reach them: `idea` (capture from any repo) and `review` (the Monthly reminder points at
+# it). `desk` (ADR-0007) stays in-repo and is NOT listed. Add a name to make a skill
+# global; the source of each is .claude/skills/<name>/SKILL.md.
+GLOBAL_SKILLS ?= idea review
 
 # Arguments for `make run`, e.g. `make run ARGS="notify 'hi'"`.
 ARGS ?=
