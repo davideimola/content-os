@@ -48,6 +48,36 @@ Both authenticate with the shared `CAPTURE_TOKEN`; exact endpoints, headers, and
   enforced, the accepted trade-off of "one MCP, one token, no gates" (ADR-0015). If you ever want capture
   *enforced* insert-only over MCP too, that needs a separate insert-only endpoint.
 
+## Phone door without a connector — an iOS Shortcut (no paid AI tier)
+
+Consumer apps often gate a **custom MCP/connector behind a paid tier** (Perplexity's connectors, Claude's
+custom connectors = Team, ChatGPT Actions/GPTs = Plus). When that blocks you, the phone door is a native
+**iOS Shortcut** that POSTs to the **insert-only** REST `capture-idea` endpoint — no subscription, no
+connector, Siri- or tap-triggered. Apple Intelligence supplies the title (optional and free on a recent
+iPhone); the transport is just an HTTP request.
+
+Build it once (Shortcuts app → new shortcut):
+
+1. **Dictate Text** (or *Ask for Input* — "What's the idea?"). → the spark.
+2. *(optional, needs Apple Intelligence)* **Use Model** / ChatGPT action, prompt: *"Summarize as a short
+   one-line title — the idea's thesis or subject, same language, under 70 chars, no quotes:"* + the
+   Dictated Text. → the title.
+3. **Get Contents of URL**:
+   - **URL:** `https://<project-ref>.supabase.co/functions/v1/capture-idea`
+   - **Method:** POST
+   - **Headers:** `content-type` = `application/json` · `x-capture-token` = `<CAPTURE_TOKEN>`
+   - **Request Body:** JSON → `spark` = *Dictated Text*, `title` = the model's title (omit this key if you
+     skip step 2), `source` = `ios-shortcut`
+4. *(optional)* **Get Dictionary Value** `id` from the response → **Show Notification** with it.
+
+Name it "Capture idea", add it to the Home Screen and/or "Hey Siri, capture idea". The `CAPTURE_TOKEN`
+lives in the Shortcut on your device — the insert-only token, low stakes. Exact project-ref, endpoint, and
+token are in the [runbook](../supabase-setup.md#5-capture-doors).
+
+There is **no auto-import file**: iOS shares shortcuts via iCloud links made in the app, and hand-crafted
+`.shortcut` files don't import reliably — build it once from the steps above. On Android, any HTTP-request
+automation (Tasker, an HTTP-shortcut app) POSTing the same request is the equivalent.
+
 ## What an app needs to be the door
 
 1. **A reach to a capture endpoint** — an MCP connector to `content-os-capture`, or a Custom Action /
