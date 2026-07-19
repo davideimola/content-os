@@ -105,6 +105,8 @@ needs it); the write verbs land with the writes slice (Fase 4).
 | `slot_piece(id, on_date)` / `deslot_piece(id)` | Slot/de-slot on the Calendar. |
 | `create_engagement(talk_id, event_id, kind, deadline?, cfp_link?)` | Insert an engagement. |
 | `set_engagement_outcome(id, outcome, conference-date via event)` | Advance the outcome. |
+| `set_piece_artifact(piece_id, url)` | Write the Factory draft pointer into `pieces.artifact_url`. Called by the Factory skills. |
+| `ingest_linkedin_metrics(csv_text)` | Deterministic parse of a LinkedIn per-post export + insert into `metrics_linkedin_posts`. Replaces the retired `contentos metrics-ingest` (ADR-0015). |
 
 Advancing a Piece to `in_production`/`published` or a Talk to `ready` is a plain state update.
 
@@ -119,13 +121,18 @@ Advancing a Piece to `in_production`/`published` or a Talk to `ready` is a plain
 
 ## Capture surface & RLS
 
-- **`capture_idea` Edge Function** — the insert-only phone door. The `anon` key can *only* `execute`
-  `capture_idea` (a `security definer` function) — no table access — so a leaked token inserts an Idea
-  and nothing more. Exposed as a REST endpoint (ChatGPT Custom GPT Action) and/or MCP tool.
-- **Official Supabase MCP** — the trusted/local door (Claude Code, admin, `desk`); broad access, never
-  handed to a third-party cloud.
+- **`capture-idea` REST Edge Function** — the insert-only door for REST clients (ChatGPT Custom GPT
+  Action, curl). The `anon` key can *only* `execute` `capture_idea` (a `security definer` function) — no
+  table access — so a leaked token inserts an Idea and nothing more.
+- **`content-os` MCP Edge Function** (grows from `capture-mcp`) — the **operations adapter** for AI apps
+  (Claude, Perplexity, mobile) and the skills (ADR-0015). A thin wrapper that exposes **all** RPC verbs as
+  tools over Streamable HTTP, authenticated by a single shared token, with no logic of its own —
+  least-privilege *by construction* (only the verbs, nothing else), which is why it replaces ADR-0014's
+  "official Supabase MCP" plan. `capture_idea` is just one of its tools.
+- **Front end** (later) reads/writes via **direct** PostgREST / `supabase-js` over the same RPCs — not
+  through the MCP or the skills.
 - RLS is enabled on every base table (deny-by-default for `anon`/`authenticated`); `service_role`
-  (CLI/skills) bypasses it. Fuller policies are a later slice.
+  bypasses it. Fuller policies are a later slice.
 
 ## Migration mapping (old GitHub issue → new row)
 

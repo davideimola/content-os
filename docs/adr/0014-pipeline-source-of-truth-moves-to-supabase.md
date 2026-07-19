@@ -5,6 +5,11 @@ supersedes: [ADR-0001, ADR-0002, ADR-0005, ADR-0008]
 
 # The Pipeline's source of truth moves from GitHub to Supabase; API-first; Ideas become a live pool judged at the output
 
+> **Amended by [ADR-0015](0015-operations-surface-is-an-mcp-adapter-over-the-rpc-contract.md):** the
+> trusted operations door in decision 6 is **not** the official Supabase MCP but our own least-privilege
+> MCP adapter over the RPC verbs; `contentos` does not stay a hands-only client (decision 7) — it retires,
+> its jobs moving to MCP tools. The rest of this ADR stands.
+
 The Pipeline lived as GitHub Issues + a Projects board on `davideimola/content-os` (ADR-0001). That
 substrate turned out to be **structurally constraining**, not just awkward: the board `Stage` field
 duplicates the state label; the CFP body is a markdown template hand-mirrored from `cfp.yml` and has

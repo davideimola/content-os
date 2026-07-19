@@ -1,5 +1,10 @@
 # The `contentos` CLI narrows to a local operations surface; `notify` returns to the Beats as bash
 
+> **Superseded by [ADR-0015](0015-operations-surface-is-an-mcp-adapter-over-the-rpc-contract.md):** the
+> CLI no longer narrows — it **retires entirely**. `open` becomes a bookmark / the front-end URL, and
+> `metrics-ingest` becomes the `ingest_linkedin_metrics` MCP tool (deterministic parse server-side). The
+> operations surface is now the content-os MCP adapter over the RPC contract.
+
 ADR-0003 built `contentos` as a "single, shared, deterministic operations surface" reused across repos — the Factories (`davideimola.dev`, `presentations`) were meant to run the same operations against the Pipeline through it. Grilling the CLI against reality found that cross-repo pillar never materialized: the only Factory reference to it (`davideimola.dev`) points at `contentos idea create`, a subcommand removed by ADR-0008; `presentations` references it nowhere; and the operations the Factories actually need are GitHub reads/writes, which their skills do directly through `gh` — ADR-0004's own logic, since the GitHub-touching subcommands were never more than `gh` wrappers. We decided to **stop justifying the CLI by cross-repo sharing and narrow it to what it is: Davide's local, interactive operations surface** — `metrics-ingest` (the deterministic monthly normalizer) and `open` (the daily browser shortcut). Both run on Davide's machine, never in a Beat, and no longer touch GitHub at all. `notify` — whose only consumer is the Beats — **leaves the binary and returns to the Beats as inline `curl`** in `notify_ping()` (`scripts/beats/lib.sh`). "Hands, not brain" (ADR-0003) stands; only the scope narrows.
 
 ## Considered Options
