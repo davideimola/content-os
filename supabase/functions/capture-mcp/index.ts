@@ -25,6 +25,7 @@
 // JSON-RPC 2.0 handler is more reliable and easier to debug.
 
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import { parse as parseCsv } from "jsr:@std/csv/parse";
 
 // ── server identity ──────────────────────────────────────────────────────────
 const SERVER_NAME = "content-os";
@@ -191,6 +192,54 @@ const TOOLS = [
         url: { type: "string", description: "The Factory draft URL." },
       },
       required: ["id", "url"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "ingest_linkedin_metrics",
+    description:
+      "Ingest a LinkedIn per-post export CSV for a month (replaces that month's posts). The CSV needs columns date, post_url, impressions, reactions, comments, reshares (any order; extras ignored).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        month: { type: "string", description: "Snapshot month as YYYY-MM." },
+        csv_text: { type: "string", description: "The raw LinkedIn per-post export CSV text." },
+      },
+      required: ["month", "csv_text"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "record_site_metrics",
+    description: "Record a month's site numbers (upsert). At least one of visitors / page_views.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        month: { type: "string", description: "Snapshot month as YYYY-MM." },
+        visitors: { type: "integer", description: "Unique visitors for the month." },
+        page_views: { type: "integer", description: "Page views for the month." },
+      },
+      required: ["month"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "flag_mix",
+    description: "Flag vs Side counts over Pieces + Talks (the ~70% Flag target).",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "cadence_status",
+    description: "Cadence floor coverage: this week's LinkedIn slot and this month's blog (Pieces).",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "get_metrics",
+    description: "A month's ingested LinkedIn per-post metrics plus its site numbers.",
+    inputSchema: {
+      type: "object",
+      properties: { month: { type: "string", description: "Month as YYYY-MM." } },
+      required: ["month"],
       additionalProperties: false,
     },
   },
@@ -419,6 +468,152 @@ async function setPieceArtifact(args: Record<string, unknown> | undefined) {
   return toolOk(`Set artifact on piece ${row?.id}`, { piece: row });
 }
 
+// ── metrics: deterministic LinkedIn CSV parse (ported from internal/metrics) ──
+const LINKEDIN_COLUMNS = ["date", "post_url", "impressions", "reactions", "comments", "reshares"];
+
+// "YYYY-MM" -> "YYYY-MM-01" (a real month first-day), or null if malformed.
+function monthToFirstDay(m: unknown): string | null {
+  if (typeof m !== "string") return null;
+  const match = m.match(/^(\d{4})-(\d{2})$/);
+  if (!match) return null;
+  const mm = Number(match[2]);
+  if (mm < 1 || mm > 12) return null;
+  return `${m}-01`;
+}
+
+function isYmd(s: string): boolean {
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
+}
+
+function parseCount(s: string): number | null {
+  if (!/^-?\d+$/.test(s)) return null;
+  const n = Number(s);
+  return n < 0 ? null : n;
+}
+
+// Header-matched columns in any order (extras ignored); strict YYYY-MM-DD dates
+// and non-negative integer counts; maps the export's `reshares` to the DB
+// `shares`. Returns validated rows for ingest_linkedin_metrics, or a message.
+function parseLinkedInCsv(text: string): { rows: Record<string, unknown>[] } | { error: string } {
+  let records: string[][];
+  try {
+    records = parseCsv(text, { trimLeadingSpace: true }) as string[][];
+  } catch (e) {
+    return { error: `could not read the CSV: ${e instanceof Error ? e.message : String(e)}` };
+  }
+  if (records.length === 0) return { error: "the CSV is empty (no header row)" };
+
+  const idx: Record<string, number> = {};
+  const seen = new Set<string>();
+  records[0].forEach((name, i) => {
+    const key = name.trim().toLowerCase();
+    if (key === "") return;
+    if (seen.has(key)) return; // duplicate flagged below
+    seen.add(key);
+    idx[key] = i;
+  });
+  for (const name of records[0]) {
+    const key = name.trim().toLowerCase();
+    if (key !== "" && records[0].filter((n) => n.trim().toLowerCase() === key).length > 1) {
+      return { error: `duplicate column "${key}" in the header` };
+    }
+  }
+  for (const col of LINKEDIN_COLUMNS) {
+    if (!(col in idx)) {
+      return { error: `missing required column "${col}" (need: ${LINKEDIN_COLUMNS.join(", ")})` };
+    }
+  }
+
+  const rows: Record<string, unknown>[] = [];
+  for (let i = 1; i < records.length; i++) {
+    const rec = records[i];
+    const line = i + 1;
+    const field = (col: string) => (rec[idx[col]] ?? "").trim();
+
+    const date = field("date");
+    if (!isYmd(date)) return { error: `row ${line}: date "${date}" is not a valid YYYY-MM-DD date` };
+    const url = field("post_url");
+    if (url === "") return { error: `row ${line}: post_url is empty` };
+
+    const counts: Record<string, number> = {};
+    for (const col of ["impressions", "reactions", "comments", "reshares"]) {
+      const n = parseCount(field(col));
+      if (n === null) return { error: `row ${line}: ${col} "${field(col)}" is not a non-negative integer` };
+      counts[col] = n;
+    }
+    rows.push({
+      posted_on: date,
+      post_url: url,
+      impressions: counts.impressions,
+      reactions: counts.reactions,
+      comments: counts.comments,
+      shares: counts.reshares, // export `reshares` -> DB `shares`
+    });
+  }
+  return { rows };
+}
+
+async function ingestLinkedinMetrics(args: Record<string, unknown> | undefined) {
+  const month = monthToFirstDay(args?.month);
+  if (!month) return toolError("month is required as YYYY-MM");
+  if (!nonEmptyString(args?.csv_text)) return toolError("csv_text is required");
+  const parsed = parseLinkedInCsv(args!.csv_text as string);
+  if ("error" in parsed) return toolError(parsed.error);
+  const { data, error } = await db().rpc("ingest_linkedin_metrics", { p_month: month, p_rows: parsed.rows });
+  if (error) return toolError(`ingest_linkedin_metrics failed: ${error.message}`);
+  const inserted = typeof data === "number" ? data : firstRow(data);
+  return toolOk(`Ingested ${inserted} LinkedIn post(s) for ${args!.month}`, { month, inserted });
+}
+
+async function recordSiteMetrics(args: Record<string, unknown> | undefined) {
+  const month = monthToFirstDay(args?.month);
+  if (!month) return toolError("month is required as YYYY-MM");
+  const visitors = Number.isInteger(args?.visitors) ? (args!.visitors as number) : null;
+  const pageViews = Number.isInteger(args?.page_views) ? (args!.page_views as number) : null;
+  if (visitors === null && pageViews === null) {
+    return toolError("at least one of visitors / page_views is required");
+  }
+  const { data, error } = await db().rpc("record_site_metrics", {
+    p_month: month,
+    p_visitors: visitors,
+    p_page_views: pageViews,
+  });
+  if (error) return toolError(`record_site_metrics failed: ${error.message}`);
+  return toolOk(`Recorded site metrics for ${args!.month}`, { site: firstRow(data) });
+}
+
+async function flagMix() {
+  const { data, error } = await db().from("flag_mix").select("*").single();
+  if (error) return toolError(`flag_mix failed: ${error.message}`);
+  return toolOk(JSON.stringify(data), { flag_mix: data });
+}
+
+async function cadenceStatus() {
+  const { data, error } = await db().from("cadence_status").select("*").single();
+  if (error) return toolError(`cadence_status failed: ${error.message}`);
+  return toolOk(JSON.stringify(data), { cadence_status: data });
+}
+
+async function getMetrics(args: Record<string, unknown> | undefined) {
+  const month = monthToFirstDay(args?.month);
+  if (!month) return toolError("month is required as YYYY-MM");
+  const client = db();
+  const [posts, site] = await Promise.all([
+    client.from("metrics_linkedin_posts")
+      .select("posted_on,post_url,impressions,reactions,comments,shares,clicks,piece_id")
+      .eq("month", month).order("posted_on", { ascending: true }),
+    client.from("metrics_site").select("month,visitors,page_views").eq("month", month).maybeSingle(),
+  ]);
+  if (posts.error) return toolError(`get_metrics failed: ${posts.error.message}`);
+  if (site.error) return toolError(`get_metrics failed: ${site.error.message}`);
+  const payload = { linkedin: posts.data ?? [], site: site.data };
+  return toolOk(JSON.stringify(payload), payload);
+}
+
 // Route a tools/call to its handler. Unknown tool is a tool error, not a
 // protocol error, so the caller's model still gets a readable message.
 function callTool(name: unknown, args: Record<string, unknown> | undefined) {
@@ -436,6 +631,11 @@ function callTool(name: unknown, args: Record<string, unknown> | undefined) {
     case "archive_idea": return archiveIdea(args);
     case "block_piece": return blockPiece(args);
     case "set_piece_artifact": return setPieceArtifact(args);
+    case "ingest_linkedin_metrics": return ingestLinkedinMetrics(args);
+    case "record_site_metrics": return recordSiteMetrics(args);
+    case "flag_mix": return flagMix();
+    case "cadence_status": return cadenceStatus();
+    case "get_metrics": return getMetrics(args);
     default: return Promise.resolve(toolError(`unknown tool: ${String(name)}`));
   }
 }

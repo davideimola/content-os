@@ -50,6 +50,13 @@ The MCP surface implemented: `initialize`, `notifications/initialized`, `ping`,
 
 - **`capture_idea`** `(spark, title?, source?)` — file a raw Idea, spark verbatim.
 
+**Metrics** (the Review's ingest + reads):
+
+- **`ingest_linkedin_metrics`** `(month, csv_text)` — deterministic parse of a LinkedIn export CSV, replacing that month's posts (idempotent). Replaces the retired `contentos metrics-ingest`.
+- **`record_site_metrics`** `(month, visitors?, page_views?)` — upsert a month's site numbers.
+- **`get_metrics`** `(month)` — a month's LinkedIn per-post metrics + site numbers.
+- **`flag_mix`** / **`cadence_status`** — the editorial-mix and Cadence-floor views.
+
 A tool success returns a text content block plus `structuredContent` (the JSON
 payload is in the text too, so tools-only clients still see the data). A
 failure — bad input, a DB/RPC error, an unknown tool — comes back as a **tool
