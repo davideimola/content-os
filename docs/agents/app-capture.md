@@ -61,7 +61,8 @@ Build it once (Shortcuts app → new shortcut):
 1. **Dictate Text** (or *Ask for Input* — "What's the idea?"). → the spark.
 2. *(optional, needs Apple Intelligence)* **Use Model** / ChatGPT action, prompt: *"Summarize as a short
    one-line title — the idea's thesis or subject, same language, under 70 chars, no quotes:"* + the
-   Dictated Text. → the title.
+   Dictated Text. → the title. **Set the action's output type to Text** (not Automatic/Dictionary) —
+   otherwise the result won't serialize into the JSON `title` and it lands empty.
 3. **Get Contents of URL**:
    - **URL:** `https://<project-ref>.supabase.co/functions/v1/capture-idea`
    - **Method:** POST
