@@ -1,10 +1,11 @@
-name: Content OS — DB migrations
+name: Content OS — Supabase deploy
 
-# Applies pending Supabase migrations to the remote project whenever migration files
-# land on main (a merge, or a direct commit — Davide works on main). It runs the SAME
-# `supabase db push` as a local apply, so the migrations dir stays the single owner of
-# the schema (ADR-0014): local and CI both apply the same tracked files idempotently
-# (supabase_migrations.schema_migrations deduplicates — whoever runs first wins).
+# Applies pending migrations AND deploys the Edge Functions to the remote project
+# whenever supabase/** lands on main (a merge, or a direct commit — Davide works on
+# main). ONE ordered job: `db push` THEN `functions deploy`, so a function that calls
+# a new RPC (e.g. capture-mcp → spawn_piece) never ships ahead of the migration that
+# creates it. Both are idempotent — `db push` is a no-op with no new migrations, and a
+# re-deploy just replaces the function — so running both on any supabase/** change is safe.
 #
 # Deliberately NOT the Supabase GitHub integration: that bundles preview branches per PR,
 # which don't fit a commit-to-main, no-branches solo workflow, and would be a second path
@@ -20,17 +21,19 @@ on:
     branches: [main]
     paths:
       - "supabase/migrations/**"
-  workflow_dispatch: {}   # manual re-apply
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+  workflow_dispatch: {}   # manual re-apply / re-deploy
 
 permissions:
   contents: read
 
 concurrency:
-  group: contentos-migrations
+  group: contentos-supabase
   cancel-in-progress: false   # never interrupt a migration mid-apply
 
 jobs:
-  push:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,10 +42,12 @@ jobs:
         with:
           version: 2.109.1   # pinned to match mise.toml
 
-      - name: Link the project and push migrations
+      - name: Apply migrations, then deploy functions (in order)
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}"
           supabase db push
+          # verify_jwt is set per-function in config.toml, so no flag is needed here.
+          supabase functions deploy

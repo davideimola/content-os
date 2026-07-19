@@ -55,27 +55,28 @@ supabase migration new <name>     # scaffold a new migration
 supabase db push                  # apply pending migrations to the linked project
 ```
 
-**CI auto-applies on merge.** `.github/workflows/migrations.yml` runs `supabase db push` whenever a push
-to `main` touches `supabase/migrations/**`. It uses the same CLI path as a local push, so the migrations
-dir stays the single owner of the schema — local and CI apply the same tracked files idempotently.
-Trigger a manual run from *Actions → Content OS — DB migrations → Run workflow*.
+**CI auto-applies on merge.** `.github/workflows/supabase.yml` runs `supabase db push` **then**
+`supabase functions deploy` (in that order) whenever a push to `main` touches `supabase/**`. Migrations
+before functions, so a function that calls a new RPC never ships ahead of the migration that creates it.
+Both are idempotent, and it uses the same CLI path as a local run, so the tracked files stay the single
+owner of the schema + functions. Manual run: *Actions → Content OS — Supabase deploy → Run workflow*.
 
 ## 5. Capture doors
 
-Two Edge Functions expose the **same** insert-only door (`capture_idea` RPC, `anon` key only — the
-service key is never used), over two protocols. Both authenticate with the **same `CAPTURE_TOKEN`**, and
-both are declared `verify_jwt = false` in `config.toml` (custom auth replaces the JWT gate).
+Two Edge Functions, both authenticating with the **same `CAPTURE_TOKEN`** and both declared
+`verify_jwt = false` in `config.toml` (custom auth replaces the JWT gate) — but with **different powers**
+since ADR-0015:
 
-| Function | Protocol | For |
-| --- | --- | --- |
-| `capture-idea` | plain REST (POST JSON) | ChatGPT Custom GPT Action, curl, any HTTP client |
-| `capture-mcp` | MCP over Streamable HTTP | Perplexity + Claude custom connectors |
+| Function | Protocol | Powers | For |
+| --- | --- | --- | --- |
+| `capture-idea` | plain REST (POST JSON) | **insert-only**: `anon` key, only the `capture_idea` RPC — a leaked token inserts one Idea, nothing more | ChatGPT Custom GPT Action, curl, any HTTP client |
+| `capture-mcp` | MCP over Streamable HTTP | the **content-os operations adapter**: `service_role` (SELECT-only grants + the privileged verbs), reads + write verbs, `capture_idea` among them | the skills + Perplexity/Claude connectors |
 
-Deploy (config.toml carries `verify_jwt=false`, so no flag needed):
+Deploy — **CI does this on push** (`supabase.yml`, after migrations). To deploy by hand
+(config.toml carries `verify_jwt=false`, so no flag needed):
 
 ```sh
-supabase functions deploy capture-idea
-supabase functions deploy capture-mcp
+supabase functions deploy            # both functions; or pass one name
 ```
 
 Smoke tests (run in your own terminal; keep the token out of the transcript):
