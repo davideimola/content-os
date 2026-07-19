@@ -90,9 +90,12 @@ erDiagram
 
 ## RPC verbs (the API contract)
 
-Atomic multi-step writes are Postgres functions; the CLI/Desk/Factory skills call these. Thin single-row
-reads use PostgREST. **Only `capture_idea` ships in the first migration** (the capture-door tracer bullet
-needs it); the write verbs land with the writes slice (Fase 4).
+Atomic multi-step writes are Postgres functions; skills call them through the content-os MCP adapter, the
+front end calls them directly via PostgREST (ADR-0015). Reads are MCP **tools** over tables/views
+(`list_ideas`, `list_proposals`, `list_calendar`) for MCP-only clients, and direct PostgREST for the front
+end. `capture_idea` shipped in the init migration; the Piece/Talk write verbs (`spawn_piece`, `slot_piece`,
+`deslot_piece`, `decline_piece`, `spawn_talk`, `decline_talk`) shipped in the Fase-4 ops slice; the rest
+land as they're built.
 
 | Verb | Does |
 | --- | --- |
