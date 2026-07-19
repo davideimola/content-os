@@ -1,58 +1,60 @@
 ---
 name: desk
-description: Open the Desk — an interactive, on-demand editorial planning session over the three-tier Content OS Pipeline. Judge each new Idea accept (spawn one or more Pieces) or reject (close), decide whether a blog earns a LinkedIn amplifier (a social Piece blocked by the blog Piece), and slot / reslot / de-slot Pieces on the Calendar — everything applied in one approved batch. Use when Davide wants to plan the week by hand, ahead of or instead of the Monday reminder, or to work and adjust the Pipeline interactively.
+description: Open the Desk — an interactive, on-demand editorial planning session over the Content OS Pipeline. Correlate the live Idea pool into proposed Pieces/Talks, judge the current proposals (pursue → slot, or decline), archive duplicate/repudiated Ideas, decide whether a blog earns a LinkedIn amplifier (a social Piece blocked by the blog), and slot / reslot / de-slot on the Calendar — everything applied in one approved batch through the content-os MCP tools. Use when Davide wants to plan the week by hand, ahead of or instead of the Monday reminder.
 ---
 
 # The Desk
 
 The **Desk** is the interactive planning session where Davide works the [Pipeline](../../../CONTEXT.md)
 by hand, in the loop — the session the Monday [Beat](../../../CONTEXT.md) only *reminds* him to open
-(the Beats no longer plan; they detect staleness and nudge — ADR-0013). It judges by the shared
-editorial brain ([`docs/agents/editorial-signals.md`](../../../docs/agents/editorial-signals.md)) and
-drives the tracker through the deterministic **Desk hands** in
-[`scripts/beats/lib.sh`](../../../scripts/beats/lib.sh). See
-[ADR-0007](../../../docs/adr/0007-desk-interactive-planning-surface.md) and
-[ADR-0011](../../../docs/adr/0011-pipeline-three-tier-idea-pieces-cfps.md).
+(the Beats detect staleness and nudge — ADR-0013). It judges by the shared editorial brain
+([`docs/agents/editorial-signals.md`](../../../docs/agents/editorial-signals.md)) and drives the tracker
+through the **content-os MCP tools** — the operations adapter over the Supabase contract
+([ADR-0015](../../../docs/adr/0015-operations-surface-is-an-mcp-adapter-over-the-rpc-contract.md)), on
+the model from [ADR-0014](../../../docs/adr/0014-pipeline-source-of-truth-moves-to-supabase.md). See
+also [ADR-0007](../../../docs/adr/0007-desk-interactive-planning-surface.md).
 
 Nothing is written until Davide approves the whole plan in **one gate**. The Desk does **not** draft
-content ([ADR-0002](../../../docs/adr/0002-no-app-repo-plus-claude-routines.md)) — it judges and
-routes; the Factories write.
+content ([ADR-0002](../../../docs/adr/0002-no-app-repo-plus-claude-routines.md)) — it judges and routes;
+the Factories write.
 
-## The three tiers (what the Desk moves)
+## The model (what the Desk moves)
 
-The Pipeline is **Idea → Pieces → CFPs** ([pipeline-taxonomy.md](../../../docs/agents/pipeline-taxonomy.md)):
+Per ADR-0014, **Ideas are a live pool** — never accepted or rejected. Judgement happens on the
+**output**:
 
-- an **Idea** is judged **accept** (it spawns one or more Pieces and stays open as their umbrella) or
-  **reject** (closed with a reason); an Idea is never dated and never carries a Piece state;
-- a **Piece** is one channel output (`blog`/`linkedin`/`talk`) with its own lifecycle
-  `proposed → slotted → in-production → published`, a Flag/Side, and a date;
-- a Piece can **block** a sibling Piece (the amplifier blocked by the blog it sneak-peeks).
+- an **Idea** stays `live`; it is **archived** (reversible) only when a duplicate or repudiated;
+- a **Piece** is one channel output (`blog`/`linkedin`) with lifecycle
+  `proposed → slotted → in_production → published` (+ `declined`), a Flag/Side, and a date;
+- a **Talk** is a dateless output (`proposed → in_production → ready`, + `declined`), Flag/Side, no date;
+- a Piece can **block** a sibling Piece (the amplifier blocked by the blog it sneak-peeks);
+- **correlation** turns live Ideas into proposed Pieces/Talks (many Ideas → one output is fine).
 
-The Desk works Ideas and Pieces. It advances Pieces only up to `slotted` (see the scope guard); the CFP
-tier stays manual for now.
+The Desk correlates, judges proposals, archives, blocks, and slots/reslots/de-slots. It does **not**
+advance a Piece/Talk past `slotted`/`proposed`, and does **not** run the Engagement/CFP tier — those
+stay manual or a later slice (see the scope guard).
 
 ## Before you start
 
-- Run from a `content-os` checkout, with `gh` authenticated (`repo` + `project` scopes).
-- The Desk hands live in `scripts/beats/lib.sh` — you call them directly (the Beat runners are being
-  slimmed to reminders and no longer share a gather/apply path with the Desk).
+- Run from a `content-os` checkout, with the **`content-os-capture` MCP server** available (it is
+  configured user-level, so its tools — `list_ideas`, `list_proposals`, `list_calendar`, `spawn_piece`,
+  `slot_piece`, `deslot_piece`, `decline_piece`, `spawn_talk`, `decline_talk`, `archive_idea`,
+  `block_piece`, `set_piece_artifact` — are present).
 - **You are the brain.** The judgement is you (Claude) + Davide in conversation — never an autonomous
   model. Read the framework, apply it live.
+- **Reads are free; writes wait for the gate.** Call the `list_*` tools freely to explore. Call **no**
+  write tool until Davide says "go" — every write hits the live Pipeline immediately.
 
 ## The session
 
 ### 1 — Read the Pipeline
 
-```sh
-bash -c 'source scripts/beats/lib.sh; read_pipeline'
-```
+Call `list_ideas`, `list_proposals`, and `list_calendar`. Present them to Davide scannably:
 
-That prints the three-tier state as JSON. Present it to Davide scannably:
-
-- **Idea inbox** — `ideas_unjudged` (open Ideas with **no** Piece yet): the work to judge.
-- **Accepted umbrellas** — `ideas_accepted` (open Ideas with `.pieces` children): context, already judged.
-- **Pieces in flight** — `pieces` (`proposed`/`slotted`/`in-production`) with their labels.
-- **This week's board** — `board` items with dates and `stage`; and recent **published** for the overlap check.
+- **Idea pool** — `list_ideas` (the live pool): the raw material to correlate. Not an inbox to clear.
+- **Untriaged proposals** — `list_proposals` (Pieces/Talks in `proposed`): outputs awaiting a
+  pursue/decline. This is the staleness signal the Monday Beat watches.
+- **The Calendar** — `list_calendar` (scheduled Pieces with dates): the week ahead + recent context.
 
 Call the [Cadence](../../../CONTEXT.md) floor out loud — **counted over Pieces, never Ideas**: is there
 a `linkedin` Piece covering this week? a `blog` Piece this month?
@@ -64,20 +66,23 @@ signals + routing — that doc is the single definition; do not restate it here.
 
 ### 3 — Decide together
 
-Work each **unjudged Idea** with Davide — he brings context you don't have, you bring the state and the
-framework:
+Work the pool and the proposals with Davide — he brings context you don't have, you bring the state and
+the framework. Propose, discuss, converge — the Pipeline is still untouched; exploration is free.
 
-- **Accept** → decide the Piece(s) it spawns: for each, a **Flag/Side** and **one channel**. An Idea
-  with material for several channels spawns **one Piece per channel**.
+- **Correlate ripe Ideas → outputs.** For each Idea (or set) that has a thesis + voice match, decide the
+  Piece(s)/Talk it becomes: a **Flag/Side** and, for a Piece, **one channel**; carry the source Idea
+  id(s). Material for several channels → **one Piece per channel**.
   - **Amplifier decision:** does a `blog` Piece earn a `linkedin` amplifier? If yes, that amplifier is a
     **separate `linkedin` Piece, blocked by the blog Piece** (it sneak-peeks the blog, so it can't be
-    worked first) — deliberately not a duplicate of the blog.
-- **Reject** → close with a one-line why.
-
-Run the **overlap check** (against `published` + open `pieces`). Then **slot the week** on the
-Calendar, defending the Cadence floor (≥ 1 `linkedin` Piece this week, `blog` progress this month),
-steering toward ~70% Flag. Propose, discuss, converge — the Pipeline is still untouched; exploration is
-free.
+    worked first) — deliberately not a duplicate.
+- **Leave the rest in the pool.** Off-voice / stale / not-yet-ripe Ideas are **not** rejected — they stay
+  `live` for a later round.
+- **Archive** only a duplicate or repudiated Idea (with a reason; a duplicate points at its twin).
+- **Judge the current proposals:** pursue (→ slot this week) or **decline** (kept, so it isn't
+  re-proposed).
+- Run the **overlap check** (against recent `published` + the open proposals/calendar). Then **slot the
+  week**, defending the Cadence floor (≥ 1 `linkedin` Piece this week, `blog` progress this month) and
+  steering toward ~70% Flag.
 
 **Dry week:** if the floor can't be met from existing material, [recycle](../../../CONTEXT.md) on-voice
 material together (a parked Idea, or an amplifier angle off a published blog / upcoming talk). Never
@@ -85,64 +90,47 @@ generate a net-new topic ([ADR-0006](../../../docs/adr/0006-dry-pipeline-recycle
 
 ### 4 — Revisions (reslot / de-slot)
 
-As Davide directs, revise Pieces already on the board — **hold these until the gate too**:
+As Davide directs, revise Pieces already dated — **hold these until the gate too**:
 
-- **reslot** — keep it, move the date (stays `slotted`): `slot_issue <piece> <YYYY-MM-DD>`
-- **de-slot** — off the week, back to the pool (`proposed`): `deslot_issue <piece>`
+- **reslot** — keep it, move the date: `slot_piece(id, <YYYY-MM-DD>)`
+- **de-slot** — off the week, back to the pool (`proposed`): `deslot_piece(id)`
 
 ### 5 — One gate (apply)
 
-When the plan is agreed, present it as a plain-language batch for a single explicit **"go"** — list
-every accept (with the Piece(s) and their Flag/Side + channel), each amplifier block, each reject (with
-reason), and each slot/reslot/de-slot. **Nothing above has touched the Pipeline yet.**
+When the plan is agreed, present it as a plain-language batch for a single explicit **"go"** — list every
+proposal (output, Flag/Side, channel, source Idea(s)), each amplifier block, each decline, each archive
+(with reason), and each slot/reslot/de-slot. **Nothing above has touched the Pipeline yet.**
 
-On "go", run the Desk hands in order. Accept spawns Pieces and prints each new Piece number — capture it
-to block or slot that Piece:
+On "go", call the tools in order. `spawn_piece`/`spawn_talk` return the new id — capture it to block or
+slot that output:
 
-```sh
-source scripts/beats/lib.sh
-
-# accept idea #12 into a blog Piece + a LinkedIn amplifier blocked by it
-blog=$(accept_idea 12 flag blog "Blog: <thesis>")
-amp=$(accept_idea 12 flag linkedin "LinkedIn: sneak-peek of <thesis>")
-block_piece "$amp" "$blog"          # amplifier blocked_by the blog Piece
-
-# reject idea #13
-reject_idea 13 "Off-voice — not related to the Positioning."
-
-# slot the blog Piece this week (reslot is the same call with a new date)
-slot_issue "$blog" 2026-07-17
-
-# de-slot a Piece back to the pool
-deslot_issue 40
-```
-
-Each hand is label-first on the issue (the source of truth), then mirrored onto board #2
-([calendar.md](../../../docs/agents/calendar.md)). The Idea stays **open** after accept — it is the
-umbrella over its Pieces.
+- `spawn_piece(channel, flag_side, title, idea_ids)` → the blog Piece; then
+  `spawn_piece("linkedin", flag_side, title, idea_ids)` → the amplifier; then
+  `block_piece(id=<amp>, blocked_by=<blog>)`.
+- `spawn_talk(flag_side, title, idea_ids)` for a talk arc.
+- `slot_piece(id, YYYY-MM-DD)` to schedule (same call reslots); `deslot_piece(id)` to pull it back.
+- `decline_piece(id)` / `decline_talk(id)` for a proposal you won't pursue.
+- `archive_idea(id, reason, duplicate_of?)` for a duplicate/repudiated Idea.
 
 ### 6 — Ping (opt-in only)
 
-Off by default — Davide is in the room. Only if he asks "send it to me":
-
-```sh
-source scripts/beats/lib.sh
-notify_ping "<one-line plan summary + issue/board links>"
-```
+Off by default — Davide is in the room. Only if he asks "send it to me", use the notify seam
+(`notify_ping` in `scripts/beats/lib.sh`) with a one-line plan summary.
 
 ## Guardrails
 
 - **One brain** — the judgement lives in `editorial-signals.md`; read it, never copy the framework here.
-- **One gate** — the Pipeline is untouched until Davide says "go".
+- **One gate** — no write tool is called until Davide says "go".
 - **Never drafts content** — judge and route only.
-- **Scope guard** — the Desk accepts/rejects Ideas, spawns Pieces, blocks siblings, and slots/reslots/
-  de-slots. It does **not** advance Pieces to `in-production`/`published`, and does **not** run the CFP
-  lifecycle — those stay manual (`gh`) or a future slice.
+- **Scope guard** — the Desk correlates Ideas into proposals, judges proposals (pursue/decline),
+  archives Ideas, blocks siblings, and slots/reslots/de-slots. It does **not** advance Pieces/Talks to
+  `in_production`/`published`/`ready`, and does **not** run the Engagement/CFP lifecycle — those stay
+  manual or a later slice.
 
 ## Verify
 
-No unit tests — a prompt is driven, not tested. Verify at the tracker seam: seed a couple of `idea`
-issues + one `slotted` Piece, run a session, and assert **accept** spawns Piece(s) as native sub-issues
-(each `proposed` + Flag/Side + one channel, the Idea still open), **reject** closes the Idea, a
-blog→social **block** edge is visible, and slot/reslot/de-slot land on the issues and board #2 — all
-only after the single "go", nothing before it. Then clean up the seed.
+No unit tests — a prompt is driven, not tested. Verify at the ops seam (against a local Supabase): seed a
+few live Ideas + a `proposed` Piece, run a session, and assert **correlate** spawns Pieces/Talks
+(`proposed` + Flag/Side + channel, source Ideas linked), a blog→social **block** edge is set, **decline**
+marks a proposal `declined`, **archive** moves an Idea to `archived`, and slot/reslot/de-slot land on the
+Calendar — all only after the single "go", nothing before it. Then clean up the seed.
