@@ -42,6 +42,9 @@ The MCP surface implemented: `initialize`, `notifications/initialized`, `ping`,
 - **`decline_piece`** `(id)` — `declined`, kept on the record.
 - **`spawn_talk`** `(flag_side, title, idea_ids?)` — a `proposed` Talk + source-Idea links.
 - **`decline_talk`** `(id)` — `declined`, kept on the record.
+- **`archive_idea`** `(id, reason, duplicate_of?)` — archive an Idea (reversible; out of the live pool).
+- **`block_piece`** `(id, blocked_by)` — record that a Piece is blocked by another (blog → LinkedIn amplifier).
+- **`set_piece_artifact`** `(id, url)` — point a Piece at its Factory draft (`pieces.artifact_url`).
 
 **Capture** (the original door, still here):
 

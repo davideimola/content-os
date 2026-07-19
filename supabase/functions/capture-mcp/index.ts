@@ -152,6 +152,48 @@ const TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "archive_idea",
+    description:
+      "Archive an Idea (reversible) — a duplicate or a repudiated spark. Removes it from the live pool; never deletes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "The Idea id." },
+        reason: { type: "string", description: "Why it is archived (duplicate / repudiated)." },
+        duplicate_of: { type: "string", description: "Optional id of the Idea this one duplicates." },
+      },
+      required: ["id", "reason"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "block_piece",
+    description:
+      "Record that one Piece is blocked by another (e.g. a LinkedIn amplifier blocked by the blog it sneak-peeks).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "The blocked Piece (e.g. the LinkedIn amplifier)." },
+        blocked_by: { type: "string", description: "The blocking Piece (e.g. the blog)." },
+      },
+      required: ["id", "blocked_by"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "set_piece_artifact",
+    description: "Set a Piece's artifact_url — the pointer to its Factory draft (PR / MDX).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "The Piece id." },
+        url: { type: "string", description: "The Factory draft URL." },
+      },
+      required: ["id", "url"],
+      additionalProperties: false,
+    },
+  },
 ] as const;
 
 // Permissive CORS: remote connectors preflight from a browser/vendor cloud.
@@ -339,6 +381,44 @@ async function spawnTalk(args: Record<string, unknown> | undefined) {
   return toolOk(`Spawned talk ${row?.id}`, { talk: row });
 }
 
+async function archiveIdea(args: Record<string, unknown> | undefined) {
+  if (!nonEmptyString(args?.id)) return toolError("id is required");
+  if (!nonEmptyString(args?.reason)) return toolError("reason is required");
+  const duplicateOf = typeof args?.duplicate_of === "string" ? args.duplicate_of : null;
+  const { data, error } = await db().rpc("archive_idea", {
+    p_id: args!.id,
+    p_reason: args!.reason,
+    p_duplicate_of: duplicateOf,
+  });
+  if (error) return toolError(`archive_idea failed: ${error.message}`);
+  const row = firstRow(data);
+  return toolOk(`Archived idea ${row?.id}`, { idea: row });
+}
+
+async function blockPiece(args: Record<string, unknown> | undefined) {
+  if (!nonEmptyString(args?.id)) return toolError("id is required");
+  if (!nonEmptyString(args?.blocked_by)) return toolError("blocked_by is required");
+  const { data, error } = await db().rpc("block_piece", {
+    p_blocked_id: args!.id,
+    p_blocker_id: args!.blocked_by,
+  });
+  if (error) return toolError(`block_piece failed: ${error.message}`);
+  const row = firstRow(data);
+  return toolOk(`Blocked piece ${row?.id} by ${row?.blocked_by_piece_id}`, { piece: row });
+}
+
+async function setPieceArtifact(args: Record<string, unknown> | undefined) {
+  if (!nonEmptyString(args?.id)) return toolError("id is required");
+  if (!nonEmptyString(args?.url)) return toolError("url is required");
+  const { data, error } = await db().rpc("set_piece_artifact", {
+    p_id: args!.id,
+    p_url: args!.url,
+  });
+  if (error) return toolError(`set_piece_artifact failed: ${error.message}`);
+  const row = firstRow(data);
+  return toolOk(`Set artifact on piece ${row?.id}`, { piece: row });
+}
+
 // Route a tools/call to its handler. Unknown tool is a tool error, not a
 // protocol error, so the caller's model still gets a readable message.
 function callTool(name: unknown, args: Record<string, unknown> | undefined) {
@@ -353,6 +433,9 @@ function callTool(name: unknown, args: Record<string, unknown> | undefined) {
     case "decline_piece": return idVerb("decline_piece", args, "piece", "Declined");
     case "spawn_talk": return spawnTalk(args);
     case "decline_talk": return idVerb("decline_talk", args, "talk", "Declined");
+    case "archive_idea": return archiveIdea(args);
+    case "block_piece": return blockPiece(args);
+    case "set_piece_artifact": return setPieceArtifact(args);
     default: return Promise.resolve(toolError(`unknown tool: ${String(name)}`));
   }
 }
