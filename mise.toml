@@ -1,6 +1,5 @@
 # Toolchain for content-os, managed by mise (https://mise.jdx.dev).
-# `mise install` provisions these; the Beat's routine setup script and the
-# Factory repos use the same pin so every environment builds the CLI the same way.
+# `mise install` provisions these. The Go toolchain is gone with the retired
+# `contentos` CLI (ADR-0015); the Supabase CLI drives migrations + Edge Functions.
 [tools]
-go = "1.25"
 supabase = "latest"
