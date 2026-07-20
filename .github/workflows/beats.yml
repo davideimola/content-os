@@ -1,13 +1,14 @@
 name: Content OS Beats
 
 # The three Beats run here (GitHub Actions cron), not as native Claude routines: the routines'
-# cloud env proxies GitHub access and cannot reach Projects v2 (the Calendar board). An Actions
-# runner has full GitHub + internet egress.
+# cloud env proxies network access to a pinned set and can't be relied on to reach arbitrary
+# egress; an Actions runner has full internet egress to Supabase (the Pipeline, ADR-0014) and
+# the Telegram Bot API (the notify seam). See ADR-0010 and docs/agents/beat-scheduling.md.
 #
 # Each Beat is a deterministic staleness reminder (ADR-0013): each scripts/beats/<beat>.sh does
-#   DETECT (deterministic gh + repo checks) -> PING (a Telegram curl, or nothing when fresh).
+#   DETECT (a curl on a Supabase view) -> PING (a Telegram curl, or nothing when fresh).
 # No model, no agent tool-loop, no compiled deps — pure bash detecting staleness from observable
-# facts and nudging Davide to run the interactive session (/desk or /review) that does the work.
+# facts (PostgREST reads) and nudging Davide to run the interactive session (/desk or /review).
 # See docs/agents/beat-scheduling.md and docs/research/zero-cost-agentic-ci.md.
 
 on:
@@ -48,23 +49,30 @@ jobs:
           echo "beat=$beat" >> "$GITHUB_OUTPUT"
           echo "Running the $beat Beat"
 
-      - name: Prereq smoke check (deterministic — surfaces auth/board issues in the log)
+      - name: Prereq smoke check (deterministic — surfaces Supabase/notify issues in the log)
         env:
-          GH_TOKEN: ${{ secrets.GH_PROJECT_PAT }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          echo "gh:        $(gh --version | head -1)"
+          echo "curl:      $(curl --version | head -1)"
           echo "jq:        $(jq --version)"
-          echo "TELEGRAM_BOT_TOKEN set: ${TELEGRAM_BOT_TOKEN:+yes}${TELEGRAM_BOT_TOKEN:-NO}"
-          echo "TELEGRAM_CHAT_ID set:   ${TELEGRAM_CHAT_ID:+yes}${TELEGRAM_CHAT_ID:-NO}"
-          echo "--- gh auth status ---"; gh auth status || true
-          echo "--- gh project view 2 (the board) ---"; gh project view 2 --owner davideimola --format json --jq '.title' || echo "PROJECT ACCESS FAILED"
+          echo "SUPABASE_URL set:              ${SUPABASE_URL:+yes}${SUPABASE_URL:-NO}"
+          echo "SUPABASE_SERVICE_ROLE_KEY set: ${SUPABASE_SERVICE_ROLE_KEY:+yes}${SUPABASE_SERVICE_ROLE_KEY:-NO}"
+          echo "TELEGRAM_BOT_TOKEN set:        ${TELEGRAM_BOT_TOKEN:+yes}${TELEGRAM_BOT_TOKEN:-NO}"
+          echo "TELEGRAM_CHAT_ID set:          ${TELEGRAM_CHAT_ID:+yes}${TELEGRAM_CHAT_ID:-NO}"
+          echo "--- Supabase read (untriaged_proposals) ---"
+          curl -fsS "${SUPABASE_URL%/}/rest/v1/untriaged_proposals?select=id&limit=1" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            >/dev/null && echo "supabase read: OK" || echo "SUPABASE READ FAILED"
         continue-on-error: true
 
       - name: Run the Beat (detect -> ping)
         env:
-          GH_TOKEN: ${{ secrets.GH_PROJECT_PAT }}          # gh reads it; PAT has repo + project
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}                       # PostgREST base (…​.supabase.co)
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}  # reads the RLS-guarded views
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: bash "scripts/beats/${{ steps.sel.outputs.beat }}.sh" run

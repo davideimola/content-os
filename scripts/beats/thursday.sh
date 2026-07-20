@@ -1,30 +1,20 @@
 #!/usr/bin/env bash
 # Thursday cadence guard — deterministic staleness reminder (ADR-0013): detect -> ping.
-# Signal (observable, no state file): is this week's LinkedIn slot covered? Covered = a `linkedin`
-# Piece published this week, OR one `slotted`/`in-production` dated today..Sunday. Not covered ->
-# a FIXED nudge to run /desk or ship one; covered -> silent. It never names a specific proposal
-# (the Desk picks live) and never writes labels or the board. Stages: thursday.sh {detect|run}.
+# Signal (an observable Supabase view, no state file): is this week's LinkedIn slot covered?
+# The `cadence_status` view computes it server-side (a `linkedin` Piece published since the
+# start of this week, OR one slotted/in_production dated today..Sunday). Covered -> silent;
+# open -> a FIXED nudge to run /desk or ship one. It never names a specific proposal (the Desk
+# picks live) and never writes the Pipeline. Stages: thursday.sh {detect|run}.
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 # detect — prints the reminder text when the LinkedIn slot is open, nothing (silent) when covered.
 detect() {
-  reporoot
-  local MON SUN TODAY pub sched
-  read -r MON SUN TODAY <<<"$(week_bounds)"
-  # published this week? (a linkedin Piece closed within Mon..Sun)
-  pub=$(gh issue list --repo "$REPO" --state all --search "label:linkedin label:published" \
-          --json closedAt \
-          --jq "[.[] | select(.closedAt != null and (.closedAt[0:10]) >= \"$MON\" and (.closedAt[0:10]) <= \"$SUN\")] | length")
-  # credibly scheduled for the rest of the week? (a linkedin board item, slotted/in-production, dated today..Sunday)
-  sched=$(gh project item-list "$PROJECT" --owner "$OWNER" --query "label:linkedin" --format json -L 200 \
-          | jq --arg from "$TODAY" --arg to "$SUN" \
-              '[.items[] | select(.date != null and (.date[0:10]) >= $from and (.date[0:10]) <= $to
-                 and ((.stage == "slotted") or (.stage == "in-production")))] | length')
-  if [ "${pub:-0}" -gt 0 ] || [ "${sched:-0}" -gt 0 ]; then
+  local covered
+  covered=$(supabase_get "cadence_status?select=linkedin_week_covered" | jq -r '.[0].linkedin_week_covered')
+  if [ "$covered" = "true" ]; then
     return 0   # covered — silence is the all-clear
   fi
-  printf '%s\n' "📣 This week's LinkedIn slot is open → run /desk or ship one.
-Board: https://github.com/users/$OWNER/projects/$PROJECT"
+  printf '%s\n' "📣 This week's LinkedIn slot is open → run /desk or ship one."
 }
 
 case "${1:-run}" in

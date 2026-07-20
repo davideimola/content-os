@@ -1,38 +1,43 @@
 # Monday planning reminder: nudge Davide to run /desk
 
 The first of the three [Beats](../../CONTEXT.md) — a **deterministic staleness reminder** (ADR-0013),
-not a planner. Every Monday morning it asks one question from **observable facts**: have **unjudged
-Ideas** piled up? If yes, it pings *"time to plan: run `/desk`"*; if not, it **stays silent**. The
-planning itself happens live in the [Desk](../../CONTEXT.md), where Davide is in the loop and the
-[editorial signal framework](editorial-signals.md) is applied — the Beat only taps him on the shoulder.
+not a planner. Every Monday morning it asks one question from **observable facts**: are there
+**untriaged proposals** waiting? If yes, it pings *"time to plan: run `/desk`"*; if not, it **stays
+silent**. The planning itself happens live in the [Desk](../../CONTEXT.md), where Davide is in the loop
+and the [editorial signal framework](editorial-signals.md) is applied — the Beat only taps him on the
+shoulder.
 
 **Hands, not brain** (ADR-0003), taken to its limit: there is **no model** here (the Gemini `decide`
-step left with ADR-0013) and **no maintained state file** — the signal is read straight off the tracker.
-It **never judges Ideas, never drafts content** (ADR-0002), and never touches labels or the board; the
-Desk does all of that.
+step left with ADR-0013) and **no maintained state file** — the signal is read straight off the
+Pipeline. It **never judges, never drafts content** (ADR-0002), and never writes the Pipeline; the Desk
+does all of that.
 
 ## The staleness signal
 
-**Unjudged Ideas waiting.** An unjudged Idea is the tier-identification rule from the
-[taxonomy](pipeline-taxonomy.md#the-three-tiers): `idea` label, **open**, with **0 child Pieces**
-(an accepted Idea has ≥ 1 child; a rejected one is closed). `detect` counts them:
+**Untriaged proposals waiting.** Since the Pipeline moved to Supabase (ADR-0014), Ideas are a **live
+pool** that is never "judged" one by one — judgement happens on the **output**: the Desk correlates the
+pool into `proposed` Pieces/Talks and then pursues (→ slot) or declines each. So the staleness signal is
+**proposals awaiting that pursue/decline**, surfaced by the
+[`untriaged_proposals`](../design/supabase-foundations.md#views) view (`proposed` Pieces + Talks). `detect`
+counts them with one PostgREST read:
 
 ```sh
-# open ideas, then keep only those with no child Piece (the unjudged inbox)
-gh issue list --repo davideimola/content-os --label idea --state open --json number
-gh api repos/davideimola/content-os/issues/<n>/sub_issues --jq 'length'   # 0 ⇒ unjudged
+# GET ${SUPABASE_URL}/rest/v1/untriaged_proposals?select=id  →  count the rows
+curl -fsS "$SUPABASE_URL/rest/v1/untriaged_proposals?select=id" \
+  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  | jq 'length'
 ```
 
-- **≥ 1 unjudged** → **ping** "🗓️ Time to plan — run `/desk`", with the board link so acting is one tap.
-- **0 unjudged** → **silent**. Silence is the all-clear (like the Thursday guard); a clear inbox is
+- **≥ 1 proposal** → **ping** "🗓️ Time to plan — run `/desk`".
+- **0 proposals** → **silent**. Silence is the all-clear (like the Thursday guard); a clear board is
   never announced.
 
 The threshold starts at **≥ 1** and is the only knob.
 
 ## What it runs against
 
-- **Reads:** open `idea` issues and their sub-issue counts (`gh` + the repo). Nothing else — no board,
-  no metrics.
+- **Reads:** the `untriaged_proposals` view over Supabase PostgREST (`supabase_get` in `lib.sh`, with the
+  `service_role` key). Nothing else — no calendar, no metrics.
 - **Writes:** at most **one** Telegram ping via the [notify seam](notify.md), or nothing.
 
 ## Trigger
@@ -46,15 +51,14 @@ sending with `bash scripts/beats/monday.sh detect`.
 No unit tests — a Beat is a deterministic reminder, driven and observed at the two seams (the spec's
 Testing Decisions). Verify **both branches**:
 
-1. **Stale → a ping** — seed one open `idea` with **no** child Piece; `monday.sh detect` prints the
-   reminder, and `run` **delivers** it against the fake Telegram server (`TELEGRAM_API_BASE`), exit 0.
-2. **Fresh → silence** — leave no unjudged Idea (every open `idea` has ≥ 1 child, or there are none);
-   `detect` prints **nothing** and `run` **withholds** the ping (empty argument → silent, exit 0).
-3. Clean up the seed.
+1. **Stale → a ping** — the `untriaged_proposals` view returns ≥ 1 row; `monday.sh detect` prints the
+   reminder, and `run` **delivers** it, exit 0.
+2. **Fresh → silence** — the view returns 0 rows; `detect` prints **nothing** and `run` **withholds** the
+   ping (empty argument → silent, exit 0).
+3. **Fail-loud** — with the read unreachable, `run` **aborts non-zero** and sends nothing.
 
-Verified **2026-07-18** at the tracker + notify seams (fake Telegram via `TELEGRAM_API_BASE`), both
-branches: with unjudged Ideas present on the live Pipeline, `detect` counted them and `run` **delivered**
-the reminder (exit 0). The fresh and accepted-Idea cases were driven deterministically (a stubbed
-`gh`) so no real Idea was mutated: an empty inbox → `detect` silent, `run` sent nothing (exit 0); a mixed
-inbox of one childless Idea + one with a child Piece → `detect` counted **only** the childless one
-(the accepted Idea excluded per the tier rule); an accepted-only inbox → silent. Seed closed afterward.
+Verified **2026-07-20** at both seams against a **fake PostgREST + fake Telegram** stub (point
+`SUPABASE_URL` and `TELEGRAM_API_BASE` at the stub — no live project or Bot API mutated): 2 proposals →
+`detect` counted them and `run` **delivered** the reminder (exit 0); 0 proposals → `detect` silent, `run`
+sent nothing (exit 0); the stub down → `run` **aborted non-zero**, no ping. Live auth (the real
+`service_role` key) is confirmed by the workflow's prereq smoke-check on the first scheduled run.

@@ -14,34 +14,31 @@ model's job (removed with ADR-0013); the Desk picks live.
 
 ## The staleness signal
 
-**Is the LinkedIn slot covered?** Covered = a `linkedin` Piece **published this week**, or one credibly
-scheduled — `slotted`/`in-production` with a `Date` from **today through Sunday**. `detect` checks both:
+**Is the LinkedIn slot covered?** Covered = a `linkedin` Piece **published since the start of this
+week**, or one credibly scheduled — `slotted`/`in_production` with a `publish_date` from **today through
+Sunday**. Since the Pipeline moved to Supabase (ADR-0014) that whole test is computed **server-side** by
+the [`cadence_status`](../design/supabase-foundations.md#views) view, so `detect` reads one boolean:
 
 ```sh
-# published this week? (separate labels are AND; a comma inside one is OR)
-gh issue list --repo davideimola/content-os --state all --search "label:linkedin label:published" \
-  --json closedAt   # keep those closed within Mon..Sun
-# scheduled for the rest of the week? (linkedin board items dated today..Sunday, slotted/in-production)
-gh project item-list 2 --owner davideimola --query "label:linkedin" --format json -L 200 \
-  | jq --arg from <today> --arg to <sunday> '
-      [ .items[] | select(.date != null and (.date[0:10]) >= $from and (.date[0:10]) <= $to
-        and ((.stage=="slotted") or (.stage=="in-production"))) ]'
+# GET ${SUPABASE_URL}/rest/v1/cadence_status?select=linkedin_week_covered  →  true | false
+curl -fsS "$SUPABASE_URL/rest/v1/cadence_status?select=linkedin_week_covered" \
+  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  | jq -r '.[0].linkedin_week_covered'
 ```
 
-A `slotted` LinkedIn whose date already **passed this week** without publishing is **not** covered — the
-scheduled check only counts today→Sunday, so a slipping slot reads as at-risk.
+The view's window is today→end-of-week for the scheduled leg, so a `slotted` LinkedIn whose date already
+**passed this week** without publishing is **not** covered — a slipping slot reads as at-risk.
 
-- **Covered** (published this week, or scheduled today→Sunday) → **silent**. The absence of a message is
-  the all-clear.
-- **Open** (nothing shipped and nothing credibly scheduled) → **ping** the fixed nudge "📣 This week's
-  LinkedIn slot is open → run `/desk` or ship one", with the board link.
+- **Covered** (`linkedin_week_covered` is `true`) → **silent**. The absence of a message is the all-clear.
+- **Open** (`false`) → **ping** the fixed nudge "📣 This week's LinkedIn slot is open → run `/desk` or
+  ship one".
 
 ## What it runs against
 
-- **Reads:** the `linkedin` pieces and their [Calendar](calendar.md) dates/states — enough to tell
-  whether this week's slot is covered.
-- **Writes:** at most **one** Telegram ping via the [notify seam](notify.md), or nothing. Never labels,
-  never the board.
+- **Reads:** the `cadence_status.linkedin_week_covered` boolean over Supabase PostgREST (`supabase_get` in
+  `lib.sh`, with the `service_role` key) — one field, enough to tell whether this week's slot is covered.
+- **Writes:** at most **one** Telegram ping via the [notify seam](notify.md), or nothing. Never the
+  Pipeline.
 
 ## Trigger
 
@@ -52,17 +49,16 @@ sending with `bash scripts/beats/thursday.sh detect`.
 ## Verification (tracker + notify seams, dry-run)
 
 No unit tests — a Beat is a deterministic reminder, driven and observed at the two seams. Verify **both
-branches** on a seeded week:
+branches**:
 
-1. **Open → a ping** — leave the week with **no** published or scheduled LinkedIn; `thursday.sh detect`
-   prints the fixed nudge and `run` **delivers** it against the fake Telegram server, exit 0.
-2. **Covered → silence** — put a `linkedin` piece on the board `slotted` with a `Date` in the rest of the
-   week; `detect` prints **nothing** and `run` **withholds** the ping (silent, exit 0).
-3. Clean up the seed.
+1. **Open → a ping** — `cadence_status.linkedin_week_covered` is `false`; `thursday.sh detect` prints the
+   fixed nudge and `run` **delivers** it, exit 0.
+2. **Covered → silence** — the boolean is `true`; `detect` prints **nothing** and `run` **withholds** the
+   ping (silent, exit 0).
+3. **Fail-loud** — with the read unreachable, `run` **aborts non-zero** and sends nothing.
 
-Verified **2026-07-18** at the tracker + notify seams (fake Telegram via `TELEGRAM_API_BASE`), all
-branches driven deterministically over the live week (Mon 07-13 → Sun 07-19), the date filter exercised
-for real: no published/scheduled LinkedIn → `detect` emitted the fixed nudge and `run` **delivered** it
-(exit 0); a LinkedIn published this week, and separately one `slotted` today→Sunday, each left `detect`
-**silent** (`run` sent nothing, exit 0); a `slotted` piece whose date already **passed** this week
-correctly read as **open** → ping. No real Pipeline item mutated.
+Verified **2026-07-20** at both seams against a **fake PostgREST + fake Telegram** stub (point
+`SUPABASE_URL` and `TELEGRAM_API_BASE` at the stub): `linkedin_week_covered = false` → `detect` emitted
+the fixed nudge and `run` **delivered** it (exit 0); `= true` → `detect` silent, `run` sent nothing (exit
+0); the stub down → `run` **aborted non-zero**, no ping. The view's week/date logic itself is exercised in
+SQL — the beat only reads the boolean it returns. No real Pipeline item mutated.
