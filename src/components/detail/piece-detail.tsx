@@ -8,7 +8,14 @@ import { ChannelBadge, FlagBadge, formatDate, PieceCard, StateBadge } from "@/co
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
-import { declinePiece, deslotPiece, editPiece, setPieceArtifact, slotPiece } from "@/lib/actions";
+import {
+  declinePiece,
+  deslotPiece,
+  editPiece,
+  publishPiece,
+  setPieceArtifact,
+  slotPiece,
+} from "@/lib/actions";
 import type { Piece } from "@/lib/pipeline";
 
 export function PieceDetail({ piece }: { piece: Piece }) {
@@ -153,6 +160,24 @@ export function PieceDetail({ piece }: { piece: Piece }) {
                 </Button>
               ) : null}
             </div>
+          </div>
+        ) : null}
+
+        {isSlotted ? (
+          <div className="flex flex-col gap-2 border-t pt-4">
+            <p className="text-sm font-medium">Publish</p>
+            <p className="text-muted-foreground text-xs">
+              Mark this Piece shipped once it's live — it moves to{" "}
+              <span className="font-medium">published</span> and keeps its date.
+            </p>
+            <Button
+              size="sm"
+              className="w-fit"
+              onClick={() => run(() => publishPiece(piece.id))}
+              disabled={pending}
+            >
+              Mark shipped
+            </Button>
           </div>
         ) : null}
 

@@ -59,15 +59,20 @@ only brand accent is the mark's red cursor. The header reads **Editorial HQ · d
 - **Writes** — Next **Server Actions** (`src/lib/actions.ts`) call the **RPC verbs** and
   `revalidatePath("/", "layout")` (a write shows across every view). No raw table `UPDATE`s: the UI cannot
   drift from the contract, the same property the MCP adapter has. Verbs used: `slot_piece` / `deslot_piece` /
-  `decline_piece` / `set_piece_artifact` / `decline_talk` / `archive_idea`, plus the free-text edit verbs
-  `edit_idea(id,title,body)` / `edit_piece(id,title)` / `edit_talk(id,title)` (added by
+  `decline_piece` / `publish_piece` / `set_piece_artifact` / `decline_talk` / `archive_idea`, plus the
+  free-text edit verbs `edit_idea(id,title,body)` / `edit_piece(id,title)` / `edit_talk(id,title)` (added by
   `supabase/migrations/…_edit_text_verbs.sql`). **The rule holds even for editing:** free-text edits are a
   contract change (a new verb), never a UI-only write — the console is still just a client of the verbs.
   MCP-adapter parity for the edit verbs (so the Desk/AI apps can edit too) is a later additive step.
+  `publish_piece` ([ADR-0017](../adr/0017-publish-verb-advances-a-piece-to-published.md)) is the first
+  **lifecycle-advance** verb — `slotted → published`, guarded server-side to slotted-only, keeping the
+  publish_date the monthly Review reads. The **console is its only caller** (the Desk stays pre-publish; no
+  MCP tool yet — no MCP consumer publishes).
 - **Detail drawer** — tapping a card opens a detail surface (`src/components/detail/*`): a right Sheet on
   desktop, a bottom sheet on mobile (`useMediaQuery` picks the side). It shows the full content (an Idea's
   verbatim body, a Piece/Talk's fields + links) and hosts the actions above: edit (title/body), schedule
-  (slot/reslot/deslot), artifact URL, decline, archive. Cards are clean triggers; no inline buttons.
+  (slot/reslot/deslot), **publish (mark shipped — slotted Pieces only)**, artifact URL, decline, archive.
+  Cards are clean triggers; no inline buttons.
 - **Auth** — a single-user gate (`src/auth.ts`, `src/proxy.ts`): **Auth.js v5 + Google**, no password,
   restricted to an email allowlist (`AUTH_ALLOWED_EMAIL`). Chosen over Supabase Auth (we need no per-user
   RLS — data access is `service_role`) and over Vercel Authentication (which only protects production on
@@ -105,5 +110,8 @@ No unit tests — verified at the seams, the same discipline as the rest of cont
   pills, the Flag mix).
 - **Write** — a `slot → deslot` round-trip through the UI (Server Action → RPC → `revalidatePath`), then
   assert the Piece returned to `proposed` in the DB (state restored; only `updated_at` bumps).
+- **Publish** — from a `slotted` Piece, "Mark shipped" moves it to `published` (keeps its date); the button
+  is absent on non-slotted Pieces, and `publish_piece` on a non-slotted Piece raises. Restore the seed with
+  `deslot_piece` (→ `proposed`).
 - **Gate** — with Google configured, an unauthenticated `GET /` must `307` to `/api/auth/signin`; with it
   unconfigured, `GET /` must be `200` (dev stays open).

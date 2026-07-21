@@ -34,6 +34,12 @@ export async function declinePiece(id: string): Promise<ActionResult> {
   return callVerb("decline_piece", { p_id: id });
 }
 
+// publish_piece(p_id): slotted -> published (the Piece is shipped, live). Guarded
+// server-side to slotted-only; keeps its publish_date for the monthly Review.
+export async function publishPiece(id: string): Promise<ActionResult> {
+  return callVerb("publish_piece", { p_id: id });
+}
+
 // set_piece_artifact(p_id, p_url): point a Piece at its Factory draft (PR / MDX).
 export async function setPieceArtifact(id: string, url: string): Promise<ActionResult> {
   if (!url.trim()) return { ok: false, error: "A URL is required." };

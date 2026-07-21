@@ -106,12 +106,15 @@ land as they're built.
 | `decline_piece(id)` / `decline_talk(id)` | Set `declined` — kept on the record so correlation won't re-propose. |
 | `block_piece(blocked_id, blocker_id)` | Set `blocked_by_piece_id`. |
 | `slot_piece(id, on_date)` / `deslot_piece(id)` | Slot/de-slot on the Calendar. |
+| `publish_piece(id)` | Advance a slotted Piece to `published` (keeps its date). The first **from-state-guarded** verb (slotted-only); called by the console (ADR-0017). |
 | `create_engagement(talk_id, event_id, kind, deadline?, cfp_link?)` | Insert an engagement. |
 | `set_engagement_outcome(id, outcome, conference-date via event)` | Advance the outcome. |
 | `set_piece_artifact(piece_id, url)` | Write the Factory draft pointer into `pieces.artifact_url`. Called by the Factory skills. |
 | `ingest_linkedin_metrics(csv_text)` | Deterministic parse of a LinkedIn per-post export + insert into `metrics_linkedin_posts`. Replaces the retired `contentos metrics-ingest` (ADR-0015). |
 
-Advancing a Piece to `in_production`/`published` or a Talk to `ready` is a plain state update.
+Advancing a Piece to `published` has its own guarded verb (`publish_piece`, ADR-0017). Advancing a Piece to
+`in_production`, or a Talk to `ready`, is still a plain state update — no verb yet, added when a consumer
+needs one (the deferred-guard rule from the ops slice).
 
 ## Views
 
