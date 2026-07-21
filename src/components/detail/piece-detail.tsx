@@ -1,5 +1,6 @@
 "use client";
 
+import { Pencil } from "lucide-react";
 import { useState, useTransition } from "react";
 
 import { CardTrigger, DetailSheet } from "@/components/detail/detail-sheet";
@@ -7,11 +8,13 @@ import { ChannelBadge, FlagBadge, formatDate, PieceCard, StateBadge } from "@/co
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions";
-import { declinePiece, deslotPiece, setPieceArtifact, slotPiece } from "@/lib/actions";
+import { declinePiece, deslotPiece, editPiece, setPieceArtifact, slotPiece } from "@/lib/actions";
 import type { Piece } from "@/lib/pipeline";
 
 export function PieceDetail({ piece }: { piece: Piece }) {
   const [open, setOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [title, setTitle] = useState(piece.title);
   const [date, setDate] = useState(piece.publish_date ?? "");
   const [artifact, setArtifact] = useState(piece.artifact_url ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +29,15 @@ export function PieceDetail({ piece }: { piece: Piece }) {
       } else {
         setError(res.error);
       }
+    });
+  }
+
+  function saveTitle() {
+    setError(null);
+    startTransition(async () => {
+      const res = await editPiece(piece.id, title);
+      if (res.ok) setEditingTitle(false);
+      else setError(res.error);
     });
   }
 
@@ -44,6 +56,47 @@ export function PieceDetail({ piece }: { piece: Piece }) {
           <ChannelBadge channel={piece.channel} />
           <FlagBadge flagSide={piece.flag_side} />
         </div>
+
+        {editingTitle ? (
+          <div className="flex flex-col gap-2">
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="h-8"
+              aria-label="Title"
+            />
+            <div className="flex gap-2">
+              <Button size="sm" onClick={saveTitle} disabled={pending || !title.trim()}>
+                Save title
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setTitle(piece.title);
+                  setEditingTitle(false);
+                }}
+                disabled={pending}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="-ml-2.5 w-fit"
+            onClick={() => {
+              setTitle(piece.title);
+              setError(null);
+              setEditingTitle(true);
+            }}
+          >
+            <Pencil />
+            Rename
+          </Button>
+        )}
 
         <dl className="grid grid-cols-[6rem_1fr] gap-x-3 gap-y-1.5 text-sm">
           <dt className="text-muted-foreground">Publish</dt>

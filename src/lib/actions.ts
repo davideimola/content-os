@@ -50,3 +50,22 @@ export async function archiveIdea(id: string, reason: string): Promise<ActionRes
   if (!reason.trim()) return { ok: false, error: "A reason is required to archive." };
   return callVerb("archive_idea", { p_id: id, p_reason: reason.trim() });
 }
+
+// ── free-text edits (ADR-0016 edit verbs) ────────────────────────────────────
+// edit_idea(p_id, p_title, p_body): the summary title + the verbatim body.
+export async function editIdea(id: string, title: string, body: string): Promise<ActionResult> {
+  if (!body.trim()) return { ok: false, error: "The body cannot be empty." };
+  return callVerb("edit_idea", { p_id: id, p_title: title, p_body: body });
+}
+
+// edit_piece(p_id, p_title): rename a Piece.
+export async function editPiece(id: string, title: string): Promise<ActionResult> {
+  if (!title.trim()) return { ok: false, error: "A title is required." };
+  return callVerb("edit_piece", { p_id: id, p_title: title });
+}
+
+// edit_talk(p_id, p_title): rename a Talk.
+export async function editTalk(id: string, title: string): Promise<ActionResult> {
+  if (!title.trim()) return { ok: false, error: "A title is required." };
+  return callVerb("edit_talk", { p_id: id, p_title: title });
+}
