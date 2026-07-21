@@ -1,4 +1,6 @@
-import { EmptyState, PieceCard, Section, TalkCard } from "@/components/pipeline";
+import { PieceDetail } from "@/components/detail/piece-detail";
+import { TalkDetail } from "@/components/detail/talk-detail";
+import { EmptyState, Section } from "@/components/pipeline";
 import { View } from "@/components/view";
 import {
   getPieces,
@@ -40,10 +42,10 @@ export default async function PipelinePage() {
           ) : (
             <div className="flex flex-col gap-2">
               {proposedPieces.map((p) => (
-                <PieceCard key={p.id} piece={p} />
+                <PieceDetail key={p.id} piece={p} />
               ))}
               {proposedTalks.map((t) => (
-                <TalkCard key={t.id} talk={t} />
+                <TalkDetail key={t.id} talk={t} />
               ))}
             </div>
           )}
@@ -58,7 +60,7 @@ export default async function PipelinePage() {
               ) : (
                 <div className="flex flex-col gap-2">
                   {items.map((p) => (
-                    <PieceCard key={p.id} piece={p} />
+                    <PieceDetail key={p.id} piece={p} />
                   ))}
                 </div>
               )}

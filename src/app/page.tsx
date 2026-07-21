@@ -1,6 +1,8 @@
 import Link from "next/link";
 
-import { CadenceStrip, EmptyState, PieceCard, Section, TalkCard } from "@/components/pipeline";
+import { PieceDetail } from "@/components/detail/piece-detail";
+import { TalkDetail } from "@/components/detail/talk-detail";
+import { CadenceStrip, EmptyState, Section } from "@/components/pipeline";
 import { StatTile, View } from "@/components/view";
 import {
   getCadence,
@@ -57,10 +59,10 @@ export default async function OverviewPage() {
           ) : (
             <div className="flex flex-col gap-2">
               {proposedPieces.map((p) => (
-                <PieceCard key={p.id} piece={p} />
+                <PieceDetail key={p.id} piece={p} />
               ))}
               {proposedTalks.map((t) => (
-                <TalkCard key={t.id} talk={t} />
+                <TalkDetail key={t.id} talk={t} />
               ))}
             </div>
           )}

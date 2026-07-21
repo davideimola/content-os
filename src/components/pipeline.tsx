@@ -10,7 +10,6 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
-import { PieceActions } from "@/components/piece-actions";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import type {
@@ -103,7 +102,6 @@ export function PieceCard({ piece }: { piece: Piece }) {
           <span className="ml-auto">blocked by {piece.blocked_by_piece_id.slice(-4)}</span>
         ) : null}
       </div>
-      <PieceActions pieceId={piece.id} state={piece.state} />
     </Card>
   );
 }

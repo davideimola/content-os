@@ -12,7 +12,9 @@ export type ActionResult = { ok: true } | { ok: false; error: string };
 async function callVerb(verb: string, params: Record<string, unknown>): Promise<ActionResult> {
   const { error } = await supabaseAdmin().rpc(verb, params);
   if (error) return { ok: false, error: error.message };
-  revalidatePath("/");
+  // Revalidate the whole app: a write shows up across every view (the board, the
+  // calendar, the overview counts), not just the page it was triggered from.
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -30,4 +32,21 @@ export async function deslotPiece(id: string): Promise<ActionResult> {
 // decline_piece(p_id): keep the proposal on the record, off the Calendar.
 export async function declinePiece(id: string): Promise<ActionResult> {
   return callVerb("decline_piece", { p_id: id });
+}
+
+// set_piece_artifact(p_id, p_url): point a Piece at its Factory draft (PR / MDX).
+export async function setPieceArtifact(id: string, url: string): Promise<ActionResult> {
+  if (!url.trim()) return { ok: false, error: "A URL is required." };
+  return callVerb("set_piece_artifact", { p_id: id, p_url: url.trim() });
+}
+
+// decline_talk(p_id): keep the Talk proposal on the record.
+export async function declineTalk(id: string): Promise<ActionResult> {
+  return callVerb("decline_talk", { p_id: id });
+}
+
+// archive_idea(p_id, p_reason): archive a duplicate/repudiated Idea (reason required).
+export async function archiveIdea(id: string, reason: string): Promise<ActionResult> {
+  if (!reason.trim()) return { ok: false, error: "A reason is required to archive." };
+  return callVerb("archive_idea", { p_id: id, p_reason: reason.trim() });
 }

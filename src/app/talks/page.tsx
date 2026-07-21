@@ -1,4 +1,5 @@
-import { EmptyState, TalkCard } from "@/components/pipeline";
+import { TalkDetail } from "@/components/detail/talk-detail";
+import { EmptyState } from "@/components/pipeline";
 import { View } from "@/components/view";
 import { getTalks } from "@/lib/pipeline";
 
@@ -14,7 +15,7 @@ export default async function TalksPage() {
       ) : (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {talks.map((t) => (
-            <TalkCard key={t.id} talk={t} />
+            <TalkDetail key={t.id} talk={t} />
           ))}
         </div>
       )}

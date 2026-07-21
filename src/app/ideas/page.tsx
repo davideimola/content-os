@@ -1,4 +1,5 @@
-import { EmptyState, IdeaCard } from "@/components/pipeline";
+import { IdeaDetail } from "@/components/detail/idea-detail";
+import { EmptyState } from "@/components/pipeline";
 import { View } from "@/components/view";
 import { getLiveIdeas } from "@/lib/pipeline";
 
@@ -14,7 +15,7 @@ export default async function IdeasPage() {
       ) : (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {ideas.map((i) => (
-            <IdeaCard key={i.id} idea={i} />
+            <IdeaDetail key={i.id} idea={i} />
           ))}
         </div>
       )}
