@@ -1,5 +1,12 @@
 # Toolchain for content-os, managed by mise (https://mise.jdx.dev).
 # `mise install` provisions these. The Go toolchain is gone with the retired
 # `contentos` CLI (ADR-0015); the Supabase CLI drives migrations + Edge Functions.
+#
+# Node + pnpm are here for the management web app that lives at the repo root
+# (ADR-0016): a mobile-first UI over the Pipeline that reads Supabase and writes
+# only through the RPC contract (ADR-0015). Pinned to the same versions as the
+# davideimola.dev Factory so the muscle memory carries over.
 [tools]
 supabase = "latest"
+node = "22"
+pnpm = "10.32.1"

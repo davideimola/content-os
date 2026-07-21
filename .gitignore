@@ -2,7 +2,17 @@
 .env
 .env.*
 !.env.example
+!.env.local.example
 
 # Build artifacts — no compiled binaries are committed (ADR-0003). `make build`
 # and `make cover` write here.
 /bin/
+
+# Web app (ADR-0016) — Node deps and Next build output.
+/node_modules/
+/.next/
+/out/
+/coverage/
+next-env.d.ts
+*.tsbuildinfo
+.vercel/
