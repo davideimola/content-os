@@ -56,13 +56,18 @@ only brand accent is the mark's red cursor. The header reads **Editorial HQ · d
   `supabase-js` client (`src/lib/supabase/server.ts`, marked `import "server-only"` so it can never reach
   the browser). It reads the same views the Beats use (`cadence_status`, `flag_mix`, …) plus the base
   tables.
-- **Writes** — Next **Server Actions** (`src/lib/actions.ts`) call the **RPC verbs** (`slot_piece`,
-  `deslot_piece`, `decline_piece`, …) and `revalidatePath("/")`. No raw table `UPDATE`s: the UI cannot
-  drift from the contract, the same property the MCP adapter has. **Consequence:** the UI can only do what a
-  verb allows. There is **no free-text edit verb** (no `edit_idea`/`rename_piece`), so editing an Idea body
-  or a Piece/Talk title is **not a UI-only change** — it needs a new RPC verb (a migration, and MCP-adapter
-  parity) first. A detail **drawer** (view full content + surface the existing verbs — reslot, set-artifact,
-  block) is the planned next slice; true content editing is the slice after, gated on those new verbs.
+- **Writes** — Next **Server Actions** (`src/lib/actions.ts`) call the **RPC verbs** and
+  `revalidatePath("/", "layout")` (a write shows across every view). No raw table `UPDATE`s: the UI cannot
+  drift from the contract, the same property the MCP adapter has. Verbs used: `slot_piece` / `deslot_piece` /
+  `decline_piece` / `set_piece_artifact` / `decline_talk` / `archive_idea`, plus the free-text edit verbs
+  `edit_idea(id,title,body)` / `edit_piece(id,title)` / `edit_talk(id,title)` (added by
+  `supabase/migrations/…_edit_text_verbs.sql`). **The rule holds even for editing:** free-text edits are a
+  contract change (a new verb), never a UI-only write — the console is still just a client of the verbs.
+  MCP-adapter parity for the edit verbs (so the Desk/AI apps can edit too) is a later additive step.
+- **Detail drawer** — tapping a card opens a detail surface (`src/components/detail/*`): a right Sheet on
+  desktop, a bottom sheet on mobile (`useMediaQuery` picks the side). It shows the full content (an Idea's
+  verbatim body, a Piece/Talk's fields + links) and hosts the actions above: edit (title/body), schedule
+  (slot/reslot/deslot), artifact URL, decline, archive. Cards are clean triggers; no inline buttons.
 - **Auth** — a single-user gate (`src/auth.ts`, `src/proxy.ts`): **Auth.js v5 + Google**, no password,
   restricted to an email allowlist (`AUTH_ALLOWED_EMAIL`). Chosen over Supabase Auth (we need no per-user
   RLS — data access is `service_role`) and over Vercel Authentication (which only protects production on
