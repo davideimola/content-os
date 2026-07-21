@@ -25,7 +25,7 @@ Per ADR-0014, **Ideas are a live pool** — never accepted or rejected. Judgemen
 
 - an **Idea** stays `live`; it is **archived** (reversible) only when a duplicate or repudiated;
 - a **Piece** is one channel output (`blog`/`linkedin`) with lifecycle
-  `proposed → slotted → in_production → published` (+ `declined`), a Flag/Side, and a date;
+  `proposed → slotted → ready → published` (+ `declined`), a Flag/Side, and a date;
 - a **Talk** is a dateless output (`proposed → in_production → ready`, + `declined`), Flag/Side, no date;
 - a Piece can **block** a sibling Piece (the amplifier blocked by the blog it sneak-peeks);
 - **correlation** turns live Ideas into proposed Pieces/Talks (many Ideas → one output is fine).
@@ -123,9 +123,9 @@ Off by default — Davide is in the room. Only if he asks "send it to me", use t
 - **One gate** — no write tool is called until Davide says "go".
 - **Never drafts content** — judge and route only.
 - **Scope guard** — the Desk correlates Ideas into proposals, judges proposals (pursue/decline),
-  archives Ideas, blocks siblings, and slots/reslots/de-slots. It does **not** advance Pieces/Talks to
-  `in_production`/`published`/`ready`, and does **not** run the Engagement/CFP lifecycle — those stay
-  manual or a later slice.
+  archives Ideas, blocks siblings, and slots/reslots/de-slots. It does **not** advance a Piece past
+  `slotted` (to `ready`/`published`) or a Talk past `proposed` (to `in_production`/`ready`), and does
+  **not** run the Engagement/CFP lifecycle — those stay manual or a later slice.
 
 ## Verify
 

@@ -76,7 +76,7 @@ const TOOLS = [
   {
     name: "list_calendar",
     description:
-      "List the scheduled Pieces on the Calendar (slotted / in_production / published, with a publish_date), earliest first.",
+      "List the scheduled Pieces on the Calendar (slotted / ready / published, with a publish_date), earliest first.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -369,7 +369,7 @@ async function listCalendar() {
     .from("pieces")
     .select("id,title,channel,flag_side,state,publish_date")
     .not("publish_date", "is", null)
-    .in("state", ["slotted", "in_production", "published"])
+    .in("state", ["slotted", "ready", "published"])
     .order("publish_date", { ascending: true });
   if (error) return toolError(`list_calendar failed: ${error.message}`);
   return toolOk(JSON.stringify(data ?? []), { calendar: data ?? [] });

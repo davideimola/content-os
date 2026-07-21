@@ -13,7 +13,7 @@ Terms below are defined in the glossary (`CONTEXT.md`) — use them, don't drift
 | Tier | What it is | How to identify it (observable, no state file) |
 | --- | --- | --- |
 | **1 — Idea** | A raw, unjudged spark (ADR-0008 capture doors). Judged **accepted** or **rejected**. An accepted Idea stays open as the **umbrella** over the Pieces it spawned. | `idea` label. **Unjudged** = open + **0** child Pieces. **Accepted** = open + **≥1** child Piece. **Rejected** = closed. |
-| **2 — Piece** | One channel output (blog / linkedin / talk) with its own lifecycle, date, and production artifact. | A **channel** label + a **state** label from `{proposed, slotted, in-production, published}`, **not** `idea`, linked as a **sub-issue** of its Idea. |
+| **2 — Piece** | One channel output (blog / linkedin / talk) with its own lifecycle, date, and production artifact. | A **channel** label + a **state** label from `{proposed, slotted, ready, published}`, **not** `idea`, linked as a **sub-issue** of its Idea. |
 | **3 — CFP** | One submission of a Talk Piece to one conference, with its own deadline and outcome. **One Talk Piece → many CFPs.** | `cfp` + `talk`. |
 
 The tier of any issue is readable from its **labels + the sub-issue graph** — there is no maintained
@@ -42,10 +42,10 @@ date):
 | --- | --- |
 | `proposed` | Spawned from an accepted Idea: thesis, channel, Flag/Side decided. |
 | `slotted` | Placed on the Calendar (Projects board) with a target date. |
-| `in-production` | Being produced in a Factory — a draft, PR, or slides in progress. |
+| `ready` | Written and in the can — draft/PR ready, awaiting its publish date (ADR-0018; replaced `in-production`). |
 | `published` | Shipped on its channel. Terminal state. |
 
-Flow: `proposed` → `slotted` → `in-production` → `published`. Mutual exclusivity is a convention the
+Flow: `proposed` → `slotted` → `ready` → `published`. Mutual exclusivity is a convention the
 skills enforce — GitHub does not; a move removes the old state and adds the new one.
 
 ## Dimension labels — carried by Pieces
@@ -173,7 +173,7 @@ and every artifact points back at its Piece.
   app with a write-capable GitHub connector (see [app-capture.md](app-capture.md)). Blank issues stay
   enabled so capture is never forced through a form.
 - **The Desk** sets everything downstream: on accept it spawns Pieces with a Flag/Side and channel at
-  `proposed`; slotting adds `slotted`; a Factory picking a Piece up moves it to `in-production`; the
+  `proposed`; slotting adds `slotted`; a Piece written and in the can moves to `ready`; the
   creator publishing moves it to `published`. **Pieces have no issue template** — only Ideas and CFPs
   are human-filed through forms; Pieces are spawned programmatically by the Desk.
 

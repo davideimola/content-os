@@ -66,12 +66,14 @@ export function FlagBadge({ flagSide }: { flagSide: FlagSide }) {
 }
 
 // State → dot colour. Kept semantic and quiet; the neutral theme carries the rest.
+// `ready` is a Piece state (ADR-0018) and a Talk state; `in_production` is now
+// Talk-only. Each state gets a distinct hue so the board reads at a glance.
 const STATE_DOT: Record<PieceState | TalkState, string> = {
   proposed: "text-amber-500",
   slotted: "text-sky-500",
+  ready: "text-teal-500",
   in_production: "text-violet-500",
   published: "text-emerald-500",
-  ready: "text-emerald-500",
   declined: "text-muted-foreground",
 };
 

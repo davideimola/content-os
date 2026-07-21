@@ -49,7 +49,7 @@ A raw content spark, captured in under thirty seconds — no format, no channel,
 _Avoid_: draft, proposal, note
 
 **Piece**:
-A single dated output on a cadence channel — a blog post or a LinkedIn post — correlated from one or more Ideas (Talks are a separate type), or tied to an Engagement (an accepted-talk announcement). Its lifecycle is proposed → slotted → in-production → published (or declined); a proposal is always kept on the record so it is not re-proposed. It carries a channel, publish date, and production artifact, and can block a sibling Piece (a blog blocks the LinkedIn Piece that amplifies it).
+A single dated output on a cadence channel — a blog post or a LinkedIn post — correlated from one or more Ideas (Talks are a separate type), or tied to an Engagement (an accepted-talk announcement). Its lifecycle is proposed → slotted → ready → published (or declined) — `ready` meaning written and in the can, awaiting its publish date (ADR-0018); a proposal is always kept on the record so it is not re-proposed. It carries a channel, publish date, and production artifact, and can block a sibling Piece (a blog blocks the LinkedIn Piece that amplifies it).
 _Avoid_: post, content, item
 
 **Engagement**:

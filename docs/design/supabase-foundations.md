@@ -74,7 +74,8 @@ erDiagram
   `body` (spark verbatim), optional `title`, `archived_reason`, `duplicate_of` (self-ref, for dedup),
   `source`. **Never rejected.**
 - **pieces** (`piece_…`) — a dated output on a cadence channel. `channel` ∈ `blog`/`linkedin` (enum);
-  `flag_side`; `state` ∈ `proposed`/`slotted`/`in_production`/`published`/`declined`; `publish_date`;
+  `flag_side`; `state` ∈ `proposed`/`slotted`/`ready`/`published`/`declined` (ADR-0018: `ready` replaced
+  `in_production`); `publish_date`;
   `blocked_by_piece_id` (self-ref); `engagement_id` (nullable — accepted-talk announcement); `artifact_url`.
   Source Ideas via **`piece_sources`** (N-M).
 - **talks** (`talk_…`) — dateless. `flag_side`; `state` ∈ `proposed`/`in_production`/`ready`/`declined`;
@@ -106,15 +107,16 @@ land as they're built.
 | `decline_piece(id)` / `decline_talk(id)` | Set `declined` — kept on the record so correlation won't re-propose. |
 | `block_piece(blocked_id, blocker_id)` | Set `blocked_by_piece_id`. |
 | `slot_piece(id, on_date)` / `deslot_piece(id)` | Slot/de-slot on the Calendar. |
-| `publish_piece(id)` | Advance a slotted Piece to `published` (keeps its date). The first **from-state-guarded** verb (slotted-only); called by the console (ADR-0017). |
+| `mark_ready(id)` | Advance a slotted Piece to `ready` — written, in the can, awaiting its date (keeps its date). From-state-guarded (slotted-only); called by the console (ADR-0018). |
+| `publish_piece(id)` | Advance a `slotted`/`ready` Piece to `published` (keeps its date). From-state-guarded; called by the console (ADR-0017, widened to `ready` by ADR-0018). |
 | `create_engagement(talk_id, event_id, kind, deadline?, cfp_link?)` | Insert an engagement. |
 | `set_engagement_outcome(id, outcome, conference-date via event)` | Advance the outcome. |
 | `set_piece_artifact(piece_id, url)` | Write the Factory draft pointer into `pieces.artifact_url`. Called by the Factory skills. |
 | `ingest_linkedin_metrics(csv_text)` | Deterministic parse of a LinkedIn per-post export + insert into `metrics_linkedin_posts`. Replaces the retired `contentos metrics-ingest` (ADR-0015). |
 
-Advancing a Piece to `published` has its own guarded verb (`publish_piece`, ADR-0017). Advancing a Piece to
-`in_production`, or a Talk to `ready`, is still a plain state update — no verb yet, added when a consumer
-needs one (the deferred-guard rule from the ops slice).
+Advancing a Piece to `ready`/`published` has its own guarded verbs (`mark_ready`/`publish_piece`,
+ADR-0018/0017). Advancing a **Talk** to `in_production`/`ready` is still a plain state update — no verb yet,
+added when a consumer needs one (the deferred-guard rule from the ops slice).
 
 ## Views
 

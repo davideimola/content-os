@@ -6,7 +6,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 // Kept hand-written for now; if this grows, generate them with `supabase gen types`.
 export type FlagSide = "flag" | "side";
 export type PieceChannel = "blog" | "linkedin";
-export type PieceState = "proposed" | "slotted" | "in_production" | "published" | "declined";
+export type PieceState = "proposed" | "slotted" | "ready" | "published" | "declined";
 export type TalkState = "proposed" | "in_production" | "ready" | "declined";
 export type IdeaStatus = "live" | "archived";
 
@@ -51,12 +51,7 @@ export type Cadence = {
 export type FlagMix = { flag: number; side: number; total: number };
 
 // The live order of the Pipeline lifecycle — used to group Pieces on the board.
-export const PIECE_STATE_ORDER: PieceState[] = [
-  "proposed",
-  "slotted",
-  "in_production",
-  "published",
-];
+export const PIECE_STATE_ORDER: PieceState[] = ["proposed", "slotted", "ready", "published"];
 
 async function selectAll<T>(
   table: string,

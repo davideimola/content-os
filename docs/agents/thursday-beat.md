@@ -15,7 +15,7 @@ model's job (removed with ADR-0013); the Desk picks live.
 ## The staleness signal
 
 **Is the LinkedIn slot covered?** Covered = a `linkedin` Piece **published since the start of this
-week**, or one credibly scheduled — `slotted`/`in_production` with a `publish_date` from **today through
+week**, or one credibly scheduled — `slotted`/`ready` with a `publish_date` from **today through
 Sunday**. Since the Pipeline moved to Supabase (ADR-0014) that whole test is computed **server-side** by
 the [`cadence_status`](../design/supabase-foundations.md#views) view, so `detect` reads one boolean:
 

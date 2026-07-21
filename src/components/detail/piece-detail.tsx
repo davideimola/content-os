@@ -12,6 +12,7 @@ import {
   declinePiece,
   deslotPiece,
   editPiece,
+  markReady,
   publishPiece,
   setPieceArtifact,
   slotPiece,
@@ -49,7 +50,9 @@ export function PieceDetail({ piece }: { piece: Piece }) {
   }
 
   const isSlotted = piece.state === "slotted";
-  const canSchedule = piece.state === "proposed" || piece.state === "slotted";
+  const isReady = piece.state === "ready";
+  const canSchedule = piece.state === "proposed" || isSlotted;
+  const canPublish = isSlotted || isReady;
 
   return (
     <>
@@ -165,19 +168,49 @@ export function PieceDetail({ piece }: { piece: Piece }) {
 
         {isSlotted ? (
           <div className="flex flex-col gap-2 border-t pt-4">
+            <p className="text-sm font-medium">Ready</p>
+            <p className="text-muted-foreground text-xs">
+              Written and in the can? Move it to <span className="font-medium">ready</span> — it
+              keeps its date and waits to ship.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-fit"
+              onClick={() => run(() => markReady(piece.id))}
+              disabled={pending}
+            >
+              Mark ready
+            </Button>
+          </div>
+        ) : null}
+
+        {canPublish ? (
+          <div className="flex flex-col gap-2 border-t pt-4">
             <p className="text-sm font-medium">Publish</p>
             <p className="text-muted-foreground text-xs">
               Mark this Piece shipped once it's live — it moves to{" "}
               <span className="font-medium">published</span> and keeps its date.
             </p>
-            <Button
-              size="sm"
-              className="w-fit"
-              onClick={() => run(() => publishPiece(piece.id))}
-              disabled={pending}
-            >
-              Mark shipped
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => run(() => publishPiece(piece.id))}
+                disabled={pending}
+              >
+                Mark shipped
+              </Button>
+              {isReady ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => run(() => deslotPiece(piece.id))}
+                  disabled={pending}
+                >
+                  Deslot
+                </Button>
+              ) : null}
+            </div>
           </div>
         ) : null}
 

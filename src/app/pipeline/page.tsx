@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 const STATE_LABEL: Record<PieceState, string> = {
   proposed: "Proposed",
   slotted: "Slotted",
-  in_production: "In production",
+  ready: "Ready",
   published: "Published",
   declined: "Declined",
 };

@@ -34,8 +34,14 @@ export async function declinePiece(id: string): Promise<ActionResult> {
   return callVerb("decline_piece", { p_id: id });
 }
 
-// publish_piece(p_id): slotted -> published (the Piece is shipped, live). Guarded
-// server-side to slotted-only; keeps its publish_date for the monthly Review.
+// mark_ready(p_id): slotted -> ready (the Piece is written, in the can, awaiting its
+// date). Guarded server-side to slotted-only; keeps its publish_date (ADR-0018).
+export async function markReady(id: string): Promise<ActionResult> {
+  return callVerb("mark_ready", { p_id: id });
+}
+
+// publish_piece(p_id): {slotted, ready} -> published (the Piece is shipped, live).
+// Guarded server-side; keeps its publish_date for the monthly Review (ADR-0017/0018).
 export async function publishPiece(id: string): Promise<ActionResult> {
   return callVerb("publish_piece", { p_id: id });
 }
