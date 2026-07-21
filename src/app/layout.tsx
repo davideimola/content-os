@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { auth } from "@/auth";
+import { AppShell } from "@/components/shell/app-shell";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Content OS",
+  title: "Editorial HQ",
   description: "The editorial Pipeline — planning, cadence, and calendar at a glance.",
 };
 
@@ -32,11 +34,13 @@ export const viewport: Viewport = {
 // of truth for the dark palette (the `.dark` class), no duplicated tokens.
 const themeScript = `try{document.documentElement.classList.toggle('dark',matchMedia('(prefers-color-scheme: dark)').matches)}catch(e){}`;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth();
+
   return (
     <html
       lang="en"
@@ -47,7 +51,9 @@ export default function RootLayout({
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: tiny no-flash theme setter */}
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="bg-background text-foreground min-h-full">{children}</body>
+      <body className="bg-background text-foreground min-h-full">
+        <AppShell user={session?.user ?? null}>{children}</AppShell>
+      </body>
     </html>
   );
 }

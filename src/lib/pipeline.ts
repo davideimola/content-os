@@ -96,3 +96,82 @@ export async function getFlagMix(): Promise<FlagMix> {
   if (error) throw new Error(`read flag_mix failed: ${error.message}`);
   return data as FlagMix;
 }
+
+// ── Calendar: the by-date projection over the Pipeline ──────────────────────────
+// Unifies everything that has a date — Piece publish dates, CFP deadlines, and
+// Event dates — into one sorted agenda. Mirrors the domain's Calendar (CONTEXT.md).
+export type CalendarItemKind = "piece" | "cfp" | "event";
+export type CalendarItem = {
+  id: string;
+  date: string; // YYYY-MM-DD
+  kind: CalendarItemKind;
+  title: string;
+  detail: string | null; // channel / event name / location
+  state: string | null; // piece state or engagement outcome
+};
+
+export async function getCalendarItems(): Promise<CalendarItem[]> {
+  const db = supabaseAdmin();
+  const [pieces, engagements, events] = await Promise.all([
+    db.from("pieces").select("id,title,channel,state,publish_date").not("publish_date", "is", null),
+    db
+      .from("engagements")
+      .select("id,outcome,deadline,talks(title),events(name)")
+      .eq("kind", "cfp")
+      .not("deadline", "is", null),
+    db.from("events").select("id,name,starts_on,location").not("starts_on", "is", null),
+  ]);
+  if (pieces.error) throw new Error(`read pieces (calendar) failed: ${pieces.error.message}`);
+  if (engagements.error) throw new Error(`read engagements failed: ${engagements.error.message}`);
+  if (events.error) throw new Error(`read events failed: ${events.error.message}`);
+
+  const one = <T>(v: T | T[] | null): T | null =>
+    (Array.isArray(v) ? (v[0] ?? null) : v) as T | null;
+
+  const items: CalendarItem[] = [];
+  for (const p of (pieces.data ?? []) as Piece[]) {
+    if (p.publish_date)
+      items.push({
+        id: p.id,
+        date: p.publish_date,
+        kind: "piece",
+        title: p.title,
+        detail: p.channel,
+        state: p.state,
+      });
+  }
+  for (const e of (engagements.data ?? []) as Array<{
+    id: string;
+    outcome: string;
+    deadline: string;
+    talks: { title: string } | { title: string }[] | null;
+    events: { name: string } | { name: string }[] | null;
+  }>) {
+    items.push({
+      id: e.id,
+      date: e.deadline,
+      kind: "cfp",
+      title: one(e.talks)?.title ?? "CFP",
+      detail: one(e.events)?.name ?? null,
+      state: e.outcome,
+    });
+  }
+  for (const ev of (events.data ?? []) as Array<{
+    id: string;
+    name: string;
+    starts_on: string;
+    location: string | null;
+  }>) {
+    items.push({
+      id: ev.id,
+      date: ev.starts_on,
+      kind: "event",
+      title: ev.name,
+      detail: ev.location,
+      state: null,
+    });
+  }
+
+  items.sort((a, b) => a.date.localeCompare(b.date));
+  return items;
+}
