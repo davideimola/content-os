@@ -44,6 +44,10 @@ The views (nav order in `src/lib/nav.ts`):
   is what can eventually retire the hand-maintained GitHub Projects board.
 - **Ideas** (`/ideas`) — the live Idea pool.
 - **Talks** (`/talks`) — the Talks.
+- **Metrics** (`/metrics`) — the month-by-month trend over LinkedIn + site (`getMonthlyMetrics`): a table
+  (impressions / reach / engagements / followers+Δ / site visitors / page views) plus dependency-free inline-SVG
+  trend charts (`src/components/trend-chart.tsx`). The accessible "table view" for the Overview's mini charts
+  (ADR-0019). Pure read.
 
 ## Branding
 

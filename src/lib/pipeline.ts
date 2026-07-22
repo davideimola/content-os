@@ -163,6 +163,52 @@ export function monthEngagements(posts: LinkedinPost[], month: string): number {
   return posts.filter((p) => p.month === month).reduce((sum, p) => sum + (p.engagements ?? 0), 0);
 }
 
+// ── Monthly trend: LinkedIn + site, merged per month for the /metrics view ─────
+export type MonthlyMetrics = {
+  month: string; // YYYY-MM-01
+  li_impressions: number | null;
+  li_reach: number | null;
+  li_engagements: number; // summed from the month's per-post rows
+  li_followers: number | null;
+  li_new_followers: number | null;
+  site_visitors: number | null;
+  site_page_views: number | null;
+};
+
+// One row per month that has any data (newest first). Merges the LinkedIn account
+// snapshot, the site numbers, and per-month engagements (summed from post rows) —
+// keyed by YYYY-MM so first-of-month dates from any source line up.
+export async function getMonthlyMetrics(): Promise<MonthlyMetrics[]> {
+  const [accounts, site, posts] = await Promise.all([
+    getLinkedinAccounts(120),
+    getSiteMetrics(),
+    getLinkedinPosts(),
+  ]);
+  const key = (m: string) => m.slice(0, 7);
+  const acc = new Map(accounts.map((a) => [key(a.month), a]));
+  const sit = new Map(site.map((s) => [key(s.month), s]));
+  const eng = new Map<string, number>();
+  for (const p of posts) eng.set(key(p.month), (eng.get(key(p.month)) ?? 0) + (p.engagements ?? 0));
+
+  const months = new Set<string>([...acc.keys(), ...sit.keys(), ...eng.keys()]);
+  const rows: MonthlyMetrics[] = [...months].map((m) => {
+    const a = acc.get(m);
+    const s = sit.get(m);
+    return {
+      month: `${m}-01`,
+      li_impressions: a?.impressions ?? null,
+      li_reach: a?.members_reached ?? null,
+      li_engagements: eng.get(m) ?? 0,
+      li_followers: a?.followers_total ?? null,
+      li_new_followers: a?.new_followers ?? null,
+      site_visitors: s?.visitors ?? null,
+      site_page_views: s?.page_views ?? null,
+    };
+  });
+  rows.sort((x, y) => y.month.localeCompare(x.month)); // newest first
+  return rows;
+}
+
 // ── Calendar: the by-date projection over the Pipeline ──────────────────────────
 // Unifies everything that has a date — Piece publish dates, CFP deadlines, and
 // Event dates — into one sorted agenda. Mirrors the domain's Calendar (CONTEXT.md).

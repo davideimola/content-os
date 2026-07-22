@@ -3,17 +3,17 @@ import Link from "next/link";
 import { PieceDetail } from "@/components/detail/piece-detail";
 import { TalkDetail } from "@/components/detail/talk-detail";
 import { CadenceStrip, EmptyState, Section } from "@/components/pipeline";
+import { TrendChart } from "@/components/trend-chart";
 import { MetricTile, StatTile, View } from "@/components/view";
 import {
   getCadence,
   getCalendarItems,
   getFlagMix,
-  getLinkedinAccounts,
-  getLinkedinPosts,
   getLiveIdeas,
+  getMonthlyMetrics,
   getPieces,
   getTalks,
-  monthEngagements,
+  type MonthlyMetrics,
 } from "@/lib/pipeline";
 
 export const dynamic = "force-dynamic";
@@ -39,16 +39,20 @@ function pctDelta(
   };
 }
 
+// A chart wants points oldest -> newest; the monthly rows come newest-first.
+function series(rows: MonthlyMetrics[], pick: (r: MonthlyMetrics) => number | null) {
+  return [...rows].reverse().map((r) => ({ month: r.month, value: pick(r) }));
+}
+
 export default async function OverviewPage() {
-  const [pieces, ideas, talks, cadence, mix, calendar, accounts, liPosts] = await Promise.all([
+  const [pieces, ideas, talks, cadence, mix, calendar, monthly] = await Promise.all([
     getPieces(),
     getLiveIdeas(),
     getTalks(),
     getCadence(),
     getFlagMix(),
     getCalendarItems(),
-    getLinkedinAccounts(2),
-    getLinkedinPosts(),
+    getMonthlyMetrics(),
   ]);
 
   const proposedPieces = pieces.filter((p) => p.state === "proposed");
@@ -61,11 +65,9 @@ export default async function OverviewPage() {
   const nextUp = calendar.filter((i) => i.date >= today).slice(0, 5);
 
   // LinkedIn "latest month with data" + the one before, for the deltas (ADR-0019).
-  const latest = accounts[0];
-  const prev = accounts[1];
+  const latest = monthly[0];
+  const prev = monthly[1];
   const prevLabel = prev ? monthShortFmt.format(asMonth(prev.month)) : "";
-  const latestEng = latest ? monthEngagements(liPosts, latest.month) : 0;
-  const prevEng = prev ? monthEngagements(liPosts, prev.month) : 0;
 
   return (
     <View title="Overview" subtitle={`Flag mix ${flagPct}% · target ~70% · ${mix.total} outputs`}>
@@ -76,27 +78,38 @@ export default async function OverviewPage() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <MetricTile
               label="Impressions"
-              value={latest.impressions != null ? numFmt.format(latest.impressions) : "—"}
-              {...pctDelta(latest.impressions, prev?.impressions, prevLabel)}
+              value={latest.li_impressions != null ? numFmt.format(latest.li_impressions) : "—"}
+              {...pctDelta(latest.li_impressions, prev?.li_impressions, prevLabel)}
             />
             <MetricTile
               label="Members reached"
-              value={latest.members_reached != null ? numFmt.format(latest.members_reached) : "—"}
-              {...pctDelta(latest.members_reached, prev?.members_reached, prevLabel)}
+              value={latest.li_reach != null ? numFmt.format(latest.li_reach) : "—"}
+              {...pctDelta(latest.li_reach, prev?.li_reach, prevLabel)}
             />
             <MetricTile
               label="Engagements"
-              value={numFmt.format(latestEng)}
-              {...pctDelta(latestEng, prevEng, prevLabel)}
+              value={numFmt.format(latest.li_engagements)}
+              {...pctDelta(latest.li_engagements, prev?.li_engagements, prevLabel)}
             />
             <MetricTile
               label="Followers"
-              value={latest.followers_total != null ? numFmt.format(latest.followers_total) : "—"}
+              value={latest.li_followers != null ? numFmt.format(latest.li_followers) : "—"}
               delta={
-                latest.new_followers != null ? `+${latest.new_followers} this month` : undefined
+                latest.li_new_followers != null
+                  ? `+${latest.li_new_followers} this month`
+                  : undefined
               }
-              tone={latest.new_followers && latest.new_followers > 0 ? "up" : "neutral"}
+              tone={latest.li_new_followers && latest.li_new_followers > 0 ? "up" : "neutral"}
             />
+          </div>
+        </Section>
+      ) : null}
+
+      {monthly.length >= 2 ? (
+        <Section title="Trend">
+          <div className="grid grid-cols-2 gap-3">
+            <TrendChart label="Followers" points={series(monthly, (r) => r.li_followers)} />
+            <TrendChart label="Impressions" points={series(monthly, (r) => r.li_impressions)} />
           </div>
         </Section>
       ) : null}

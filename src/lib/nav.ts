@@ -3,6 +3,7 @@ import {
   Columns3,
   LayoutDashboard,
   Lightbulb,
+  LineChart,
   type LucideIcon,
   Mic,
 } from "lucide-react";
@@ -20,4 +21,5 @@ export const NAV: NavItem[] = [
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/ideas", label: "Ideas", icon: Lightbulb },
   { href: "/talks", label: "Talks", icon: Mic },
+  { href: "/metrics", label: "Metrics", icon: LineChart },
 ];
