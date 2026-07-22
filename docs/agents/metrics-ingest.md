@@ -56,9 +56,10 @@ date,post_url,impressions,engagements
 
 ## Site input (manual)
 
-`visitors` and `page_views` are the two core [Vercel Analytics](../../CONTEXT.md) counts Davide reports each
-month (the **website**, distinct from LinkedIn). At least one is required. `record_site_metrics` upserts on
-the month, so re-recording corrects it.
+`visitors` and `page_views` are the two core site counts Davide reports each month (the **website**,
+distinct from LinkedIn), read **by hand from the Umami Cloud dashboard** — the free plan has no API, so
+there is no programmatic pull (the site ran on Vercel Analytics until mid-July 2026). At least one is
+required. `record_site_metrics` upserts on the month, so re-recording corrects it.
 
 ## Producing the inputs from the export
 
@@ -75,7 +76,8 @@ monthly Review's job. The export has five sheets; the map:
 
 During the Review (steps in [monthly-beat.md](monthly-beat.md)):
 
-1. **Ask Davide for the Aggregate Analytics XLSX** for the month + the site numbers (Vercel).
+1. **Ask Davide for the Aggregate Analytics XLSX** for the month + the site numbers (read by hand from the
+   Umami Cloud dashboard).
 2. **Read the XLSX** (an XLSX is a zip of XML — unzip and read the sheets) and build the per-post CSV
    (`date, post_url, impressions, engagements`) + the account figures.
 3. **Call** `ingest_linkedin_metrics(month, csv_text)`, `record_linkedin_account(month, …)`, and

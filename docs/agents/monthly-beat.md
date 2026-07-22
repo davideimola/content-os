@@ -35,8 +35,9 @@ point next) is the Review.
 
 **1 — Open the ritual (ask for the inputs).** Ask Davide for the month's raw inputs: the **LinkedIn
 creator Aggregate Analytics export** (the `AggregateAnalytics_…_<month>.xlsx`) and the **site numbers**
-from Vercel Analytics (visitors, page views). The fixed monthly ritual is what makes data collection
-reliable — it never depends on memory.
+(visitors, page views) read by hand from the Umami Cloud dashboard (free plan → no API; the site ran on
+Vercel Analytics until mid-July 2026). The fixed monthly ritual is what makes data collection reliable —
+it never depends on memory.
 
 **2 — Ingest.** Read the XLSX (it's a zip of XML — unzip and read the sheets) and derive the inputs per the
 [sheet map](metrics-ingest.md#producing-the-inputs-from-the-export): the per-post CSV

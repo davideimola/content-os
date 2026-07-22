@@ -99,7 +99,8 @@ erDiagram
   (the post's stable identity), joined by URL — not an FK — so it rolls up every monthly slice.
 - **metrics_linkedin_account** (`mla_…`) — the monthly account-level snapshot: `month` (unique),
   `impressions`, `members_reached`, `followers_total`, `new_followers` (ADR-0019).
-- **metrics_site** (`mst_…`) — monthly `visitors`/`page_views` (the website, from the Umami API).
+- **metrics_site** (`mst_…`) — monthly `visitors`/`page_views` (the website), read by hand from the Umami
+  Cloud dashboard (free plan → no API; Vercel Analytics until mid-July 2026).
 
 ## RPC verbs (the API contract)
 
