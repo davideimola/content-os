@@ -34,7 +34,9 @@ An **app shell** (`src/components/shell/app-shell.tsx`) wraps every route: a **s
 component (active-link state via `usePathname`); the signed-in user comes from `auth()` in the root layout.
 The views (nav order in `src/lib/nav.ts`):
 
-- **Overview** (`/`) — cadence, Flag mix, stat tiles, the "to judge" proposals, and the next dated items.
+- **Overview** (`/`) — cadence, Flag mix, stat tiles, a **"This month on LinkedIn"** tile row (impressions
+  / members reached / engagements / followers, with month-over-month deltas — ADR-0019), the "to judge"
+  proposals, and the next dated items.
 - **Pipeline** (`/pipeline`) — the lifecycle board (proposed → slotted → ready → published), one
   column per state; the write actions live on the Piece cards.
 - **Calendar** (`/calendar`) — the by-date agenda (`getCalendarItems`): Piece publish dates + CFP deadlines
@@ -59,11 +61,15 @@ only brand accent is the mark's red cursor. The header reads **Editorial HQ · d
 - **Writes** — Next **Server Actions** (`src/lib/actions.ts`) call the **RPC verbs** and
   `revalidatePath("/", "layout")` (a write shows across every view). No raw table `UPDATE`s: the UI cannot
   drift from the contract, the same property the MCP adapter has. Verbs used: `slot_piece` / `deslot_piece` /
-  `decline_piece` / `mark_ready` / `publish_piece` / `set_piece_artifact` / `decline_talk` / `archive_idea`, plus the
+  `decline_piece` / `mark_ready` / `publish_piece` / `set_piece_artifact` / `set_piece_linkedin_url` /
+  `decline_talk` / `archive_idea`, plus the
   free-text edit verbs `edit_idea(id,title,body)` / `edit_piece(id,title)` / `edit_talk(id,title)` (added by
   `supabase/migrations/…_edit_text_verbs.sql`). **The rule holds even for editing:** free-text edits are a
   contract change (a new verb), never a UI-only write — the console is still just a client of the verbs.
-  MCP-adapter parity for the edit verbs (so the Desk/AI apps can edit too) is a later additive step.
+  `set_piece_linkedin_url` ([ADR-0019](../adr/0019-linkedin-metrics-contract-follows-the-aggregate-export.md),
+  guarded to `channel = 'linkedin'`) ties a Piece to its LinkedIn post so the per-Piece metrics cross can
+  join by URL. MCP-adapter parity for the edit verbs + this one (so the Desk/AI apps can use them too) is a
+  later additive step.
   `publish_piece` ([ADR-0017](../adr/0017-publish-verb-advances-a-piece-to-published.md)) is the first
   **lifecycle-advance** verb, and `mark_ready` ([ADR-0018](../adr/0018-ready-replaces-in-production-on-the-piece-lifecycle.md))
   the second: `mark_ready` does `slotted → ready` (written, awaiting its date), and `publish_piece` does
@@ -74,7 +80,9 @@ only brand accent is the mark's red cursor. The header reads **Editorial HQ · d
   desktop, a bottom sheet on mobile (`useMediaQuery` picks the side). It shows the full content (an Idea's
   verbatim body, a Piece/Talk's fields + links) and hosts the actions above: edit (title/body), schedule
   (slot/reslot/deslot), **mark ready (slotted Pieces)**, **publish (mark shipped — slotted/ready Pieces)**,
-  artifact URL, decline, archive.
+  artifact URL, decline, archive. For a **LinkedIn Piece** it also **links its LinkedIn post and shows its
+  impressions + engagements** summed across months (the per-Piece cross, ADR-0019); for a **blog Piece** it
+  shows the publish month's **site-wide** visitors (there is no per-post site metric).
   Cards are clean triggers; no inline buttons.
 - **Auth** — a single-user gate (`src/auth.ts`, `src/proxy.ts`): **Auth.js v5 + Google**, no password,
   restricted to an email allowlist (`AUTH_ALLOWED_EMAIL`). Chosen over Supabase Auth (we need no per-user

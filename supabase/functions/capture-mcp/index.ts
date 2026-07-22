@@ -198,14 +198,31 @@ const TOOLS = [
   {
     name: "ingest_linkedin_metrics",
     description:
-      "Ingest a LinkedIn per-post export CSV for a month (replaces that month's posts). The CSV needs columns date, post_url, impressions, reactions, comments, reshares (any order; extras ignored).",
+      "Ingest LinkedIn per-post metrics for a month (replaces that month's posts). CSV columns: date, post_url, impressions, engagements (any order; extras ignored). These are the per-post figures the creator Aggregate Analytics export gives — impressions + a single combined engagements, per-period (ADR-0019).",
     inputSchema: {
       type: "object",
       properties: {
         month: { type: "string", description: "Snapshot month as YYYY-MM." },
-        csv_text: { type: "string", description: "The raw LinkedIn per-post export CSV text." },
+        csv_text: { type: "string", description: "The per-post CSV (date, post_url, impressions, engagements) derived from the export." },
       },
       required: ["month", "csv_text"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "record_linkedin_account",
+    description:
+      "Record a month's LinkedIn account-level snapshot (upsert): impressions, members reached, follower total, and the month's follower growth — the DISCOVERY + FOLLOWERS figures from the Aggregate Analytics export (ADR-0019).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        month: { type: "string", description: "Snapshot month as YYYY-MM." },
+        impressions: { type: "integer", description: "Total account impressions for the month." },
+        members_reached: { type: "integer", description: "Unique members reached for the month." },
+        followers_total: { type: "integer", description: "Follower count at the month's end." },
+        new_followers: { type: "integer", description: "Followers gained during the month." },
+      },
+      required: ["month"],
       additionalProperties: false,
     },
   },
@@ -235,7 +252,8 @@ const TOOLS = [
   },
   {
     name: "get_metrics",
-    description: "A month's ingested LinkedIn per-post metrics plus its site numbers.",
+    description:
+      "A month's ingested metrics: LinkedIn per-post rows (impressions, engagements), the LinkedIn account-level snapshot, and the site numbers.",
     inputSchema: {
       type: "object",
       properties: { month: { type: "string", description: "Month as YYYY-MM." } },
@@ -469,7 +487,7 @@ async function setPieceArtifact(args: Record<string, unknown> | undefined) {
 }
 
 // ── metrics: deterministic LinkedIn CSV parse (ported from internal/metrics) ──
-const LINKEDIN_COLUMNS = ["date", "post_url", "impressions", "reactions", "comments", "reshares"];
+const LINKEDIN_COLUMNS = ["date", "post_url", "impressions", "engagements"];
 
 // "YYYY-MM" -> "YYYY-MM-01" (a real month first-day), or null if malformed.
 function monthToFirstDay(m: unknown): string | null {
@@ -496,8 +514,9 @@ function parseCount(s: string): number | null {
 }
 
 // Header-matched columns in any order (extras ignored); strict YYYY-MM-DD dates
-// and non-negative integer counts; maps the export's `reshares` to the DB
-// `shares`. Returns validated rows for ingest_linkedin_metrics, or a message.
+// and non-negative integer counts. Per-post carries impressions + a single
+// combined engagements — the export has no reaction/comment/reshare split
+// (ADR-0019). Returns validated rows for ingest_linkedin_metrics, or a message.
 function parseLinkedInCsv(text: string): { rows: Record<string, unknown>[] } | { error: string } {
   let records: string[][];
   try {
@@ -540,7 +559,7 @@ function parseLinkedInCsv(text: string): { rows: Record<string, unknown>[] } | {
     if (url === "") return { error: `row ${line}: post_url is empty` };
 
     const counts: Record<string, number> = {};
-    for (const col of ["impressions", "reactions", "comments", "reshares"]) {
+    for (const col of ["impressions", "engagements"]) {
       const n = parseCount(field(col));
       if (n === null) return { error: `row ${line}: ${col} "${field(col)}" is not a non-negative integer` };
       counts[col] = n;
@@ -549,9 +568,7 @@ function parseLinkedInCsv(text: string): { rows: Record<string, unknown>[] } | {
       posted_on: date,
       post_url: url,
       impressions: counts.impressions,
-      reactions: counts.reactions,
-      comments: counts.comments,
-      shares: counts.reshares, // export `reshares` -> DB `shares`
+      engagements: counts.engagements,
     });
   }
   return { rows };
@@ -567,6 +584,21 @@ async function ingestLinkedinMetrics(args: Record<string, unknown> | undefined) 
   if (error) return toolError(`ingest_linkedin_metrics failed: ${error.message}`);
   const inserted = typeof data === "number" ? data : firstRow(data);
   return toolOk(`Ingested ${inserted} LinkedIn post(s) for ${args!.month}`, { month, inserted });
+}
+
+async function recordLinkedinAccount(args: Record<string, unknown> | undefined) {
+  const month = monthToFirstDay(args?.month);
+  if (!month) return toolError("month is required as YYYY-MM");
+  const intOrNull = (v: unknown) => (Number.isInteger(v) ? (v as number) : null);
+  const { data, error } = await db().rpc("record_linkedin_account", {
+    p_month: month,
+    p_impressions: intOrNull(args?.impressions),
+    p_members_reached: intOrNull(args?.members_reached),
+    p_followers_total: intOrNull(args?.followers_total),
+    p_new_followers: intOrNull(args?.new_followers),
+  });
+  if (error) return toolError(`record_linkedin_account failed: ${error.message}`);
+  return toolOk(`Recorded LinkedIn account snapshot for ${args!.month}`, { account: firstRow(data) });
 }
 
 async function recordSiteMetrics(args: Record<string, unknown> | undefined) {
@@ -602,15 +634,19 @@ async function getMetrics(args: Record<string, unknown> | undefined) {
   const month = monthToFirstDay(args?.month);
   if (!month) return toolError("month is required as YYYY-MM");
   const client = db();
-  const [posts, site] = await Promise.all([
+  const [posts, account, site] = await Promise.all([
     client.from("metrics_linkedin_posts")
-      .select("posted_on,post_url,impressions,reactions,comments,shares,clicks,piece_id")
-      .eq("month", month).order("posted_on", { ascending: true }),
+      .select("posted_on,post_url,impressions,engagements")
+      .eq("month", month).order("impressions", { ascending: false }),
+    client.from("metrics_linkedin_account")
+      .select("month,impressions,members_reached,followers_total,new_followers")
+      .eq("month", month).maybeSingle(),
     client.from("metrics_site").select("month,visitors,page_views").eq("month", month).maybeSingle(),
   ]);
   if (posts.error) return toolError(`get_metrics failed: ${posts.error.message}`);
+  if (account.error) return toolError(`get_metrics failed: ${account.error.message}`);
   if (site.error) return toolError(`get_metrics failed: ${site.error.message}`);
-  const payload = { linkedin: posts.data ?? [], site: site.data };
+  const payload = { linkedin: posts.data ?? [], linkedin_account: account.data, site: site.data };
   return toolOk(JSON.stringify(payload), payload);
 }
 
@@ -632,6 +668,7 @@ function callTool(name: unknown, args: Record<string, unknown> | undefined) {
     case "block_piece": return blockPiece(args);
     case "set_piece_artifact": return setPieceArtifact(args);
     case "ingest_linkedin_metrics": return ingestLinkedinMetrics(args);
+    case "record_linkedin_account": return recordLinkedinAccount(args);
     case "record_site_metrics": return recordSiteMetrics(args);
     case "flag_mix": return flagMix();
     case "cadence_status": return cadenceStatus();

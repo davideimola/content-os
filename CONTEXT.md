@@ -81,5 +81,5 @@ The interactive counterpart to the monthly Beat — an on-demand session Davide 
 _Avoid_: report, digest, dashboard
 
 **Metrics snapshot**:
-The monthly capture of channel data (LinkedIn analytics export, site analytics numbers), stored with the Pipeline and crossed with the Calendar by the monthly review to judge what worked.
+The monthly capture of channel data — the LinkedIn creator Aggregate Analytics export (per-post impressions + combined engagements, plus account-level impressions / members reached / follower growth) and the site numbers — stored with the Pipeline and crossed with the Calendar by the monthly review to judge what worked. LinkedIn figures are per-period (a post's total is the sum over months), and a Piece is tied to its post by URL (ADR-0019).
 _Avoid_: report, stats dump

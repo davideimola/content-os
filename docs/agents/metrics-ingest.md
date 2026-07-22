@@ -1,70 +1,92 @@
 # metrics ingest: raw exports into the Pipeline
 
-Metrics ingest turns the raw monthly inputs — a LinkedIn per-post export and manually reported site
-numbers — into rows in the Supabase [Metrics snapshot](../../CONTEXT.md) tables (`metrics_linkedin_posts`
-/ `metrics_site`). It is two tools on the **content-os MCP adapter**
+Metrics ingest turns the monthly raw inputs — LinkedIn's creator **Aggregate Analytics** export and the
+manually reported site numbers — into rows in the Supabase [Metrics snapshot](../../CONTEXT.md) tables
+(`metrics_linkedin_posts` / `metrics_linkedin_account` / `metrics_site`). It is three tools on the
+**content-os MCP adapter**
 ([ADR-0015](../adr/0015-operations-surface-is-an-mcp-adapter-over-the-rpc-contract.md)):
 
-- **`ingest_linkedin_metrics(month, csv_text)`** — the adapter parses the export CSV deterministically
+- **`ingest_linkedin_metrics(month, csv_text)`** — the adapter parses the per-post CSV deterministically
   (server-side) and **replaces that month's posts** in one atomic write.
-- **`record_site_metrics(month, visitors?, page_views?)`** — upserts the month's site numbers.
+- **`record_linkedin_account(month, impressions?, members_reached?, followers_total?, new_followers?)`** —
+  upserts the month's LinkedIn **account-level** snapshot.
+- **`record_site_metrics(month, visitors?, page_views?)`** — upserts the month's **website** numbers.
 
-This **replaces the retired `contentos metrics-ingest` Go CLI** (ADR-0009 → ADR-0015). The parse is still
-deterministic and idempotent — re-ingesting a corrected export just replaces the month — but the output
-now lives in the DB, not in committed `metrics/<YYYY-MM>/` files, so the old git-diff-stability argument
-no longer applies. The intelligence that turns a messy raw export into the input contract stays with the
-monthly [Review](../../CONTEXT.md) (see [Producing the LinkedIn CSV](#producing-the-linkedin-csv)).
+This replaces the retired `contentos metrics-ingest` Go CLI (ADR-0009 → ADR-0015). The parse is still
+deterministic and idempotent — re-ingesting a corrected export just replaces the month — and the numbers
+live in the DB, not in committed `metrics/<YYYY-MM>/` files.
 
-## LinkedIn input contract (CSV)
+The contract follows **what LinkedIn actually exports to a private individual**
+([ADR-0019](../adr/0019-linkedin-metrics-contract-follows-the-aggregate-export.md)): programmatic pull is
+gated behind a legal entity (see [the research](../research/linkedin-personal-analytics-api.md)), so the
+only self-serve source is the creator Aggregate Analytics XLSX. That export gives, **per post**, only
+`impressions` and a single **combined `engagements`** — never a reaction/comment/reshare split — and its
+figures are **per-period** (a post's per-post impressions sum to the month's account total), not lifetime.
+Turning that messy multi-sheet XLSX into the input contract is the monthly [Review](../../CONTEXT.md)'s job
+(judgement, not a deterministic transform — see [Producing the inputs](#producing-the-inputs-from-the-export)).
+
+## LinkedIn per-post contract (CSV)
 
 A header row plus one row per post. Columns are matched **by header name in any order**, and **extra
-columns are ignored** — so you can hand the tool a wider export without stripping it.
+columns are ignored** — so a wider CSV is fine.
 
 | column        | meaning                 | format                 |
 | ------------- | ----------------------- | ---------------------- |
 | `date`        | the post's publish date | `YYYY-MM-DD`           |
 | `post_url`    | the post's permalink    | non-empty string       |
-| `impressions` | impressions             | non-negative integer   |
-| `reactions`   | reactions               | non-negative integer   |
-| `comments`    | comments                | non-negative integer   |
-| `reshares`    | reshares                | non-negative integer   |
+| `impressions` | impressions in the month| non-negative integer   |
+| `engagements` | combined engagements    | non-negative integer   |
 
-All six are **required**; a missing column, a non-`YYYY-MM-DD` date, or a non-integer/negative count is a
-named tool error and nothing is written. `reshares` maps to the DB column `shares`; `clicks`/`piece_id`
-are not in the export (left null; a post is linked to its Piece later). Example:
+All four are **required**; a missing column, a non-`YYYY-MM-DD` date, or a non-integer/negative count is a
+named tool error and nothing is written. Because the numbers are per-period, a post that stayed active over
+several months appears in several monthly ingests; its lifetime total is the **sum** across months, and the
+Piece it belongs to is linked by `pieces.linkedin_post_url` (matched on `post_url`, which rolls up every
+slice). Example:
 
 ```csv
-date,post_url,impressions,reactions,comments,reshares
-2026-06-03,https://www.linkedin.com/feed/update/urn:li:activity:7200000000000000001,4210,88,12,5
-2026-06-11,https://www.linkedin.com/feed/update/urn:li:activity:7200000000000000002,3110,54,7,2
+date,post_url,impressions,engagements
+2026-06-16,https://www.linkedin.com/posts/davideimola_..._share-7472570052525854722-tDjU,146,4
+2026-05-21,https://www.linkedin.com/posts/davideimola_..._share-7463159988035715072-TU_Y,196,5
 ```
+
+## LinkedIn account-level input
+
+`record_linkedin_account` takes the month's `impressions`, `members_reached`, `followers_total`, and
+`new_followers` (the month's follower growth). All optional; whatever is provided is upserted on the month.
 
 ## Site input (manual)
 
-`visitors` and `page_views` are the two core [Vercel Analytics](../../CONTEXT.md) counts Davide reports
-each month. At least one is required. `record_site_metrics` upserts on the month, so re-recording
-corrects it.
+`visitors` and `page_views` are the two core [Vercel Analytics](../../CONTEXT.md) counts Davide reports each
+month (the **website**, distinct from LinkedIn). At least one is required. `record_site_metrics` upserts on
+the month, so re-recording corrects it.
 
-## Producing the LinkedIn CSV
+## Producing the inputs from the export
 
-The `ingest_linkedin_metrics` tool consumes the CSV contract above; getting there from LinkedIn's raw
-export is the monthly Review's job (judgement, not a deterministic transform). During the Review:
+The tools consume the contract above; getting there from LinkedIn's raw **Aggregate Analytics** XLSX is the
+monthly Review's job. The export has five sheets; the map:
 
-1. **Ask Davide for the raw LinkedIn analytics export** for the month — the XLSX from the creator
-   analytics "Export" button, or the per-post numbers read off the LinkedIn UI. (Programmatic pull is not
-   available to an individual without a legal entity — see
-   [the LinkedIn analytics research](../research/linkedin-personal-analytics-api.md).)
-2. **Map each post to a contract row**: `date`, `post_url`, `impressions`, `reactions`, `comments`,
-   `reshares` — as CSV text.
-3. **Call** `ingest_linkedin_metrics(month = <YYYY-MM>, csv_text = <the CSV>)`.
-4. **Ask Davide for the site numbers** (visitors, page views) and call
-   `record_site_metrics(month = <YYYY-MM>, visitors = N, page_views = N)`.
+- **DISCOVERY** → the month's account `impressions` and `members_reached`.
+- **TOP POSTS** → two side-by-side ranked lists (posts by impressions, posts by engagements). Join them by
+  `post_url` to get, per post: `post_url`, publish `date`, `impressions`, `engagements` (0 when absent from
+  the engagements list). At personal volume the lists are complete (per-post impressions sum to DISCOVERY).
+- **FOLLOWERS** → `followers_total` (count at month end) and `new_followers` (sum of the daily "New
+  followers").
+- ENGAGEMENT (daily account series) and DEMOGRAPHICS are not ingested.
+
+During the Review (steps in [monthly-beat.md](monthly-beat.md)):
+
+1. **Ask Davide for the Aggregate Analytics XLSX** for the month + the site numbers (Vercel).
+2. **Read the XLSX** (an XLSX is a zip of XML — unzip and read the sheets) and build the per-post CSV
+   (`date, post_url, impressions, engagements`) + the account figures.
+3. **Call** `ingest_linkedin_metrics(month, csv_text)`, `record_linkedin_account(month, …)`, and
+   `record_site_metrics(month, …)`.
 
 Nothing is committed — the numbers live in the Pipeline.
 
 ## Verify
 
-No unit tests — verified at the ops seam against a local Supabase: ingest a small sample export CSV
-(columns in any order, an extra ignored column, unsorted rows) and assert the rows land with
-`reshares → shares`, that a re-ingest replaces (not duplicates) the month, and that the bad-month /
-missing-column / missing-numbers paths come back as tool errors.
+No unit tests — verified at the ops seam against a local Supabase: ingest a small sample CSV (columns in any
+order, an extra ignored column) and assert the rows land, that a re-ingest **replaces** (not duplicates) the
+month, that `record_linkedin_account` upserts, and that the bad-date / missing-column / negative-count paths
+come back as tool errors. `get_metrics(month)` returns the per-post rows, the account snapshot, and the site
+numbers.

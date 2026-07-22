@@ -3,28 +3,52 @@ import Link from "next/link";
 import { PieceDetail } from "@/components/detail/piece-detail";
 import { TalkDetail } from "@/components/detail/talk-detail";
 import { CadenceStrip, EmptyState, Section } from "@/components/pipeline";
-import { StatTile, View } from "@/components/view";
+import { MetricTile, StatTile, View } from "@/components/view";
 import {
   getCadence,
   getCalendarItems,
   getFlagMix,
+  getLinkedinAccounts,
+  getLinkedinPosts,
   getLiveIdeas,
   getPieces,
   getTalks,
+  monthEngagements,
 } from "@/lib/pipeline";
 
 export const dynamic = "force-dynamic";
 
 const upcomingFmt = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short" });
+const monthLongFmt = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
+const monthShortFmt = new Intl.DateTimeFormat("en-GB", { month: "short" });
+const numFmt = new Intl.NumberFormat("en-GB");
+
+const asMonth = (iso: string) => new Date(`${iso.slice(0, 7)}-01T00:00:00`);
+
+// A percent month-over-month delta, formatted with a tone for MetricTile.
+function pctDelta(
+  cur: number | null | undefined,
+  prev: number | null | undefined,
+  prevLabel: string
+): { delta: string; tone: "up" | "down" | "neutral" } | undefined {
+  if (cur == null || prev == null || prev === 0) return undefined;
+  const pct = Math.round(((cur - prev) / prev) * 100);
+  return {
+    delta: `${pct >= 0 ? "+" : ""}${pct}% vs ${prevLabel}`,
+    tone: pct > 0 ? "up" : pct < 0 ? "down" : "neutral",
+  };
+}
 
 export default async function OverviewPage() {
-  const [pieces, ideas, talks, cadence, mix, calendar] = await Promise.all([
+  const [pieces, ideas, talks, cadence, mix, calendar, accounts, liPosts] = await Promise.all([
     getPieces(),
     getLiveIdeas(),
     getTalks(),
     getCadence(),
     getFlagMix(),
     getCalendarItems(),
+    getLinkedinAccounts(2),
+    getLinkedinPosts(),
   ]);
 
   const proposedPieces = pieces.filter((p) => p.state === "proposed");
@@ -36,9 +60,46 @@ export default async function OverviewPage() {
   const today = new Date().toISOString().slice(0, 10);
   const nextUp = calendar.filter((i) => i.date >= today).slice(0, 5);
 
+  // LinkedIn "latest month with data" + the one before, for the deltas (ADR-0019).
+  const latest = accounts[0];
+  const prev = accounts[1];
+  const prevLabel = prev ? monthShortFmt.format(asMonth(prev.month)) : "";
+  const latestEng = latest ? monthEngagements(liPosts, latest.month) : 0;
+  const prevEng = prev ? monthEngagements(liPosts, prev.month) : 0;
+
   return (
     <View title="Overview" subtitle={`Flag mix ${flagPct}% · target ~70% · ${mix.total} outputs`}>
       <CadenceStrip cadence={cadence} />
+
+      {latest ? (
+        <Section title={`This month on LinkedIn · ${monthLongFmt.format(asMonth(latest.month))}`}>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <MetricTile
+              label="Impressions"
+              value={latest.impressions != null ? numFmt.format(latest.impressions) : "—"}
+              {...pctDelta(latest.impressions, prev?.impressions, prevLabel)}
+            />
+            <MetricTile
+              label="Members reached"
+              value={latest.members_reached != null ? numFmt.format(latest.members_reached) : "—"}
+              {...pctDelta(latest.members_reached, prev?.members_reached, prevLabel)}
+            />
+            <MetricTile
+              label="Engagements"
+              value={numFmt.format(latestEng)}
+              {...pctDelta(latestEng, prevEng, prevLabel)}
+            />
+            <MetricTile
+              label="Followers"
+              value={latest.followers_total != null ? numFmt.format(latest.followers_total) : "—"}
+              delta={
+                latest.new_followers != null ? `+${latest.new_followers} this month` : undefined
+              }
+              tone={latest.new_followers && latest.new_followers > 0 ? "up" : "neutral"}
+            />
+          </div>
+        </Section>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile

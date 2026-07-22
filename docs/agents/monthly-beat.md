@@ -17,8 +17,8 @@ point next) is the Review.
 ## Before you start
 
 - Run from a `content-os` checkout, with the **`content-os-capture` MCP server** available (its tools —
-  `ingest_linkedin_metrics`, `record_site_metrics`, `get_metrics`, `list_calendar`, `flag_mix`,
-  `cadence_status` — are present).
+  `ingest_linkedin_metrics`, `record_linkedin_account`, `record_site_metrics`, `get_metrics`,
+  `list_calendar`, `flag_mix`, `cadence_status` — are present).
 - **You are the brain**, with Davide reading the numbers alongside you — never an autonomous model.
 
 ## What it runs against
@@ -27,26 +27,30 @@ point next) is the Review.
   month's shipped **Pieces** with Flag/Side + channel + date), and `flag_mix` / `cadence_status` for a
   current snapshot. The realized figures for the reviewed month are **computed over that month's
   published Pieces**, not read from the lifetime `flag_mix` view.
-- **Writes (MCP tools):** `ingest_linkedin_metrics` + `record_site_metrics` land the month's numbers in
-  the DB (idempotent — re-running replaces the month). Only if Davide asks, one digest [ping](notify.md).
-  The Review asks Davide for the raw inputs; it never invents them.
+- **Writes (MCP tools):** `ingest_linkedin_metrics` + `record_linkedin_account` + `record_site_metrics`
+  land the month's numbers in the DB (idempotent — re-running replaces the month). Only if Davide asks, one
+  digest [ping](notify.md). The Review asks Davide for the raw inputs; it never invents them.
 
 ## The procedure
 
 **1 — Open the ritual (ask for the inputs).** Ask Davide for the month's raw inputs: the **LinkedIn
-analytics export** (the creator-analytics XLSX, or the per-post numbers read off the LinkedIn UI) and
-the **site numbers** from Vercel Analytics (visitors, page views). The fixed monthly ritual is what
-makes data collection reliable — it never depends on memory.
+creator Aggregate Analytics export** (the `AggregateAnalytics_…_<month>.xlsx`) and the **site numbers**
+from Vercel Analytics (visitors, page views). The fixed monthly ritual is what makes data collection
+reliable — it never depends on memory.
 
-**2 — Ingest.** Map the raw export to the CSV contract — the columns `date, post_url, impressions,
-reactions, comments, reshares` (any order; extras ignored) — then call the tools (the deterministic parse
-+ atomic write is server-side):
+**2 — Ingest.** Read the XLSX (it's a zip of XML — unzip and read the sheets) and derive the inputs per the
+[sheet map](metrics-ingest.md#producing-the-inputs-from-the-export): the per-post CSV
+`date, post_url, impressions, engagements` (join TOP POSTS' two lists by `post_url`), the account figures
+(DISCOVERY + FOLLOWERS), and the site numbers. Then call the tools (the deterministic parse + atomic write
+is server-side):
 
-- `ingest_linkedin_metrics(month = <YYYY-MM>, csv_text = <the export CSV>)`
+- `ingest_linkedin_metrics(month = <YYYY-MM>, csv_text = <the per-post CSV>)`
+- `record_linkedin_account(month = <YYYY-MM>, impressions = <N>, members_reached = <N>, followers_total = <N>, new_followers = <N>)`
 - `record_site_metrics(month = <YYYY-MM>, visitors = <N>, page_views = <N>)`
 
-No files are committed — the numbers live in the DB, so re-ingesting a corrected export just replaces the
-month.
+The per-post figures are **per-period** (a post's impressions sum to the month total), not lifetime — a
+still-active post recurs in later months. No files are committed — the numbers live in the DB, so
+re-ingesting a corrected export just replaces the month.
 
 **3 — Cross the metrics with the Calendar.** Read the month's shipped **Pieces** and join "what
 published" with "how it performed":
@@ -75,7 +79,7 @@ numbers behind them**:
 
 ```
 June review 📊
-LinkedIn: 4 posts · 12,400 impressions · top: <thesis> (4,210). Site: 1,850 visitors.
+LinkedIn: 4 posts · 12,400 impressions · 210 engagements · +46 followers (2,839). Site: 1,850 visitors.
 Mix: 67% Flag (target ~70%) · Cadence: LinkedIn floor met (4 Pieces), blog met (1 Piece).
 Next: July blog slot empty ⚠️ · CFP <event> closes <date>.
 → Double down: your Flag Piece (<thesis>, 4,210) beat the Side one (1,100) ~3.8× — lean Flag.

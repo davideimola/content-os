@@ -1,3 +1,4 @@
+import { ArrowDown, ArrowUp } from "lucide-react";
 import Link from "next/link";
 
 import { Card } from "@/components/ui/card";
@@ -34,6 +35,42 @@ export function StatTile({
     </Link>
   ) : (
     inner
+  );
+}
+
+// A KPI tile with an optional month-over-month delta. `tone` colours the delta:
+// up = growth (emerald), down = decline (red), neutral = muted. The caller writes
+// the delta text (e.g. "8% vs May" or "+46 this month").
+export function MetricTile({
+  label,
+  value,
+  delta,
+  tone = "neutral",
+}: {
+  label: string;
+  value: number | string;
+  delta?: string;
+  tone?: "up" | "down" | "neutral";
+}) {
+  const Arrow = tone === "up" ? ArrowUp : tone === "down" ? ArrowDown : null;
+  return (
+    <Card className="gap-1 p-4">
+      <span className="text-2xl font-semibold tabular-nums tracking-tight">{value}</span>
+      <span className="text-muted-foreground text-xs">{label}</span>
+      {delta ? (
+        <span
+          className={cn(
+            "mt-0.5 flex items-center gap-1 text-xs tabular-nums",
+            tone === "up" && "text-emerald-600 dark:text-emerald-400",
+            tone === "down" && "text-red-600 dark:text-red-400",
+            tone === "neutral" && "text-muted-foreground"
+          )}
+        >
+          {Arrow ? <Arrow aria-hidden className="size-3" /> : null}
+          {delta}
+        </span>
+      ) : null}
+    </Card>
   );
 }
 

@@ -52,6 +52,13 @@ export async function setPieceArtifact(id: string, url: string): Promise<ActionR
   return callVerb("set_piece_artifact", { p_id: id, p_url: url.trim() });
 }
 
+// set_piece_linkedin_url(p_id, p_url): link a linkedin Piece to its LinkedIn post
+// (the per-Piece metrics cross joins on it). An empty URL clears the link. The verb
+// is guarded to channel = 'linkedin' server-side (ADR-0019).
+export async function setPieceLinkedinUrl(id: string, url: string): Promise<ActionResult> {
+  return callVerb("set_piece_linkedin_url", { p_id: id, p_url: url.trim() });
+}
+
 // decline_talk(p_id): keep the Talk proposal on the record.
 export async function declineTalk(id: string): Promise<ActionResult> {
   return callVerb("decline_talk", { p_id: id });

@@ -19,6 +19,7 @@ export type Piece = {
   publish_date: string | null;
   blocked_by_piece_id: string | null;
   artifact_url: string | null;
+  linkedin_post_url: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -49,6 +50,32 @@ export type Cadence = {
 };
 
 export type FlagMix = { flag: number; side: number; total: number };
+
+// ── Metrics (ADR-0019) ──────────────────────────────────────────────────────
+// LinkedIn figures are per-period: a still-active post has one row per month, so
+// a Piece's total is the SUM over its rows, joined by post_url (pieces.linkedin_post_url).
+export type LinkedinAccount = {
+  month: string; // YYYY-MM-01
+  impressions: number | null;
+  members_reached: number | null;
+  followers_total: number | null;
+  new_followers: number | null;
+};
+export type LinkedinPost = {
+  month: string;
+  posted_on: string | null;
+  post_url: string;
+  impressions: number | null;
+  engagements: number | null;
+};
+export type SiteMetric = { month: string; visitors: number | null; page_views: number | null };
+
+// The per-Piece cross: impressions/engagements summed across every monthly slice
+// of the linked post, plus how many months it has been measured.
+export type PieceMetrics = {
+  linkedin?: { impressions: number; engagements: number; months: number } | null;
+  siteVisitors?: number | null; // for a blog Piece: its publish-month site visitors (site-wide)
+};
 
 // The live order of the Pipeline lifecycle — used to group Pieces on the board.
 export const PIECE_STATE_ORDER: PieceState[] = ["proposed", "slotted", "ready", "published"];
@@ -90,6 +117,50 @@ export async function getFlagMix(): Promise<FlagMix> {
   const { data, error } = await supabaseAdmin().from("flag_mix").select("*").single();
   if (error) throw new Error(`read flag_mix failed: ${error.message}`);
   return data as FlagMix;
+}
+
+// The most recent months with an account snapshot (newest first) — [latest, previous]
+// gives the Overview its value + month-over-month delta.
+export async function getLinkedinAccounts(limit = 2): Promise<LinkedinAccount[]> {
+  const { data, error } = await supabaseAdmin()
+    .from("metrics_linkedin_account")
+    .select("month,impressions,members_reached,followers_total,new_followers")
+    .order("month", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`read metrics_linkedin_account failed: ${error.message}`);
+  return (data ?? []) as LinkedinAccount[];
+}
+
+export function getLinkedinPosts(): Promise<LinkedinPost[]> {
+  return selectAll<LinkedinPost>(
+    "metrics_linkedin_posts",
+    "month,posted_on,post_url,impressions,engagements",
+    { column: "impressions", ascending: false }
+  );
+}
+
+export function getSiteMetrics(): Promise<SiteMetric[]> {
+  return selectAll<SiteMetric>("metrics_site", "month,visitors,page_views", { column: "month" });
+}
+
+// Sum a post's monthly slices into one per-Piece total, keyed by post_url.
+export function sumByPostUrl(
+  posts: LinkedinPost[]
+): Map<string, { impressions: number; engagements: number; months: number }> {
+  const m = new Map<string, { impressions: number; engagements: number; months: number }>();
+  for (const p of posts) {
+    const cur = m.get(p.post_url) ?? { impressions: 0, engagements: 0, months: 0 };
+    cur.impressions += p.impressions ?? 0;
+    cur.engagements += p.engagements ?? 0;
+    cur.months += 1;
+    m.set(p.post_url, cur);
+  }
+  return m;
+}
+
+// Sum a single month's per-post engagements (the account snapshot has no total).
+export function monthEngagements(posts: LinkedinPost[], month: string): number {
+  return posts.filter((p) => p.month === month).reduce((sum, p) => sum + (p.engagements ?? 0), 0);
 }
 
 // ── Calendar: the by-date projection over the Pipeline ──────────────────────────

@@ -1,6 +1,6 @@
 ---
 name: review
-description: Open the Review — the interactive monthly session over the Content OS Pipeline, the monthly sibling of /desk. Run the Metrics snapshot ritual, ingest via the content-os MCP tools (ingest_linkedin_metrics / record_site_metrics), cross the numbers with the Calendar, and report the realized Flag/Side mix vs ~70% and Cadence vs the floor — counted over Pieces — with number-cited recommendations. Use when Davide wants to run the monthly review (turn a month's metrics into next month's steer), or when the Monthly reminder nudges him.
+description: Open the Review — the interactive monthly session over the Content OS Pipeline, the monthly sibling of /desk. Run the Metrics snapshot ritual, ingest via the content-os MCP tools (ingest_linkedin_metrics / record_linkedin_account / record_site_metrics), cross the numbers with the Calendar, and report the realized Flag/Side mix vs ~70% and Cadence vs the floor — counted over Pieces — with number-cited recommendations. Use when Davide wants to run the monthly review (turn a month's metrics into next month's steer), or when the Monthly reminder nudges him.
 ---
 
 # The Review
@@ -25,8 +25,10 @@ with Davide; it is not restated here. This skill holds only what running it *liv
 
 - **You are the brain.** The judgement is you (Claude) + Davide reading the numbers together — never an
   autonomous model.
-- **Ask, then wait** — step 1 needs Davide's LinkedIn export and site numbers. Request them and pause;
-  the Review never invents data.
+- **Ask, then wait** — step 1 needs Davide's LinkedIn **Aggregate Analytics XLSX** and site numbers.
+  Request them and pause; the Review never invents data. Read the XLSX live in-session (it's a zip of XML —
+  unzip and read the sheets) and derive the inputs per the sheet map in
+  [`metrics-ingest.md`](../../../docs/agents/metrics-ingest.md#producing-the-inputs-from-the-export).
 - **Cross before you conclude** — join the metrics (`get_metrics`) to the month's published Pieces
   (`list_calendar`, step 3) before any steer, so every recommendation is grounded.
 - **Over Pieces** — mix and Cadence are ratios over **Pieces, never Ideas**, computed over the reviewed
@@ -36,9 +38,9 @@ with Davide; it is not restated here. This skill holds only what running it *liv
 
 ## The one write: ingest the metrics
 
-The only thing the Review writes is the month's numbers into the DB — `ingest_linkedin_metrics` and
-`record_site_metrics` (step 2). There are **no committed metrics files** anymore: the numbers live in the
-Pipeline, and re-ingesting a corrected export just replaces the month. The report itself is **live in the
+The only thing the Review writes is the month's numbers into the DB — `ingest_linkedin_metrics`,
+`record_linkedin_account`, and `record_site_metrics` (step 2). There are **no committed metrics files**
+anymore: the numbers live in the Pipeline, and re-ingesting a corrected export just replaces the month. The report itself is **live in the
 session**; send it as a [ping](../../../docs/agents/notify.md) only if Davide asks (`notify_ping`, step 6).
 
 ## Guardrails

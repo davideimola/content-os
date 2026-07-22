@@ -50,7 +50,14 @@ erDiagram
   }
   METRICS_LINKEDIN_POSTS {
     text id PK
-    text piece_id FK
+    date month
+    text post_url
+    int impressions
+    int engagements
+  }
+  METRICS_LINKEDIN_ACCOUNT {
+    text id PK
+    date month
   }
   METRICS_SITE {
     text id PK
@@ -65,7 +72,7 @@ erDiagram
   EVENT ||--o{ ENGAGEMENT : hosts
   ENGAGEMENT |o--o{ PIECE : announces
   PIECE |o--o| PIECE : blocks
-  PIECE ||--o{ METRICS_LINKEDIN_POSTS : measured
+  PIECE ||--o{ METRICS_LINKEDIN_POSTS : "via post_url"
 ```
 
 ## Entities
@@ -86,8 +93,13 @@ erDiagram
   is the only Talk↔Event link.
 - **events** (`event_…`) — `name`, `starts_on`/`ends_on`, `location`, `url`, **`roles` `text[]`**
   (organizer, mc, …; speaking is *derived* from an accepted engagement), **`is_public`**.
-- **metrics_linkedin_posts** (`mlp_…`) — per post, `piece_id` nullable, `month`, `posted_on`, counters
-  (from the manual export). **metrics_site** (`mst_…`) — monthly `visitors`/`page_views` (from the Umami API).
+- **metrics_linkedin_posts** (`mlp_…`) — per post per `month`: `post_url`, `posted_on`, `impressions`,
+  `engagements` (a single combined figure — the export has no reaction/comment/reshare split; ADR-0019).
+  Per-period, so a still-active post has a row per month; the Piece link is **`pieces.linkedin_post_url`**
+  (the post's stable identity), joined by URL — not an FK — so it rolls up every monthly slice.
+- **metrics_linkedin_account** (`mla_…`) — the monthly account-level snapshot: `month` (unique),
+  `impressions`, `members_reached`, `followers_total`, `new_followers` (ADR-0019).
+- **metrics_site** (`mst_…`) — monthly `visitors`/`page_views` (the website, from the Umami API).
 
 ## RPC verbs (the API contract)
 
@@ -112,7 +124,10 @@ land as they're built.
 | `create_engagement(talk_id, event_id, kind, deadline?, cfp_link?)` | Insert an engagement. |
 | `set_engagement_outcome(id, outcome, conference-date via event)` | Advance the outcome. |
 | `set_piece_artifact(piece_id, url)` | Write the Factory draft pointer into `pieces.artifact_url`. Called by the Factory skills. |
-| `ingest_linkedin_metrics(csv_text)` | Deterministic parse of a LinkedIn per-post export + insert into `metrics_linkedin_posts`. Replaces the retired `contentos metrics-ingest` (ADR-0015). |
+| `set_piece_linkedin_url(piece_id, url)` | Attach a LinkedIn post URL to a `linkedin` Piece (guarded to channel; null clears). The per-Piece metrics cross joins on it (ADR-0019). Called by the console; MCP-adapter parity is a later additive step. |
+| `ingest_linkedin_metrics(month, csv_text)` | Deterministic parse of the per-post CSV (`date, post_url, impressions, engagements`) + replace that month's rows in `metrics_linkedin_posts` (ADR-0019, replaces the retired `contentos metrics-ingest` per ADR-0015). |
+| `record_linkedin_account(month, impressions?, members_reached?, followers_total?, new_followers?)` | Upsert a month's LinkedIn account-level snapshot into `metrics_linkedin_account` (ADR-0019). |
+| `record_site_metrics(month, visitors?, page_views?)` | Upsert a month's website numbers into `metrics_site`. |
 
 Advancing a Piece to `ready`/`published` has its own guarded verbs (`mark_ready`/`publish_piece`,
 ADR-0018/0017). Advancing a **Talk** to `in_production`/`ready` is still a plain state update — no verb yet,

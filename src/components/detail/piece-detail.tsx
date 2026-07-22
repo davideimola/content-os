@@ -15,16 +15,20 @@ import {
   markReady,
   publishPiece,
   setPieceArtifact,
+  setPieceLinkedinUrl,
   slotPiece,
 } from "@/lib/actions";
-import type { Piece } from "@/lib/pipeline";
+import type { Piece, PieceMetrics } from "@/lib/pipeline";
 
-export function PieceDetail({ piece }: { piece: Piece }) {
+const numFmt = new Intl.NumberFormat("en-GB");
+
+export function PieceDetail({ piece, metrics }: { piece: Piece; metrics?: PieceMetrics }) {
   const [open, setOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(piece.title);
   const [date, setDate] = useState(piece.publish_date ?? "");
   const [artifact, setArtifact] = useState(piece.artifact_url ?? "");
+  const [linkedinUrl, setLinkedinUrl] = useState(piece.linkedin_post_url ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -133,6 +137,91 @@ export function PieceDetail({ piece }: { piece: Piece }) {
             )}
           </dd>
         </dl>
+
+        {piece.channel === "linkedin" ? (
+          <div className="flex flex-col gap-2 border-t pt-4">
+            <p className="text-sm font-medium">LinkedIn post</p>
+            {metrics?.linkedin ? (
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <span className="text-sm">
+                  <span className="font-semibold tabular-nums">
+                    {numFmt.format(metrics.linkedin.impressions)}
+                  </span>{" "}
+                  <span className="text-muted-foreground text-xs">impressions</span>
+                </span>
+                <span className="text-sm">
+                  <span className="font-semibold tabular-nums">
+                    {numFmt.format(metrics.linkedin.engagements)}
+                  </span>{" "}
+                  <span className="text-muted-foreground text-xs">engagements</span>
+                </span>
+                {metrics.linkedin.months > 1 ? (
+                  <span className="text-muted-foreground text-xs">
+                    over {metrics.linkedin.months} months
+                  </span>
+                ) : null}
+              </div>
+            ) : piece.linkedin_post_url ? (
+              <p className="text-muted-foreground text-xs">Linked — no metrics ingested yet.</p>
+            ) : (
+              <p className="text-muted-foreground text-xs">
+                Link this Piece to its LinkedIn post to see impressions & engagements.
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={linkedinUrl}
+                onChange={(e) => setLinkedinUrl(e.target.value)}
+                placeholder="https://www.linkedin.com/posts/…"
+                className="h-8 min-w-0 flex-1"
+                aria-label="LinkedIn post URL"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => run(() => setPieceLinkedinUrl(piece.id, linkedinUrl))}
+                disabled={pending || !linkedinUrl.trim()}
+              >
+                {piece.linkedin_post_url ? "Update" : "Link"}
+              </Button>
+              {piece.linkedin_post_url ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setLinkedinUrl("");
+                    run(() => setPieceLinkedinUrl(piece.id, ""));
+                  }}
+                  disabled={pending}
+                >
+                  Unlink
+                </Button>
+              ) : null}
+            </div>
+            {piece.linkedin_post_url ? (
+              <a
+                href={piece.linkedin_post_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary break-all text-xs underline underline-offset-2"
+              >
+                {piece.linkedin_post_url}
+              </a>
+            ) : null}
+          </div>
+        ) : null}
+
+        {piece.channel === "blog" && metrics?.siteVisitors != null ? (
+          <div className="flex flex-col gap-1 border-t pt-4">
+            <p className="text-sm font-medium">Site</p>
+            <p className="text-muted-foreground text-xs">
+              <span className="text-foreground font-semibold tabular-nums">
+                {numFmt.format(metrics.siteVisitors)}
+              </span>{" "}
+              visitors that month <span className="italic">(site-wide, not this page)</span>
+            </p>
+          </div>
+        ) : null}
 
         {canSchedule ? (
           <div className="flex flex-col gap-2 border-t pt-4">
