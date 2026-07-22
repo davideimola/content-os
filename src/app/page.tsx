@@ -64,9 +64,12 @@ export default async function OverviewPage() {
   const today = new Date().toISOString().slice(0, 10);
   const nextUp = calendar.filter((i) => i.date >= today).slice(0, 5);
 
-  // LinkedIn "latest month with data" + the one before, for the deltas (ADR-0019).
-  const latest = monthly[0];
-  const prev = monthly[1];
+  // The LinkedIn tiles + trend track the latest months that actually have LinkedIn
+  // data — a site-only month (e.g. a provisional Vercel figure parked ahead of the
+  // LinkedIn ingest) must not blank the section (ADR-0019).
+  const liMonths = monthly.filter((m) => m.li_impressions != null || m.li_followers != null);
+  const latest = liMonths[0];
+  const prev = liMonths[1];
   const prevLabel = prev ? monthShortFmt.format(asMonth(prev.month)) : "";
 
   return (
@@ -105,11 +108,11 @@ export default async function OverviewPage() {
         </Section>
       ) : null}
 
-      {monthly.length >= 2 ? (
+      {liMonths.length >= 2 ? (
         <Section title="Trend">
           <div className="grid grid-cols-2 gap-3">
-            <TrendChart label="Followers" points={series(monthly, (r) => r.li_followers)} />
-            <TrendChart label="Impressions" points={series(monthly, (r) => r.li_impressions)} />
+            <TrendChart label="Followers" points={series(liMonths, (r) => r.li_followers)} />
+            <TrendChart label="Impressions" points={series(liMonths, (r) => r.li_impressions)} />
           </div>
         </Section>
       ) : null}
