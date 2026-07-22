@@ -96,10 +96,11 @@ console in the first place).
 - **Docs**: `metrics-ingest.md` (contract + XLSX sheet map + per-period note), `monthly-beat.md` (the
   Review's steps), the Review skill, and CONTEXT.md's **Metrics snapshot** term + the CLAUDE.md
   *metrics-ingest seam* section.
-- **Gap found, not fixed here:** `service_role` has no `SELECT` grant on `engagements`/`events`, so the
-  console's `getCalendarItems` fails on a locked-down DB (surfaced on local; production works only if the
-  grant was applied out-of-band). A grant migration is the fix — out of scope for this ADR, tracked
-  separately.
+- **Gap found while verifying, fixed in a follow-up migration:** `service_role` had no `SELECT` grant on
+  `engagements`/`events`, so the console's `getCalendarItems` failed on a locked-down DB (surfaced on local;
+  production worked only if the grant was applied out-of-band). Fixed by
+  `supabase/migrations/…_grant_service_role_engagements_events.sql` (both tables keep RLS; anon still reaches
+  events only via `public_events`).
 - **Verified at the seams** (no unit tests): the June export ingests to per-post `impressions` summing to
   450 and `engagements` to 11; a re-ingest replaces the month; `record_linkedin_account` upserts;
   `set_piece_linkedin_url` links a `linkedin` Piece and raises on a `blog` one; the per-Piece URL join
