@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { PieceDetail } from "@/components/detail/piece-detail";
 import { TalkDetail } from "@/components/detail/talk-detail";
-import { CadenceStrip, EmptyState, Section } from "@/components/pipeline";
+import { CadenceStrip, CalendarKindIcon, EmptyState, Section } from "@/components/pipeline";
 import { TrendChart } from "@/components/trend-chart";
 import { MetricTile, StatTile, View } from "@/components/view";
 import {
@@ -159,9 +159,7 @@ export default async function OverviewPage() {
                     {upcomingFmt.format(new Date(`${item.date}T00:00:00`))}
                   </span>
                   <span className="flex-1 truncate text-sm">{item.title}</span>
-                  <span className="text-muted-foreground shrink-0 text-xs">
-                    {item.kind === "cfp" ? "CFP" : (item.detail ?? item.kind)}
-                  </span>
+                  <CalendarKindIcon item={item} />
                 </li>
               ))}
             </ul>

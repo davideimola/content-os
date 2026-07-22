@@ -1,12 +1,11 @@
 import {
+  CalendarClock,
   CalendarDays,
   Check,
   CircleDot,
-  FileText,
   Lightbulb,
-  type LucideIcon,
-  Megaphone,
   Mic,
+  Newspaper,
   TriangleAlert,
 } from "lucide-react";
 
@@ -14,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import type {
   Cadence,
+  CalendarItem,
   FlagSide,
   Idea,
   Piece,
@@ -38,11 +38,24 @@ export function formatDate(iso: string | null): string | null {
 }
 
 // ── badges ────────────────────────────────────────────────────────────────────
-// lucide dropped brand icons; Megaphone also fits the domain model — LinkedIn is
-// the Amplifier "where content earns reach" (CONTEXT.md).
-const CHANNEL_META: Record<PieceChannel, { label: string; icon: LucideIcon }> = {
-  blog: { label: "Blog", icon: FileText },
-  linkedin: { label: "LinkedIn", icon: Megaphone },
+// Anything renderable as a type glyph — a lucide icon or the inline LinkedIn mark.
+type BadgeIcon = React.ComponentType<React.SVGProps<SVGSVGElement>>;
+
+// lucide has no brand marks, so the LinkedIn "in" glyph lives inline (filled,
+// currentColor). The Badge forces svg children to size-3; standalone it takes size-*.
+function LinkedinIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
+      <title>LinkedIn</title>
+      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.225 0z" />
+    </svg>
+  );
+}
+
+// LinkedIn wears its own mark; the blog is the Flagship article (Newspaper).
+const CHANNEL_META: Record<PieceChannel, { label: string; icon: BadgeIcon }> = {
+  blog: { label: "Blog", icon: Newspaper },
+  linkedin: { label: "LinkedIn", icon: LinkedinIcon },
 };
 
 export function ChannelBadge({ channel }: { channel: PieceChannel }) {
@@ -52,6 +65,37 @@ export function ChannelBadge({ channel }: { channel: PieceChannel }) {
       <Icon aria-hidden />
       {label}
     </Badge>
+  );
+}
+
+// The Calendar's by-date items carry a kind (piece/cfp/event); a piece's `detail`
+// is its channel. One place maps a kind to icon + label + badge tone, shared by the
+// agenda (badge) and the Overview "Next up" list (bare icon).
+export function calendarKindMeta(item: CalendarItem): {
+  icon: BadgeIcon;
+  label: string;
+  variant: "outline" | "secondary" | "destructive";
+} {
+  if (item.kind === "cfp")
+    return { icon: CalendarClock, label: "CFP deadline", variant: "destructive" };
+  if (item.kind === "event") return { icon: Mic, label: "Event", variant: "secondary" };
+  const meta = CHANNEL_META[item.detail as PieceChannel] ?? CHANNEL_META.blog;
+  return { icon: meta.icon, label: meta.label, variant: "outline" };
+}
+
+// The kind as a bare icon, labelled for screen readers + hover — the compact cue
+// used where a full badge would be too heavy (the Overview "Next up" list).
+export function CalendarKindIcon({ item }: { item: CalendarItem }) {
+  const { icon: Icon, label } = calendarKindMeta(item);
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className="text-muted-foreground inline-flex shrink-0"
+    >
+      <Icon aria-hidden className="size-4" />
+    </span>
   );
 }
 
@@ -128,7 +172,7 @@ export function IdeaCard({ idea }: { idea: Idea }) {
   // The title is a summary; fall back to the verbatim spark.
   const headline = idea.title?.trim() || idea.body;
   return (
-    <Card className="gap-2 p-4">
+    <Card className="h-full gap-2 p-4">
       <div className="flex gap-2">
         <Lightbulb aria-hidden className="text-muted-foreground mt-0.5 size-4 shrink-0" />
         <p className="text-sm leading-snug text-pretty line-clamp-3">{headline}</p>

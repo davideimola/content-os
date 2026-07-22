@@ -13,7 +13,7 @@ export default async function IdeasPage() {
       {ideas.length === 0 ? (
         <EmptyState>The pool is empty.</EmptyState>
       ) : (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid auto-rows-fr grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {ideas.map((i) => (
             <IdeaDetail key={i.id} idea={i} />
           ))}

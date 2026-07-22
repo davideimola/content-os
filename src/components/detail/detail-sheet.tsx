@@ -8,6 +8,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { cn } from "@/lib/utils";
 
 // The detail surface: a right-side Sheet on desktop, a bottom sheet on mobile.
 // One component, the side chosen by viewport — the panel that shows a card's full
@@ -46,16 +47,21 @@ export function DetailSheet({
 // A card made into a drawer trigger — full-width, left-aligned, with a hover cue.
 export function CardTrigger({
   onClick,
+  className,
   children,
 }: {
   onClick: () => void;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="block w-full cursor-pointer rounded-xl text-left transition-opacity hover:opacity-90 focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none"
+      className={cn(
+        "block w-full cursor-pointer rounded-xl text-left transition-opacity hover:opacity-90 focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none",
+        className
+      )}
     >
       {children}
     </button>

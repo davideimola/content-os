@@ -51,7 +51,7 @@ export function IdeaDetail({ idea }: { idea: Idea }) {
 
   return (
     <>
-      <CardTrigger onClick={() => setOpen(true)}>
+      <CardTrigger className="h-full" onClick={() => setOpen(true)}>
         <IdeaCard idea={idea} />
       </CardTrigger>
 

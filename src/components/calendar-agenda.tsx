@@ -1,5 +1,4 @@
-import { CalendarClock, FileText, Mic } from "lucide-react";
-import { EmptyState } from "@/components/pipeline";
+import { calendarKindMeta, EmptyState } from "@/components/pipeline";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import type { CalendarItem } from "@/lib/pipeline";
@@ -17,26 +16,11 @@ function heading(date: string): string {
 }
 
 function KindBadge({ item }: { item: CalendarItem }) {
-  if (item.kind === "cfp") {
-    return (
-      <Badge variant="destructive" className="gap-1">
-        <CalendarClock aria-hidden />
-        CFP deadline
-      </Badge>
-    );
-  }
-  if (item.kind === "event") {
-    return (
-      <Badge variant="secondary" className="gap-1">
-        <Mic aria-hidden />
-        Event
-      </Badge>
-    );
-  }
+  const { icon: Icon, label, variant } = calendarKindMeta(item);
   return (
-    <Badge variant="outline" className="gap-1">
-      <FileText aria-hidden />
-      {item.detail ?? "piece"}
+    <Badge variant={variant} className="gap-1">
+      <Icon aria-hidden />
+      {label}
     </Badge>
   );
 }
