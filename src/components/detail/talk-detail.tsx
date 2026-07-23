@@ -3,6 +3,7 @@
 import { Pencil } from "lucide-react";
 import { useState, useTransition } from "react";
 
+import { CopyId } from "@/components/copy-id";
 import { CardTrigger, DetailSheet } from "@/components/detail/detail-sheet";
 import { FlagBadge, StateBadge, TalkCard } from "@/components/pipeline";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ export function TalkDetail({ talk }: { talk: Talk }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <StateBadge state={talk.state} />
           <FlagBadge flagSide={talk.flag_side} />
+          <CopyId id={talk.id} className="ml-auto" />
         </div>
 
         {editingTitle ? (

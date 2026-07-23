@@ -3,6 +3,7 @@
 import { Pencil } from "lucide-react";
 import { useState, useTransition } from "react";
 
+import { CopyId } from "@/components/copy-id";
 import { CardTrigger, DetailSheet } from "@/components/detail/detail-sheet";
 import { ChannelBadge, FlagBadge, formatDate, PieceCard, StateBadge } from "@/components/pipeline";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,7 @@ export function PieceDetail({ piece, metrics }: { piece: Piece; metrics?: PieceM
           <StateBadge state={piece.state} />
           <ChannelBadge channel={piece.channel} />
           <FlagBadge flagSide={piece.flag_side} />
+          <CopyId id={piece.id} className="ml-auto" />
         </div>
 
         {editingTitle ? (
@@ -118,7 +120,9 @@ export function PieceDetail({ piece, metrics }: { piece: Piece; metrics?: PieceM
           {piece.blocked_by_piece_id ? (
             <>
               <dt className="text-muted-foreground">Blocked by</dt>
-              <dd>{piece.blocked_by_piece_id}</dd>
+              <dd>
+                <CopyId id={piece.blocked_by_piece_id} />
+              </dd>
             </>
           ) : null}
           <dt className="text-muted-foreground">Artifact</dt>

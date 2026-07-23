@@ -3,6 +3,7 @@
 import { Pencil } from "lucide-react";
 import { useState, useTransition } from "react";
 
+import { CopyId } from "@/components/copy-id";
 import { CardTrigger, DetailSheet } from "@/components/detail/detail-sheet";
 import { formatDate, IdeaCard } from "@/components/pipeline";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,10 @@ export function IdeaDetail({ idea }: { idea: Idea }) {
         title={idea.title?.trim() || "Idea"}
         description={`Captured ${formatDate(idea.created_at) ?? ""}${idea.source ? ` · ${idea.source}` : ""}`}
       >
+        <div className="flex">
+          <CopyId id={idea.id} />
+        </div>
+
         {editing ? (
           <div className="flex flex-col gap-2">
             <Input

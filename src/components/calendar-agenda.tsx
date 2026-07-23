@@ -1,3 +1,4 @@
+import { CopyId } from "@/components/copy-id";
 import { calendarKindMeta, EmptyState } from "@/components/pipeline";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -42,6 +43,7 @@ function DayGroup({ date, items }: { date: string; items: CalendarItem[] }) {
             {item.kind !== "piece" && item.detail ? (
               <span className="text-muted-foreground text-xs">· {item.detail}</span>
             ) : null}
+            <CopyId id={item.id} className="ml-auto" />
           </div>
         </Card>
       ))}
