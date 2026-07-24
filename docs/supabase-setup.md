@@ -4,8 +4,8 @@ The runbook for the Supabase backend that is now the Pipeline's source of truth 
 *how to run it* companion to [`docs/design/supabase-foundations.md`](design/supabase-foundations.md)
 (*what it is*: schema, RPC contract, views).
 
-Current project ref: **`ltlubjpesetpimgmzcmb`** (region EU · Frankfurt). Function base URL:
-`https://ltlubjpesetpimgmzcmb.supabase.co/functions/v1/`.
+Project ref: `<project-ref>` — the identifier in your Supabase project URL (region EU · Frankfurt).
+Function base URL: `https://<project-ref>.supabase.co/functions/v1/`.
 
 ---
 
@@ -22,7 +22,7 @@ Done once per machine:
 ```sh
 supabase login                              # interactive, browser token
 supabase init                               # creates supabase/config.toml (already committed)
-supabase link --project-ref ltlubjpesetpimgmzcmb   # asks for the DB password
+supabase link --project-ref <project-ref>          # asks for the DB password
 ```
 
 The linked project ref is stored in `supabase/.temp/` (gitignored). `config.toml` is committed.
@@ -83,7 +83,7 @@ Smoke tests (run in your own terminal; keep the token out of the transcript):
 
 ```sh
 export CT='<CAPTURE_TOKEN>'
-BASE="https://ltlubjpesetpimgmzcmb.supabase.co/functions/v1"
+BASE="https://<project-ref>.supabase.co/functions/v1"
 
 # REST — expect 200 { ok:true, id:"idea_..." }
 curl -s -X POST "$BASE/capture-idea" \
