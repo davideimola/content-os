@@ -1,18 +1,19 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { CalendarDays, Pencil } from "lucide-react";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { CopyId } from "@/components/copy-id";
 import { CardTrigger, DetailSheet } from "@/components/detail/detail-sheet";
-import { formatDate, IdeaCard } from "@/components/pipeline";
+import { ChannelBadge, formatDate, IdeaCard, StateBadge, UsedBadge } from "@/components/pipeline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { archiveIdea, editIdea } from "@/lib/actions";
-import type { Idea } from "@/lib/pipeline";
+import type { IdeaWithProvenance } from "@/lib/pipeline";
 
-export function IdeaDetail({ idea }: { idea: Idea }) {
+export function IdeaDetail({ idea }: { idea: IdeaWithProvenance }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(idea.title ?? "");
@@ -110,6 +111,61 @@ export function IdeaDetail({ idea }: { idea: Idea }) {
               >
                 <Pencil />
               </Button>
+            </div>
+
+            {/* Provenance: the Pieces this Idea spawned, each linking through to
+                the Piece on the board (#76). A read-back of piece_sources — no state. */}
+            <div className="flex flex-col gap-2 border-t pt-4">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium">Spawned Pieces</p>
+                <UsedBadge count={idea.usedCount} />
+              </div>
+              {idea.spawnedPieces.length === 0 ? (
+                <p className="text-muted-foreground text-xs">
+                  Never used — this spark hasn't spawned any Pieces yet.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-1.5">
+                  {idea.spawnedPieces.map((p) => {
+                    // A declined Piece has no card on the board, so there's nowhere
+                    // to click through to — show it (honest provenance) but not as a
+                    // dead link. Every other state renders a card on /pipeline.
+                    const href = p.state === "declined" ? null : `/pipeline#${p.id}`;
+                    const inner = (
+                      <>
+                        <span className="text-sm leading-snug font-medium text-pretty">
+                          {p.title}
+                        </span>
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <ChannelBadge channel={p.channel} />
+                          <StateBadge state={p.state} />
+                          <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+                            <CalendarDays aria-hidden className="size-3" />
+                            {formatDate(p.publish_date) ?? <span className="italic">no date</span>}
+                          </span>
+                        </span>
+                      </>
+                    );
+                    return (
+                      <li key={p.id}>
+                        {href ? (
+                          <Link
+                            href={href}
+                            onClick={() => setOpen(false)}
+                            className="hover:bg-muted/50 flex flex-col gap-1.5 rounded-lg border p-2.5 transition-colors"
+                          >
+                            {inner}
+                          </Link>
+                        ) : (
+                          <div className="flex flex-col gap-1.5 rounded-lg border p-2.5">
+                            {inner}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
 
             <div className="flex flex-col gap-2 border-t pt-4">

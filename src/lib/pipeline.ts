@@ -44,6 +44,25 @@ export type Talk = {
   updated_at: string;
 };
 
+// A Piece an Idea spawned (via the piece_sources join) — the drawer's clickable
+// provenance entry. A subset of Piece: enough to show + link to it (#76).
+export type SpawnedPiece = {
+  id: string;
+  title: string;
+  channel: PieceChannel;
+  state: PieceState;
+  publish_date: string | null;
+};
+
+// An Idea enriched with its output provenance — a read-back of piece_sources
+// (#76): how many Pieces it spawned and which. Ideas stay a live pool (ADR-0014);
+// this is *visible* provenance, not a new lifecycle state. Talk provenance is out
+// of scope, so usedCount counts Pieces only.
+export type IdeaWithProvenance = Idea & {
+  usedCount: number;
+  spawnedPieces: SpawnedPiece[];
+};
+
 export type Cadence = {
   linkedin_week_covered: boolean;
   blog_month_covered: boolean;
@@ -101,6 +120,52 @@ export function getLiveIdeas(): Promise<Idea[]> {
   return selectAll<Idea>("ideas", "*", { column: "created_at", ascending: false }).then((ideas) =>
     ideas.filter((i) => i.status === "live")
   );
+}
+
+// Dated Pieces first (oldest→newest), then undated; id as a stable tie-break. Keeps
+// the drawer's provenance list deterministic regardless of piece_sources row order.
+function bySpawnOrder(a: SpawnedPiece, b: SpawnedPiece): number {
+  if (a.publish_date && b.publish_date) return a.publish_date.localeCompare(b.publish_date);
+  if (a.publish_date) return -1;
+  if (b.publish_date) return 1;
+  return a.id.localeCompare(b.id);
+}
+
+// The live Idea pool, each Idea enriched with its spawned-Pieces provenance (#76).
+// Reads the piece_sources join and folds it onto the live Ideas: usedCount = the
+// number of linked Pieces, spawnedPieces = the list (for the drawer's clickable
+// provenance). An Idea that spawned nothing reports 0 / an empty list.
+export async function getIdeasWithProvenance(): Promise<IdeaWithProvenance[]> {
+  const [ideas, pieces, sources] = await Promise.all([
+    getLiveIdeas(),
+    getPieces(),
+    supabaseAdmin().from("piece_sources").select("idea_id,piece_id"),
+  ]);
+  if (sources.error) throw new Error(`read piece_sources failed: ${sources.error.message}`);
+
+  const pieceById = new Map(pieces.map((p) => [p.id, p]));
+  const byIdea = new Map<string, SpawnedPiece[]>();
+  for (const { idea_id, piece_id } of (sources.data ?? []) as Array<{
+    idea_id: string;
+    piece_id: string;
+  }>) {
+    const p = pieceById.get(piece_id);
+    if (!p) continue; // a source row can outlive its Piece only via cascade, so this is defensive
+    const list = byIdea.get(idea_id) ?? [];
+    list.push({
+      id: p.id,
+      title: p.title,
+      channel: p.channel,
+      state: p.state,
+      publish_date: p.publish_date,
+    });
+    byIdea.set(idea_id, list);
+  }
+
+  return ideas.map((idea) => {
+    const spawnedPieces = (byIdea.get(idea.id) ?? []).sort(bySpawnOrder);
+    return { ...idea, usedCount: spawnedPieces.length, spawnedPieces };
+  });
 }
 
 export function getTalks(): Promise<Talk[]> {

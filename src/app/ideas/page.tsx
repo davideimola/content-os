@@ -1,12 +1,12 @@
 import { IdeaDetail } from "@/components/detail/idea-detail";
 import { EmptyState } from "@/components/pipeline";
 import { View } from "@/components/view";
-import { getLiveIdeas } from "@/lib/pipeline";
+import { getIdeasWithProvenance } from "@/lib/pipeline";
 
 export const dynamic = "force-dynamic";
 
 export default async function IdeasPage() {
-  const ideas = await getLiveIdeas();
+  const ideas = await getIdeasWithProvenance();
 
   return (
     <View title="Ideas" subtitle={`${ideas.length} live in the pool`}>
