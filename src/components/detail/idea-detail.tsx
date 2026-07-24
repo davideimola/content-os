@@ -1,16 +1,17 @@
 "use client";
 
-import { Archive, CalendarDays, Pencil, Plus, X } from "lucide-react";
+import { CalendarDays, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { CopyId } from "@/components/copy-id";
 import { CardTrigger, DetailSheet } from "@/components/detail/detail-sheet";
+import { ThemeTagger } from "@/components/detail/theme-tagger";
 import { ChannelBadge, formatDate, IdeaCard, StateBadge, UsedBadge } from "@/components/pipeline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { archiveIdea, archiveTheme, createTheme, editIdea, setIdeaThemes } from "@/lib/actions";
+import { archiveIdea, editIdea } from "@/lib/actions";
 import type { IdeaWithProvenance, Theme } from "@/lib/pipeline";
 
 export function IdeaDetail({
@@ -27,57 +28,8 @@ export function IdeaDetail({
   const [title, setTitle] = useState(idea.title ?? "");
   const [body, setBody] = useState(idea.body);
   const [reason, setReason] = useState("");
-  const [newTheme, setNewTheme] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-
-  // Selection is driven straight off props: each write revalidates and the fresh
-  // idea.themes flows back in (the drawer stays open). The live picker offers only
-  // non-archived themes the Idea doesn't already carry.
-  const assignedIds = idea.themes.map((t) => t.id);
-  const availableThemes = themes.filter((t) => !t.archived && !assignedIds.includes(t.id));
-
-  // Replace-all: send the full desired set, so a toggle is just add/remove-then-save.
-  function applyThemes(next: string[]) {
-    setError(null);
-    startTransition(async () => {
-      const res = await setIdeaThemes(idea.id, next);
-      if (!res.ok) setError(res.error);
-    });
-  }
-
-  function toggleTheme(themeId: string) {
-    applyThemes(
-      assignedIds.includes(themeId)
-        ? assignedIds.filter((id) => id !== themeId)
-        : [...assignedIds, themeId]
-    );
-  }
-
-  // Mint a theme, then assign it to this Idea in the same transition.
-  function mintTheme() {
-    const label = newTheme.trim();
-    if (!label) return;
-    setError(null);
-    startTransition(async () => {
-      const res = await createTheme(label);
-      if (!res.ok) {
-        setError(res.error);
-        return;
-      }
-      const applied = await setIdeaThemes(idea.id, [...assignedIds, res.id]);
-      if (applied.ok) setNewTheme("");
-      else setError(applied.error);
-    });
-  }
-
-  function retireTheme(themeId: string) {
-    setError(null);
-    startTransition(async () => {
-      const res = await archiveTheme(themeId);
-      if (!res.ok) setError(res.error);
-    });
-  }
 
   function startEdit() {
     setTitle(idea.title ?? "");
@@ -225,98 +177,18 @@ export function IdeaDetail({
               )}
             </div>
 
-            {/* Themes: a hand-assigned subject lens (#78). Pick from the live
-                list, mint a new one inline, or archive an unused one. Every write
-                round-trips through set_idea_themes / create_theme / archive_theme
-                and reflects after revalidation. */}
+            {/* Themes: a hand-assigned subject lens (#78) — a creatable multi
+                combobox (pick from the live vocabulary, or type to mint a new one).
+                Every change replaces the set via set_idea_themes and reflects after
+                revalidation; archiving an unused theme lives in the tagger. */}
             <div className="flex flex-col gap-2 border-t pt-4">
               <p className="text-sm font-medium">Themes</p>
-
-              {/* Assigned — click to remove. */}
-              {idea.themes.length === 0 ? (
-                <p className="text-muted-foreground text-xs">
-                  No themes yet — tag this Idea to group it by subject.
-                </p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {idea.themes.map((t) => (
-                    <Button
-                      key={t.id}
-                      size="xs"
-                      variant="secondary"
-                      onClick={() => toggleTheme(t.id)}
-                      disabled={pending}
-                      aria-label={`Remove theme ${t.label}`}
-                    >
-                      {t.label}
-                      {t.archived ? <span className="opacity-60">(archived)</span> : null}
-                      <X />
-                    </Button>
-                  ))}
-                </div>
-              )}
-
-              {/* Add from the live list (archived excluded) — click adds. A theme
-                  no Idea carries can also be retired via the trailing icon. */}
-              {availableThemes.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {availableThemes.map((t) => (
-                    <span
-                      key={t.id}
-                      className="inline-flex items-center overflow-hidden rounded-lg border"
-                    >
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        className="rounded-none"
-                        onClick={() => toggleTheme(t.id)}
-                        disabled={pending}
-                        aria-label={`Add theme ${t.label}`}
-                      >
-                        <Plus />
-                        {t.label}
-                      </Button>
-                      {themesInUse.has(t.id) ? null : (
-                        <Button
-                          size="icon-xs"
-                          variant="ghost"
-                          className="text-muted-foreground rounded-none border-l"
-                          onClick={() => retireTheme(t.id)}
-                          disabled={pending}
-                          aria-label={`Archive theme ${t.label}`}
-                        >
-                          <Archive />
-                        </Button>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-
-              {/* Mint a new theme inline. */}
-              <div className="flex gap-2">
-                <Input
-                  value={newTheme}
-                  onChange={(e) => setNewTheme(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      mintTheme();
-                    }
-                  }}
-                  placeholder="New theme…"
-                  className="h-8"
-                  aria-label="New theme label"
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={mintTheme}
-                  disabled={pending || !newTheme.trim()}
-                >
-                  Add
-                </Button>
-              </div>
+              <ThemeTagger
+                ideaId={idea.id}
+                assigned={idea.themes}
+                themes={themes}
+                themesInUse={themesInUse}
+              />
             </div>
 
             {idea.status === "archived" ? (
