@@ -61,7 +61,7 @@ export function PieceDetail({ piece, metrics }: { piece: Piece; metrics?: PieceM
 
   return (
     <>
-      <CardTrigger onClick={() => setOpen(true)}>
+      <CardTrigger id={piece.id} onClick={() => setOpen(true)}>
         <PieceCard piece={piece} />
       </CardTrigger>
 

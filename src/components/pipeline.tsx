@@ -1,8 +1,10 @@
 import {
+  Archive,
   CalendarClock,
   CalendarDays,
   Check,
   CircleDot,
+  Clock,
   Lightbulb,
   Mic,
   Newspaper,
@@ -15,7 +17,7 @@ import type {
   Cadence,
   CalendarItem,
   FlagSide,
-  Idea,
+  IdeaWithProvenance,
   Piece,
   PieceChannel,
   PieceState,
@@ -35,6 +37,24 @@ export function formatDate(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? null : dateFmt.format(d);
+}
+
+// Whole days since the capture date — the raw idle age (#76). Drives both the card's
+// cue and the triage "candidate" test (idle ≥ N days, #77). Null on an unparseable date.
+export function idleDays(iso: string): number | null {
+  const from = new Date(iso);
+  if (Number.isNaN(from.getTime())) return null;
+  return Math.max(0, Math.floor((Date.now() - from.getTime()) / 86_400_000));
+}
+
+// "idle N mo" from the capture date — how long a spark has sat untouched (#76).
+// Under a month it reads in days so a fresh spark doesn't collapse to "idle 0 mo";
+// months are floored 30-day buckets (a rough cue, not a precise date).
+export function idleLabel(iso: string): string | null {
+  const days = idleDays(iso);
+  if (days === null) return null;
+  if (days < 30) return `idle ${days}d`;
+  return `idle ${Math.floor(days / 30)} mo`;
 }
 
 // ── badges ────────────────────────────────────────────────────────────────────
@@ -168,20 +188,51 @@ export function TalkCard({ talk }: { talk: Talk }) {
   );
 }
 
-export function IdeaCard({ idea }: { idea: Idea }) {
+// used N× / never used — has this spark already become output? (#76). Reused by
+// the Ideas card and the detail drawer's provenance header.
+export function UsedBadge({ count }: { count: number }) {
+  return count > 0 ? (
+    <Badge variant="secondary" className="font-normal tabular-nums">
+      used {count}×
+    </Badge>
+  ) : (
+    <Badge variant="outline" className="text-muted-foreground font-normal">
+      never used
+    </Badge>
+  );
+}
+
+export function IdeaCard({ idea }: { idea: IdeaWithProvenance }) {
   // The title is a summary; fall back to the verbatim spark.
   const headline = idea.title?.trim() || idea.body;
+  const idle = idleLabel(idea.created_at);
   return (
     <Card className="h-full gap-2 p-4">
       <div className="flex gap-2">
         <Lightbulb aria-hidden className="text-muted-foreground mt-0.5 size-4 shrink-0" />
         <p className="text-sm leading-snug text-pretty line-clamp-3">{headline}</p>
       </div>
-      {idea.source ? (
-        <span className="text-muted-foreground pl-6 text-[0.7rem] uppercase tracking-wide">
-          {idea.source}
-        </span>
-      ) : null}
+      {/* Provenance + age + source — the triage cues (#76). */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-6">
+        {idea.status === "archived" ? (
+          <Badge variant="outline" className="text-muted-foreground gap-1 font-normal">
+            <Archive aria-hidden className="size-3" />
+            archived
+          </Badge>
+        ) : null}
+        <UsedBadge count={idea.usedCount} />
+        {idle ? (
+          <span className="text-muted-foreground inline-flex items-center gap-1 text-[0.7rem] tabular-nums">
+            <Clock aria-hidden className="size-3" />
+            {idle}
+          </span>
+        ) : null}
+        {idea.source ? (
+          <span className="text-muted-foreground text-[0.7rem] uppercase tracking-wide">
+            {idea.source}
+          </span>
+        ) : null}
+      </div>
     </Card>
   );
 }

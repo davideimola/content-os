@@ -45,21 +45,28 @@ export function DetailSheet({
 }
 
 // A card made into a drawer trigger — full-width, left-aligned, with a hover cue.
+// `id` makes the card an anchor target (e.g. `/pipeline#<pieceId>`, so an Idea's
+// provenance list can link through to a Piece, #76): it scrolls into view and
+// flashes a ring while it is the URL's `:target`.
 export function CardTrigger({
   onClick,
   className,
+  id,
   children,
 }: {
   onClick: () => void;
   className?: string;
+  id?: string;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
+      id={id}
       onClick={onClick}
       className={cn(
         "block w-full cursor-pointer rounded-xl text-left transition-opacity hover:opacity-90 focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none",
+        id && "scroll-mt-20 target:ring-ring target:ring-2 target:ring-offset-2",
         className
       )}
     >

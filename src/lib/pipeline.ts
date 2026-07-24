@@ -44,6 +44,41 @@ export type Talk = {
   updated_at: string;
 };
 
+// A Piece an Idea spawned (via the piece_sources join) — the drawer's clickable
+// provenance entry. A subset of Piece: enough to show + link to it (#76).
+export type SpawnedPiece = {
+  id: string;
+  title: string;
+  channel: PieceChannel;
+  state: PieceState;
+  publish_date: string | null;
+};
+
+// A theme: a hand-assigned subject lens over Ideas, data (not an enum) so it can
+// be minted/retired without a migration (#78). `archived` retires it reversibly —
+// kept on record, excluded from the live picker.
+export type Theme = {
+  id: string;
+  label: string;
+  archived: boolean;
+  created_at: string;
+};
+
+// A theme as carried by an Idea — id + label + whether it is archived (an Idea can
+// still be tagged with a since-archived theme; the label resolves either way).
+export type ThemeRef = { id: string; label: string; archived: boolean };
+
+// An Idea enriched with its output provenance — a read-back of piece_sources
+// (#76): how many Pieces it spawned and which. Ideas stay a live pool (ADR-0014);
+// this is *visible* provenance, not a new lifecycle state. Talk provenance is out
+// of scope, so usedCount counts Pieces only. `themes` is the Idea's hand-assigned
+// subject tags (#78), resolved to labels via the idea_themes join.
+export type IdeaWithProvenance = Idea & {
+  usedCount: number;
+  spawnedPieces: SpawnedPiece[];
+  themes: ThemeRef[];
+};
+
 export type Cadence = {
   linkedin_week_covered: boolean;
   blog_month_covered: boolean;
@@ -101,6 +136,84 @@ export function getLiveIdeas(): Promise<Idea[]> {
   return selectAll<Idea>("ideas", "*", { column: "created_at", ascending: false }).then((ideas) =>
     ideas.filter((i) => i.status === "live")
   );
+}
+
+// Every theme (live + archived), by label — the drawer filters `archived` out for
+// the picker but keeps them to resolve an Idea's since-archived tags (#78).
+export function getThemes(): Promise<Theme[]> {
+  return selectAll<Theme>("themes", "id,label,archived,created_at", { column: "label" });
+}
+
+// Dated Pieces first (oldest→newest), then undated; id as a stable tie-break. Keeps
+// the drawer's provenance list deterministic regardless of piece_sources row order.
+function bySpawnOrder(a: SpawnedPiece, b: SpawnedPiece): number {
+  if (a.publish_date && b.publish_date) return a.publish_date.localeCompare(b.publish_date);
+  if (a.publish_date) return -1;
+  if (b.publish_date) return 1;
+  return a.id.localeCompare(b.id);
+}
+
+// The whole Idea pool (live + archived, newest first), each Idea enriched with its
+// spawned-Pieces provenance (#76). Reads the piece_sources join and folds it onto
+// the Ideas: usedCount = the number of linked Pieces, spawnedPieces = the list (for
+// the drawer's clickable provenance). An Idea that spawned nothing reports 0 / an
+// empty list. Archived Ideas are returned too (status carried through) so the triage
+// list's archived toggle can filter client-side (#77); the default view shows live.
+export async function getIdeasWithProvenance(): Promise<IdeaWithProvenance[]> {
+  const [ideas, pieces, sources, themes, ideaThemes] = await Promise.all([
+    selectAll<Idea>("ideas", "*", { column: "created_at", ascending: false }),
+    getPieces(),
+    supabaseAdmin().from("piece_sources").select("idea_id,piece_id"),
+    getThemes(),
+    supabaseAdmin().from("idea_themes").select("idea_id,theme_id"),
+  ]);
+  if (sources.error) throw new Error(`read piece_sources failed: ${sources.error.message}`);
+  if (ideaThemes.error) throw new Error(`read idea_themes failed: ${ideaThemes.error.message}`);
+
+  const pieceById = new Map(pieces.map((p) => [p.id, p]));
+  const byIdea = new Map<string, SpawnedPiece[]>();
+  for (const { idea_id, piece_id } of (sources.data ?? []) as Array<{
+    idea_id: string;
+    piece_id: string;
+  }>) {
+    const p = pieceById.get(piece_id);
+    if (!p) continue; // a source row can outlive its Piece only via cascade, so this is defensive
+    const list = byIdea.get(idea_id) ?? [];
+    list.push({
+      id: p.id,
+      title: p.title,
+      channel: p.channel,
+      state: p.state,
+      publish_date: p.publish_date,
+    });
+    byIdea.set(idea_id, list);
+  }
+
+  // Fold the idea_themes join onto the Ideas: each Idea's theme_ids resolve to
+  // labels (archived carried through). themes is already label-sorted, so the
+  // per-Idea lists inherit that order.
+  const themeById = new Map(themes.map((t) => [t.id, t]));
+  const themesByIdea = new Map<string, ThemeRef[]>();
+  for (const { idea_id, theme_id } of (ideaThemes.data ?? []) as Array<{
+    idea_id: string;
+    theme_id: string;
+  }>) {
+    const t = themeById.get(theme_id);
+    if (!t) continue; // defensive: the FK + cascade keep this from happening
+    const list = themesByIdea.get(idea_id) ?? [];
+    list.push({ id: t.id, label: t.label, archived: t.archived });
+    themesByIdea.set(idea_id, list);
+  }
+
+  return ideas.map((idea) => {
+    const spawnedPieces = (byIdea.get(idea.id) ?? []).sort(bySpawnOrder);
+    return {
+      ...idea,
+      usedCount: spawnedPieces.length,
+      spawnedPieces,
+      themes: themesByIdea.get(idea.id) ?? [],
+    };
+  });
 }
 
 export function getTalks(): Promise<Talk[]> {
