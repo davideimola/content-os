@@ -7,7 +7,7 @@ import { IdeaDetail } from "@/components/detail/idea-detail";
 import { EmptyState, idleDays, Section } from "@/components/pipeline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { IdeaWithProvenance } from "@/lib/pipeline";
+import type { IdeaWithProvenance, Theme } from "@/lib/pipeline";
 
 // A never-used spark idle at least this long floats into "Candidates to work" (#77).
 // A single tunable constant — the first cut, not a contract; easy to adjust later.
@@ -34,10 +34,20 @@ function isCandidate(idea: IdeaWithProvenance): boolean {
 // above "Everything else", plus free-text search, a used/never-used filter, and an
 // archived toggle (off by default — live pool only). All filtering is client-side
 // over the pool loaded server-side; the drawer/card come from #76.
-export function IdeasView({ ideas }: { ideas: IdeaWithProvenance[] }) {
+export function IdeasView({
+  ideas,
+  themes,
+  usedThemeIds,
+}: {
+  ideas: IdeaWithProvenance[];
+  themes: Theme[];
+  usedThemeIds: string[];
+}) {
   const [query, setQuery] = useState("");
   const [used, setUsed] = useState<UsedFilter>("all");
   const [showArchived, setShowArchived] = useState(false);
+  // A theme may be archived only when no Idea carries it (#78).
+  const themesInUse = useMemo(() => new Set(usedThemeIds), [usedThemeIds]);
 
   const { candidates, rest, total } = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -112,7 +122,7 @@ export function IdeasView({ ideas }: { ideas: IdeaWithProvenance[] }) {
           <Section key={g.title} title={g.title} count={g.items.length}>
             <div className="flex flex-col gap-2">
               {g.items.map((i) => (
-                <IdeaDetail key={i.id} idea={i} />
+                <IdeaDetail key={i.id} idea={i} themes={themes} themesInUse={themesInUse} />
               ))}
             </div>
           </Section>

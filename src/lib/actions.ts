@@ -18,6 +18,18 @@ async function callVerb(verb: string, params: Record<string, unknown>): Promise<
   return { ok: true };
 }
 
+// Same as callVerb, but hands back the verb's returned row — for the few actions
+// (createTheme) that need a value from the write (here, the new theme's id).
+async function callVerbReturning<T>(
+  verb: string,
+  params: Record<string, unknown>
+): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  const { data, error } = await supabaseAdmin().rpc(verb, params);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, data: data as T };
+}
+
 // slot_piece(p_id, p_publish_date): proposed/reslot -> slotted, put on the Calendar.
 export async function slotPiece(id: string, publishDate: string): Promise<ActionResult> {
   if (!publishDate) return { ok: false, error: "A publish date is required to slot." };
@@ -87,4 +99,29 @@ export async function editPiece(id: string, title: string): Promise<ActionResult
 export async function editTalk(id: string, title: string): Promise<ActionResult> {
   if (!title.trim()) return { ok: false, error: "A title is required." };
   return callVerb("edit_talk", { p_id: id, p_title: title });
+}
+
+// ── theme tagging (ADR-0016 verbs, #78) ──────────────────────────────────────
+// create_theme(p_label): mint (get-or-create) a live theme. Returns its id so the
+// drawer can immediately assign the just-minted theme to the Idea.
+export async function createTheme(
+  label: string
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const clean = label.trim();
+  if (!clean) return { ok: false, error: "A label is required." };
+  const res = await callVerbReturning<{ id: string } | null>("create_theme", { p_label: clean });
+  if (!res.ok) return res;
+  if (!res.data?.id) return { ok: false, error: "create_theme returned no theme." };
+  return { ok: true, id: res.data.id };
+}
+
+// archive_theme(p_id): retire a theme (reversible; excluded from the live picker).
+export async function archiveTheme(id: string): Promise<ActionResult> {
+  return callVerb("archive_theme", { p_id: id });
+}
+
+// set_idea_themes(p_idea_id, p_theme_ids): replace-all — the Idea ends carrying
+// exactly this set (an empty array clears it).
+export async function setIdeaThemes(ideaId: string, themeIds: string[]): Promise<ActionResult> {
+  return callVerb("set_idea_themes", { p_idea_id: ideaId, p_theme_ids: themeIds });
 }
