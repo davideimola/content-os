@@ -131,13 +131,15 @@ function bySpawnOrder(a: SpawnedPiece, b: SpawnedPiece): number {
   return a.id.localeCompare(b.id);
 }
 
-// The live Idea pool, each Idea enriched with its spawned-Pieces provenance (#76).
-// Reads the piece_sources join and folds it onto the live Ideas: usedCount = the
-// number of linked Pieces, spawnedPieces = the list (for the drawer's clickable
-// provenance). An Idea that spawned nothing reports 0 / an empty list.
+// The whole Idea pool (live + archived, newest first), each Idea enriched with its
+// spawned-Pieces provenance (#76). Reads the piece_sources join and folds it onto
+// the Ideas: usedCount = the number of linked Pieces, spawnedPieces = the list (for
+// the drawer's clickable provenance). An Idea that spawned nothing reports 0 / an
+// empty list. Archived Ideas are returned too (status carried through) so the triage
+// list's archived toggle can filter client-side (#77); the default view shows live.
 export async function getIdeasWithProvenance(): Promise<IdeaWithProvenance[]> {
   const [ideas, pieces, sources] = await Promise.all([
-    getLiveIdeas(),
+    selectAll<Idea>("ideas", "*", { column: "created_at", ascending: false }),
     getPieces(),
     supabaseAdmin().from("piece_sources").select("idea_id,piece_id"),
   ]);

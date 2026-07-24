@@ -1,4 +1,5 @@
 import {
+  Archive,
   CalendarClock,
   CalendarDays,
   Check,
@@ -38,13 +39,20 @@ export function formatDate(iso: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : dateFmt.format(d);
 }
 
+// Whole days since the capture date — the raw idle age (#76). Drives both the card's
+// cue and the triage "candidate" test (idle ≥ N days, #77). Null on an unparseable date.
+export function idleDays(iso: string): number | null {
+  const from = new Date(iso);
+  if (Number.isNaN(from.getTime())) return null;
+  return Math.max(0, Math.floor((Date.now() - from.getTime()) / 86_400_000));
+}
+
 // "idle N mo" from the capture date — how long a spark has sat untouched (#76).
 // Under a month it reads in days so a fresh spark doesn't collapse to "idle 0 mo";
 // months are floored 30-day buckets (a rough cue, not a precise date).
 export function idleLabel(iso: string): string | null {
-  const from = new Date(iso);
-  if (Number.isNaN(from.getTime())) return null;
-  const days = Math.max(0, Math.floor((Date.now() - from.getTime()) / 86_400_000));
+  const days = idleDays(iso);
+  if (days === null) return null;
   if (days < 30) return `idle ${days}d`;
   return `idle ${Math.floor(days / 30)} mo`;
 }
@@ -206,6 +214,12 @@ export function IdeaCard({ idea }: { idea: IdeaWithProvenance }) {
       </div>
       {/* Provenance + age + source — the triage cues (#76). */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-6">
+        {idea.status === "archived" ? (
+          <Badge variant="outline" className="text-muted-foreground gap-1 font-normal">
+            <Archive aria-hidden className="size-3" />
+            archived
+          </Badge>
+        ) : null}
         <UsedBadge count={idea.usedCount} />
         {idle ? (
           <span className="text-muted-foreground inline-flex items-center gap-1 text-[0.7rem] tabular-nums">

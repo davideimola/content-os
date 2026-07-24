@@ -168,26 +168,32 @@ export function IdeaDetail({ idea }: { idea: IdeaWithProvenance }) {
               )}
             </div>
 
-            <div className="flex flex-col gap-2 border-t pt-4">
-              <p className="text-muted-foreground text-xs">
-                Archive a duplicate or repudiated Idea (kept on the record, off the pool).
+            {idea.status === "archived" ? (
+              <p className="text-muted-foreground border-t pt-4 text-xs">
+                Archived — off the live pool, kept on the record.
               </p>
-              <Input
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="Reason (e.g. duplicate of…)"
-                className="h-8"
-              />
-              <Button
-                size="sm"
-                variant="destructive"
-                className="w-fit"
-                onClick={archive}
-                disabled={pending || !reason.trim()}
-              >
-                Archive
-              </Button>
-            </div>
+            ) : (
+              <div className="flex flex-col gap-2 border-t pt-4">
+                <p className="text-muted-foreground text-xs">
+                  Archive a duplicate or repudiated Idea (kept on the record, off the pool).
+                </p>
+                <Input
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Reason (e.g. duplicate of…)"
+                  className="h-8"
+                />
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="w-fit"
+                  onClick={archive}
+                  disabled={pending || !reason.trim()}
+                >
+                  Archive
+                </Button>
+              </div>
+            )}
           </>
         )}
 
