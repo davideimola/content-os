@@ -35,7 +35,8 @@ import {
 } from "lucide-react";
 import { Fragment, useState } from "react";
 
-import { ChannelBadge, FlagBadge, formatDate } from "@/components/pipeline";
+import { DetailSheet } from "@/components/detail/detail-sheet";
+import { ChannelBadge, FlagBadge, formatDate, StateBadge } from "@/components/pipeline";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -659,7 +660,7 @@ export function VariantD({ pieces: initial, today }: VariantProps) {
   const [overState, setOverState] = useState<PieceState | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [pendingDate, setPendingDate] = useState<{ id: string; value: string } | null>(null);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const dragged = pieces.find((p) => p.id === dragId) ?? null;
 
@@ -751,168 +752,138 @@ export function VariantD({ pieces: initial, today }: VariantProps) {
           const preview = dragged ? moveFor(dragged.state, stage.state) : null;
           const isTarget = overState === stage.state;
           return (
-            <Fragment key={stage.state}>
-              {/* biome-ignore lint/a11y/noStaticElementInteractions: a pointer drop target;
-                the touch/keyboard path is the "move to" buttons on each card. */}
-              <section
-                aria-label={`${stage.label} column`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setOverState(stage.state);
-                }}
-                onDragLeave={() => setOverState((s) => (s === stage.state ? null : s))}
-                onDrop={() => onDrop(stage.state)}
-                className={cn(
-                  "flex flex-col gap-2 rounded-lg border p-2 transition-colors",
-                  isTarget && preview?.ok && "border-emerald-500/60 bg-emerald-500/5",
-                  isTarget && preview && !preview.ok && "border-red-500/60 bg-red-500/5",
-                  !isTarget && "border-transparent"
-                )}
-              >
-                <header className="flex flex-col gap-1 px-1">
-                  <h2 className="flex items-baseline gap-2 text-sm font-semibold tracking-tight">
-                    {stage.label}
-                    <span className="text-muted-foreground text-xs tabular-nums">
-                      {items.length}
+            <section
+              key={stage.state}
+              aria-label={`${stage.label} column`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setOverState(stage.state);
+              }}
+              onDragLeave={() => setOverState((s) => (s === stage.state ? null : s))}
+              onDrop={() => onDrop(stage.state)}
+              className={cn(
+                "flex flex-col gap-2 rounded-lg border p-2 transition-colors",
+                isTarget && preview?.ok && "border-emerald-500/60 bg-emerald-500/5",
+                isTarget && preview && !preview.ok && "border-red-500/60 bg-red-500/5",
+                !isTarget && "border-transparent"
+              )}
+            >
+              <header className="flex flex-col gap-1 px-1">
+                <h2 className="flex items-baseline gap-2 text-sm font-semibold tracking-tight">
+                  {stage.label}
+                  <span className="text-muted-foreground text-xs tabular-nums">{items.length}</span>
+                  {stage.watcher ? null : (
+                    <span
+                      title="no Beat watches this stage"
+                      className="text-red-600 dark:text-red-400"
+                    >
+                      <EyeOff aria-hidden className="size-3.5" />
                     </span>
-                    {stage.watcher ? null : (
-                      <span
-                        title="no Beat watches this stage"
-                        className="text-red-600 dark:text-red-400"
-                      >
-                        <EyeOff aria-hidden className="size-3.5" />
-                      </span>
+                  )}
+                </h2>
+                {/* The joint out of this column — the automation status, in the header. */}
+                {joint ? (
+                  <span
+                    className={cn(
+                      "inline-flex w-fit items-center gap-1 rounded border px-1.5 py-0.5 text-[0.65rem]",
+                      MODE_META[joint.mode].cls
                     )}
-                  </h2>
-                  {/* The joint out of this column — the automation status, in the header. */}
-                  {joint ? (
-                    <span
-                      className={cn(
-                        "inline-flex w-fit items-center gap-1 rounded border px-1.5 py-0.5 text-[0.65rem]",
-                        MODE_META[joint.mode].cls
-                      )}
-                      title={joint.note}
-                    >
-                      {joint.mode === "hand-forever" ? (
-                        <Hand aria-hidden className="size-2.5" />
-                      ) : (
-                        <HelpCircle aria-hidden className="size-2.5" />
-                      )}
-                      <code>{joint.verb}</code>
-                      <ArrowRight aria-hidden className="size-2.5" />
-                      {MODE_META[joint.mode].label}
-                    </span>
-                  ) : null}
-                  {/* While dragging, each column says up front whether it will accept. */}
-                  {preview ? (
-                    <span
-                      className={cn(
-                        "text-[0.65rem]",
-                        preview.ok
-                          ? "text-emerald-700 dark:text-emerald-400"
-                          : "text-muted-foreground"
-                      )}
-                    >
-                      {preview.ok ? `drop → ${preview.verb}` : preview.why}
-                    </span>
-                  ) : null}
-                </header>
+                    title={joint.note}
+                  >
+                    {joint.mode === "hand-forever" ? (
+                      <Hand aria-hidden className="size-2.5" />
+                    ) : (
+                      <HelpCircle aria-hidden className="size-2.5" />
+                    )}
+                    <code>{joint.verb}</code>
+                    <ArrowRight aria-hidden className="size-2.5" />
+                    {MODE_META[joint.mode].label}
+                  </span>
+                ) : null}
+                {/* While dragging, each column says up front whether it will accept. */}
+                {preview ? (
+                  <span
+                    className={cn(
+                      "text-[0.65rem]",
+                      preview.ok
+                        ? "text-emerald-700 dark:text-emerald-400"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    {preview.ok ? `drop → ${preview.verb}` : preview.why}
+                  </span>
+                ) : null}
+              </header>
 
-                <div className="flex flex-col gap-2">
-                  {items.length === 0 ? (
-                    <p className="text-muted-foreground rounded-lg border border-dashed px-3 py-4 text-center text-xs">
-                      empty
-                    </p>
-                  ) : (
-                    items.map((piece) => {
-                      const flags = flagsFor(piece, pieces, today);
-                      const worst = flags[0];
-                      const open = expanded === piece.id;
-                      return (
-                        <Card
-                          key={piece.id}
+              <div className="flex flex-col gap-2">
+                {items.length === 0 ? (
+                  <p className="text-muted-foreground rounded-lg border border-dashed px-3 py-4 text-center text-xs">
+                    empty
+                  </p>
+                ) : (
+                  items.map((piece) => {
+                    const flags = flagsFor(piece, pieces, today);
+                    const worst = flags[0];
+                    return (
+                      <Fragment key={piece.id}>
+                        {/* Compact card: title, meta, worst flag. Everything else moved
+                              into the drawer — a column is ~280px wide and the journey did
+                              not fit there (Davide, on the inline version). */}
+                        <button
+                          type="button"
                           draggable
                           onDragStart={() => setDragId(piece.id)}
                           onDragEnd={() => {
                             setDragId(null);
                             setOverState(null);
                           }}
+                          onClick={() => setOpenId(piece.id)}
                           className={cn(
-                            "cursor-grab gap-2 p-3 active:cursor-grabbing",
-                            dragId === piece.id && "opacity-40",
-                            worst?.severity === 1 && "border-red-500/50",
-                            worst?.severity === 2 && "border-amber-500/50"
+                            "block w-full cursor-grab text-left active:cursor-grabbing",
+                            dragId === piece.id && "opacity-40"
                           )}
                         >
-                          {/* Compact by default — the density Davide asked to protect. */}
-                          <div className="flex items-start gap-2">
-                            <p className="min-w-0 flex-1 text-xs leading-snug font-medium text-pretty">
+                          <Card
+                            className={cn(
+                              "gap-1.5 p-3 transition-colors hover:border-foreground/20",
+                              worst?.severity === 1 && "border-red-500/50",
+                              worst?.severity === 2 && "border-amber-500/50"
+                            )}
+                          >
+                            <p className="text-xs leading-snug font-medium text-pretty">
                               {piece.title}
                             </p>
-                            <button
-                              type="button"
-                              onClick={() => setExpanded(open ? null : piece.id)}
-                              aria-label={open ? "hide journey" : "show journey"}
-                              className="text-muted-foreground hover:text-foreground shrink-0"
-                            >
-                              <ChevronDown
-                                aria-hidden
-                                className={cn(
-                                  "size-3.5 transition-transform",
-                                  open && "rotate-180"
-                                )}
-                              />
-                            </button>
-                          </div>
-                          <div className="text-muted-foreground flex items-center gap-1.5 text-[0.7rem]">
-                            <span className="uppercase tracking-wide">{piece.channel}</span>
-                            <span>·</span>
-                            <span>{formatDate(piece.publish_date) ?? "no date"}</span>
-                            <span>·</span>
-                            <span>{piece.flag_side}</span>
-                          </div>
-                          {worst ? <FlagLine flag={worst} /> : null}
-
-                          {/* C's information, on demand. */}
-                          {open ? (
-                            <div className="flex flex-col gap-2 border-t pt-2">
-                              <JourneyTrack piece={piece} today={today} />
-                              {/* Touch fallback: dragging is desktop-only, and the console is
-                                mobile-first — so the same moves live here as buttons. */}
-                              <div className="flex flex-wrap items-center gap-1">
-                                <span className="text-muted-foreground text-[0.65rem]">
-                                  move to
-                                </span>
-                                {STAGES.filter((s) => s.state !== piece.state).map((s) => {
-                                  const m = moveFor(piece.state, s.state);
-                                  return (
-                                    <Button
-                                      key={s.state}
-                                      size="xs"
-                                      variant="outline"
-                                      disabled={!m.ok}
-                                      title={m.ok ? m.verb : m.why}
-                                      onClick={() => {
-                                        if (!m.ok) return;
-                                        if (m.needsDate)
-                                          setPendingDate({ id: piece.id, value: today });
-                                        else apply(piece.id, s.state, m.verb);
-                                      }}
-                                    >
-                                      {s.label}
-                                    </Button>
-                                  );
-                                })}
-                              </div>
+                            <div className="text-muted-foreground flex items-center gap-1.5 text-[0.7rem]">
+                              <span className="uppercase tracking-wide">{piece.channel}</span>
+                              <span>·</span>
+                              <span>{formatDate(piece.publish_date) ?? "no date"}</span>
+                              <span>·</span>
+                              <span>{piece.flag_side}</span>
                             </div>
-                          ) : null}
-                        </Card>
-                      );
-                    })
-                  )}
-                </div>
-              </section>
-            </Fragment>
+                            {worst ? <FlagLine flag={worst} /> : null}
+                          </Card>
+                        </button>
+
+                        <ProtoPieceDrawer
+                          piece={piece}
+                          today={today}
+                          flags={flags}
+                          open={openId === piece.id}
+                          onOpenChange={(o) => setOpenId(o ? piece.id : null)}
+                          onMove={(to) => {
+                            const m = moveFor(piece.state, to);
+                            if (!m.ok) return;
+                            if (m.needsDate) setPendingDate({ id: piece.id, value: today });
+                            else apply(piece.id, to, m.verb);
+                            setOpenId(null);
+                          }}
+                        />
+                      </Fragment>
+                    );
+                  })
+                )}
+              </div>
+            </section>
           );
         })}
       </div>
@@ -941,6 +912,167 @@ export function VariantD({ pieces: initial, today }: VariantProps) {
           stub — every move is local state; reload restores the real Pipeline.
         </p>
       </div>
+    </div>
+  );
+}
+
+// The drawer: where the space is. The card stays compact and this holds the
+// history, the flags and the moves — Davide's call after seeing the journey
+// squeezed into a ~280px column. Reuses the console's real DetailSheet (right
+// Sheet on desktop, bottom sheet on mobile). The moves are stubs.
+function ProtoPieceDrawer({
+  piece,
+  today,
+  flags,
+  open,
+  onOpenChange,
+  onMove,
+}: {
+  piece: Piece;
+  today: string;
+  flags: Flag[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onMove: (to: PieceState) => void;
+}) {
+  return (
+    <DetailSheet open={open} onOpenChange={onOpenChange} title={piece.title}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <StateBadge state={piece.state} />
+        <ChannelBadge channel={piece.channel} />
+        <FlagBadge flagSide={piece.flag_side} />
+      </div>
+
+      {flags.length > 0 ? (
+        <div className="flex flex-col gap-1 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2">
+          {flags.map((f) => (
+            <FlagLine key={f.code} flag={f} />
+          ))}
+        </div>
+      ) : null}
+
+      <section className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold tracking-tight">History</h3>
+        <JourneyTimeline piece={piece} today={today} />
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold tracking-tight">Move</h3>
+        <div className="flex flex-col gap-1.5">
+          {STAGES.filter((s) => s.state !== piece.state).map((s) => {
+            const m = moveFor(piece.state, s.state);
+            return (
+              <div key={s.state} className="flex items-center gap-2">
+                <Button
+                  size="xs"
+                  variant="outline"
+                  disabled={!m.ok}
+                  onClick={() => onMove(s.state)}
+                  className="w-28 justify-start"
+                >
+                  <ArrowRight aria-hidden />
+                  {s.label}
+                </Button>
+                <span
+                  className={cn(
+                    "text-[0.7rem]",
+                    m.ok ? "text-muted-foreground font-mono" : "text-muted-foreground italic"
+                  )}
+                >
+                  {m.ok ? `${m.verb}${m.needsDate ? "(id, date)" : "(id)"}` : m.why}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-muted-foreground text-[0.65rem] italic">
+          stub — local state only; the board&apos;s verb log records what would have been called.
+        </p>
+      </section>
+
+      {piece.artifact_url || piece.linkedin_post_url ? (
+        <section className="flex flex-col gap-1">
+          <h3 className="text-xs font-semibold tracking-tight">Links</h3>
+          {piece.artifact_url ? (
+            <p className="text-muted-foreground truncate text-[0.7rem]">
+              artifact: {piece.artifact_url}
+            </p>
+          ) : null}
+          {piece.linkedin_post_url ? (
+            <p className="text-muted-foreground truncate text-[0.7rem]">
+              post: {piece.linkedin_post_url}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+    </DetailSheet>
+  );
+}
+
+// The history, vertically — the drawer has the height a board column doesn't.
+// "not recorded" is the honest answer for the two middle stops: the schema holds
+// no transition timestamps, only `updated_at`.
+function JourneyTimeline({ piece, today }: { piece: Piece; today: string }) {
+  const reachedIdx = TRACK.findIndex((t) => t.state === piece.state);
+  const lastTouch = days(piece.updated_at, today);
+  return (
+    <div className="flex flex-col">
+      {TRACK.map((stop, i) => {
+        const reached = i <= reachedIdx;
+        const current = i === reachedIdx;
+        const d = reached ? stopDate(piece, stop.state) : null;
+        const last = i === TRACK.length - 1;
+        return (
+          <div key={stop.state} className="flex gap-3">
+            <div className="flex flex-col items-center">
+              {reached ? (
+                <Check
+                  aria-hidden
+                  className={cn(
+                    "size-4 shrink-0",
+                    current ? "text-foreground" : "text-emerald-500"
+                  )}
+                />
+              ) : (
+                <CircleDashed aria-hidden className="text-muted-foreground/50 size-4 shrink-0" />
+              )}
+              {last ? null : (
+                <span
+                  className={cn("w-px flex-1", i < reachedIdx ? "bg-emerald-500/40" : "bg-border")}
+                />
+              )}
+            </div>
+            <div className={cn("flex flex-1 items-baseline gap-2", last ? "pb-0" : "pb-3")}>
+              <span
+                className={cn(
+                  "text-xs font-medium",
+                  reached ? "" : "text-muted-foreground/60",
+                  current && "underline decoration-dotted underline-offset-4"
+                )}
+              >
+                {stop.label}
+              </span>
+              <span
+                className={cn(
+                  "ml-auto text-[0.7rem] tabular-nums",
+                  !d
+                    ? "text-muted-foreground/50"
+                    : d.known
+                      ? "text-muted-foreground"
+                      : "text-amber-700 italic dark:text-amber-400"
+                )}
+              >
+                {d ? d.text : "—"}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+      <p className="text-muted-foreground mt-1 flex items-center gap-1 text-[0.7rem]">
+        <Clock aria-hidden className="size-3" />
+        last touched {lastTouch}d ago
+        <span className="italic opacity-70">(any field, not a transition)</span>
+      </p>
     </div>
   );
 }
