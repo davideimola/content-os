@@ -1,6 +1,11 @@
 import { PieceDetail } from "@/components/detail/piece-detail";
 import { TalkDetail } from "@/components/detail/talk-detail";
 import { EmptyState, Section } from "@/components/pipeline";
+// PROTOTYPE (#86) — throwaway: three "seeing the flow" variants mounted on this
+// route behind `?variant=`, with `?demo=1` for synthetic stuck cases. Remove the
+// three imports below, the variant switch, and the switcher to get main back.
+import { VariantA, VariantB, VariantC } from "@/components/prototype-flow";
+import { PrototypeSwitcher } from "@/components/prototype-switcher";
 import { View } from "@/components/view";
 import {
   getLinkedinPosts,
@@ -13,6 +18,7 @@ import {
   type PieceState,
   sumByPostUrl,
 } from "@/lib/pipeline";
+import { demoPieces } from "@/lib/prototype-demo";
 
 export const dynamic = "force-dynamic";
 
@@ -24,13 +30,35 @@ const STATE_LABEL: Record<PieceState, string> = {
   declined: "Declined",
 };
 
-export default async function PipelinePage() {
-  const [pieces, talks, liPosts, site] = await Promise.all([
+// PROTOTYPE (#86) — the variant roster for the floating switcher.
+const PROTO_VARIANTS = [
+  { key: "live", name: "Current board" },
+  { key: "A", name: "Flow rail + joints" },
+  { key: "B", name: "Attention list" },
+  { key: "C", name: "Per-Piece journey" },
+];
+
+export default async function PipelinePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ variant?: string; demo?: string }>;
+}) {
+  const sp = await searchParams;
+  const variant = PROTO_VARIANTS.some((v) => v.key === sp.variant)
+    ? (sp.variant as string)
+    : "live";
+  const demo = sp.demo === "1";
+
+  const [livePieces, talks, liPosts, site] = await Promise.all([
     getPieces(),
     getTalks(),
     getLinkedinPosts(),
     getSiteMetrics(),
   ]);
+
+  // `today` travels from the server so the flag rules render identically on both passes.
+  const today = new Date().toISOString().slice(0, 10);
+  const pieces = demo ? [...livePieces, ...demoPieces(today)] : livePieces;
 
   // Per-Piece metrics: a linkedin Piece's linked post summed across months; a blog
   // Piece's publish-month site visitors (site-wide — no per-post site data, ADR-0019).
@@ -56,41 +84,52 @@ export default async function PipelinePage() {
   );
 
   return (
-    <View title="Pipeline" subtitle={`${pieces.length} pieces · ${talks.length} talks`}>
-      {/* Lifecycle board — one column per state; stacks on mobile, spreads on desktop. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Section title="To judge" count={proposalsCount}>
-          {proposalsCount === 0 ? (
-            <EmptyState>No proposals waiting — the pool is quiet.</EmptyState>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {proposedPieces.map((p) => (
-                <PieceDetail key={p.id} piece={p} metrics={metricsFor(p)} />
-              ))}
-              {proposedTalks.map((t) => (
-                <TalkDetail key={t.id} talk={t} />
-              ))}
-            </div>
-          )}
-        </Section>
+    <View
+      title="Pipeline"
+      subtitle={`${pieces.length} pieces · ${talks.length} talks${demo ? " · demo data on" : ""}`}
+    >
+      {/* PROTOTYPE (#86) — one of three flow variants, or the live board. */}
+      {variant === "A" ? <VariantA pieces={pieces} today={today} /> : null}
+      {variant === "B" ? <VariantB pieces={pieces} today={today} /> : null}
+      {variant === "C" ? <VariantC pieces={pieces} today={today} /> : null}
+      <PrototypeSwitcher variants={PROTO_VARIANTS} current={variant} demo={demo} />
 
-        {boardStates.map((state) => {
-          const items = byState.get(state) ?? [];
-          return (
-            <Section key={state} title={STATE_LABEL[state]} count={items.length}>
-              {items.length === 0 ? (
-                <EmptyState>Nothing {STATE_LABEL[state].toLowerCase()}.</EmptyState>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {items.map((p) => (
-                    <PieceDetail key={p.id} piece={p} metrics={metricsFor(p)} />
-                  ))}
-                </div>
-              )}
-            </Section>
-          );
-        })}
-      </div>
+      {/* Lifecycle board — one column per state; stacks on mobile, spreads on desktop. */}
+      {variant !== "live" ? null : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Section title="To judge" count={proposalsCount}>
+            {proposalsCount === 0 ? (
+              <EmptyState>No proposals waiting — the pool is quiet.</EmptyState>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {proposedPieces.map((p) => (
+                  <PieceDetail key={p.id} piece={p} metrics={metricsFor(p)} />
+                ))}
+                {proposedTalks.map((t) => (
+                  <TalkDetail key={t.id} talk={t} />
+                ))}
+              </div>
+            )}
+          </Section>
+
+          {boardStates.map((state) => {
+            const items = byState.get(state) ?? [];
+            return (
+              <Section key={state} title={STATE_LABEL[state]} count={items.length}>
+                {items.length === 0 ? (
+                  <EmptyState>Nothing {STATE_LABEL[state].toLowerCase()}.</EmptyState>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {items.map((p) => (
+                      <PieceDetail key={p.id} piece={p} metrics={metricsFor(p)} />
+                    ))}
+                  </div>
+                )}
+              </Section>
+            );
+          })}
+        </div>
+      )}
     </View>
   );
 }
