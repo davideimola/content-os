@@ -31,16 +31,19 @@ import {
   EyeOff,
   Hand,
   HelpCircle,
+  Pencil,
   TriangleAlert,
 } from "lucide-react";
 import { Fragment, useState } from "react";
 
+import { CopyId } from "@/components/copy-id";
 import { DetailSheet } from "@/components/detail/detail-sheet";
 import { ChannelBadge, FlagBadge, formatDate, StateBadge } from "@/components/pipeline";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import type { Piece, PieceState } from "@/lib/pipeline";
+import { Input } from "@/components/ui/input";
+import type { Piece, PieceMetrics, PieceState } from "@/lib/pipeline";
 import { cn } from "@/lib/utils";
 
 // ── the "stuck" rule set (candidate — must agree with #88) ────────────────────
@@ -652,7 +655,11 @@ function moveFor(from: PieceState, to: PieceState): Move {
   return { ok: false, why: "no verb for this move" };
 }
 
-export function VariantD({ pieces: initial, today }: VariantProps) {
+export function VariantD({
+  pieces: initial,
+  today,
+  metrics,
+}: VariantProps & { metrics?: Record<string, PieceMetrics | undefined> }) {
   // Local only — the prototype never writes (see the verb log instead).
   const [pieces, setPieces] = useState(initial);
   const [log, setLog] = useState<{ seq: number; line: string }[]>([]);
@@ -664,18 +671,20 @@ export function VariantD({ pieces: initial, today }: VariantProps) {
 
   const dragged = pieces.find((p) => p.id === dragId) ?? null;
 
+  // Every stubbed write lands here instead of the database — the log doubles as
+  // proof that the UI holds no logic of its own: it only names RPC verbs.
+  function logVerb(line: string) {
+    setLog((prev) => [{ seq: prev.length + 1, line }, ...prev]);
+  }
+
   function apply(id: string, to: PieceState, verb: string, date?: string) {
     setPieces((prev) =>
       prev.map((p) => (p.id === id ? { ...p, state: to, publish_date: date ?? p.publish_date } : p))
     );
     const piece = pieces.find((p) => p.id === id);
-    setLog((prev) => [
-      {
-        seq: prev.length + 1,
-        line: `${verb}(${id.slice(0, 8)}${date ? `, "${date}"` : ""}) — ${piece?.title.slice(0, 44)}…`,
-      },
-      ...prev,
-    ]);
+    logVerb(
+      `${verb}(${id.slice(0, 8)}${date ? `, "${date}"` : ""}) — ${piece?.title.slice(0, 44)}…`
+    );
   }
 
   function onDrop(to: PieceState) {
@@ -868,6 +877,8 @@ export function VariantD({ pieces: initial, today }: VariantProps) {
                           piece={piece}
                           today={today}
                           flags={flags}
+                          metrics={metrics?.[piece.id]}
+                          onVerb={logVerb}
                           open={openId === piece.id}
                           onOpenChange={(o) => setOpenId(o ? piece.id : null)}
                           onMove={(to) => {
@@ -924,24 +935,79 @@ function ProtoPieceDrawer({
   piece,
   today,
   flags,
+  metrics,
   open,
   onOpenChange,
   onMove,
+  onVerb,
 }: {
   piece: Piece;
   today: string;
   flags: Flag[];
+  metrics?: PieceMetrics;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onMove: (to: PieceState) => void;
+  onVerb: (line: string) => void;
 }) {
+  const [renaming, setRenaming] = useState(false);
+  const [title, setTitle] = useState(piece.title);
+  const [artifact, setArtifact] = useState(piece.artifact_url ?? "");
+  const [postUrl, setPostUrl] = useState(piece.linkedin_post_url ?? "");
+  const short = piece.id.slice(0, 8);
+
   return (
     <DetailSheet open={open} onOpenChange={onOpenChange} title={piece.title}>
       <div className="flex flex-wrap items-center gap-1.5">
         <StateBadge state={piece.state} />
         <ChannelBadge channel={piece.channel} />
         <FlagBadge flagSide={piece.flag_side} />
+        <CopyId id={piece.id} className="ml-auto" />
       </div>
+
+      {/* Rename — the drawer's existing edit, kept. */}
+      {renaming ? (
+        <div className="flex flex-col gap-2">
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="h-8"
+            aria-label="Title"
+          />
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={() => {
+                onVerb(`edit_piece(${short}, "${title.slice(0, 32)}…")`);
+                setRenaming(false);
+              }}
+              disabled={!title.trim()}
+            >
+              Save title
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setTitle(piece.title);
+                setRenaming(false);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="-ml-2.5 w-fit"
+          onClick={() => setRenaming(true)}
+        >
+          <Pencil />
+          Rename
+        </Button>
+      )}
 
       {flags.length > 0 ? (
         <div className="flex flex-col gap-1 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2">
@@ -951,11 +1017,21 @@ function ProtoPieceDrawer({
         </div>
       ) : null}
 
+      {/* NEW — the history. Replaces the drawer's single "Publish: <date>" row,
+          which it contains. */}
       <section className="flex flex-col gap-2">
         <h3 className="text-xs font-semibold tracking-tight">History</h3>
         <JourneyTimeline piece={piece} today={today} />
+        {piece.blocked_by_piece_id ? (
+          <p className="text-muted-foreground flex items-center gap-1.5 text-[0.7rem]">
+            blocked by <CopyId id={piece.blocked_by_piece_id} />
+          </p>
+        ) : null}
       </section>
 
+      {/* NEW — one Move section replacing Schedule + Ready + Publish + Deslot:
+          four headings and three date-less buttons collapse into one row per
+          destination, each naming the verb it calls or why it refuses. */}
       <section className="flex flex-col gap-2">
         <h3 className="text-xs font-semibold tracking-tight">Move</h3>
         <div className="flex flex-col gap-1.5">
@@ -985,26 +1061,105 @@ function ProtoPieceDrawer({
             );
           })}
         </div>
-        <p className="text-muted-foreground text-[0.65rem] italic">
-          stub — local state only; the board&apos;s verb log records what would have been called.
-        </p>
       </section>
 
-      {piece.artifact_url || piece.linkedin_post_url ? (
-        <section className="flex flex-col gap-1">
-          <h3 className="text-xs font-semibold tracking-tight">Links</h3>
-          {piece.artifact_url ? (
-            <p className="text-muted-foreground truncate text-[0.7rem]">
-              artifact: {piece.artifact_url}
+      {/* The links, editable — what the reduced version had dropped. */}
+      <section className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold tracking-tight">Artifact URL</h3>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={artifact}
+            onChange={(e) => setArtifact(e.target.value)}
+            placeholder="https://…"
+            className="h-8 min-w-0 flex-1"
+            aria-label="Artifact URL"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!artifact.trim()}
+            onClick={() => onVerb(`set_piece_artifact(${short}, "${artifact}")`)}
+          >
+            Save
+          </Button>
+        </div>
+        {piece.artifact_url ? (
+          <a
+            href={piece.artifact_url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary text-[0.7rem] break-all underline underline-offset-2"
+          >
+            {piece.artifact_url}
+          </a>
+        ) : null}
+      </section>
+
+      {piece.channel === "linkedin" ? (
+        <section className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold tracking-tight">LinkedIn post</h3>
+          {metrics?.linkedin ? (
+            <p className="flex flex-wrap items-baseline gap-x-3 text-xs">
+              <span>
+                <span className="font-semibold tabular-nums">
+                  {metrics.linkedin.impressions.toLocaleString("en-GB")}
+                </span>{" "}
+                <span className="text-muted-foreground">impressions</span>
+              </span>
+              <span>
+                <span className="font-semibold tabular-nums">
+                  {metrics.linkedin.engagements.toLocaleString("en-GB")}
+                </span>{" "}
+                <span className="text-muted-foreground">engagements</span>
+              </span>
             </p>
-          ) : null}
-          {piece.linkedin_post_url ? (
-            <p className="text-muted-foreground truncate text-[0.7rem]">
-              post: {piece.linkedin_post_url}
+          ) : (
+            <p className="text-muted-foreground text-[0.7rem]">
+              {piece.linkedin_post_url
+                ? "Linked — no metrics ingested yet."
+                : "Link the post to see impressions & engagements."}
             </p>
-          ) : null}
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              value={postUrl}
+              onChange={(e) => setPostUrl(e.target.value)}
+              placeholder="https://www.linkedin.com/posts/…"
+              className="h-8 min-w-0 flex-1"
+              aria-label="LinkedIn post URL"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!postUrl.trim()}
+              onClick={() => onVerb(`set_piece_linkedin_url(${short}, "${postUrl}")`)}
+            >
+              {piece.linkedin_post_url ? "Update" : "Link"}
+            </Button>
+          </div>
         </section>
       ) : null}
+
+      {piece.channel === "blog" && metrics?.siteVisitors != null ? (
+        <section className="flex flex-col gap-1">
+          <h3 className="text-xs font-semibold tracking-tight">Site</h3>
+          <p className="text-muted-foreground text-[0.7rem]">
+            <span className="text-foreground font-semibold tabular-nums">
+              {metrics.siteVisitors.toLocaleString("en-GB")}
+            </span>{" "}
+            visitors that month <span className="italic">(site-wide, not this page)</span>
+          </p>
+        </section>
+      ) : null}
+
+      <div className="flex items-center gap-2 border-t pt-4">
+        <Button size="sm" variant="destructive" onClick={() => onVerb(`decline_piece(${short})`)}>
+          Decline
+        </Button>
+        <span className="text-muted-foreground text-[0.65rem] italic">
+          every button here is a stub — it appends its verb to the board&apos;s log, writes nothing
+        </span>
+      </div>
     </DetailSheet>
   );
 }

@@ -93,7 +93,13 @@ export default async function PipelinePage({
       {variant === "A" ? <VariantA pieces={pieces} today={today} /> : null}
       {variant === "B" ? <VariantB pieces={pieces} today={today} /> : null}
       {variant === "C" ? <VariantC pieces={pieces} today={today} /> : null}
-      {variant === "D" ? <VariantD pieces={pieces} today={today} /> : null}
+      {variant === "D" ? (
+        <VariantD
+          pieces={pieces}
+          today={today}
+          metrics={Object.fromEntries(pieces.map((p) => [p.id, metricsFor(p)]))}
+        />
+      ) : null}
       <PrototypeSwitcher variants={PROTO_VARIANTS} current={variant} demo={demo} />
 
       {/* Lifecycle board — one column per state; stacks on mobile, spreads on desktop. */}
