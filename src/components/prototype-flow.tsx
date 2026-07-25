@@ -11,6 +11,8 @@
 //   A    — Flow rail + joints: the machine, system-wide, read-only
 //   B    — Attention list: exceptions first, actions inline (stubbed)
 //   C    — Per-Piece journey: one track per Piece, exposing the missing history
+//   D    — Flow board: the board, with drag & drop and C's journey on demand
+//          (added after Davide's reaction to A/B/C)
 //
 // Every "stuck" rule here is a *candidate* — it must agree with the fourth-Beat
 // signal set (#88) if it survives. The point is to react to concrete flags.
@@ -20,6 +22,7 @@ import {
   ArrowRight,
   Ban,
   Bot,
+  CalendarDays,
   Check,
   ChevronDown,
   CircleDashed,
@@ -30,6 +33,7 @@ import {
   HelpCircle,
   TriangleAlert,
 } from "lucide-react";
+import { Fragment, useState } from "react";
 
 import { ChannelBadge, FlagBadge, formatDate } from "@/components/pipeline";
 import { Badge } from "@/components/ui/badge";
@@ -496,6 +500,64 @@ function stopDate(piece: Piece, state: PieceState): { text: string; known: boole
   return { text: "not recorded", known: false };
 }
 
+// The journey track, extracted so variant D can show it *on demand* instead of on
+// every row — Davide's reaction to C: the information is wanted, the permanent
+// per-row cost is not.
+export function JourneyTrack({ piece, today }: { piece: Piece; today: string }) {
+  const reachedIdx = TRACK.findIndex((t) => t.state === piece.state);
+  const lastTouch = days(piece.updated_at, today);
+  return (
+    <div className="flex flex-col gap-1.5">
+      {/* Horizontal on desktop, stacked on mobile. */}
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-4">
+        {TRACK.map((stop, i) => {
+          const reached = i <= reachedIdx;
+          const current = i === reachedIdx;
+          const d = reached ? stopDate(piece, stop.state) : null;
+          return (
+            <div
+              key={stop.state}
+              className={cn(
+                "flex items-center gap-2 rounded-md border px-2 py-1.5 sm:flex-col sm:items-start sm:gap-0.5",
+                current
+                  ? "border-foreground/30 bg-muted/50"
+                  : reached
+                    ? "border-border"
+                    : "border-dashed opacity-50"
+              )}
+            >
+              <span className="flex items-center gap-1 text-[0.7rem] font-medium">
+                {reached ? (
+                  <Check aria-hidden className="size-3 text-emerald-500" />
+                ) : (
+                  <CircleDashed aria-hidden className="text-muted-foreground size-3" />
+                )}
+                {stop.label}
+              </span>
+              <span
+                className={cn(
+                  "text-[0.65rem] tabular-nums",
+                  d?.known ? "text-muted-foreground" : "text-amber-700 italic dark:text-amber-400"
+                )}
+              >
+                {d ? d.text : "—"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.7rem]">
+        <span className="inline-flex items-center gap-1">
+          <Clock aria-hidden className="size-3" />
+          last touched {lastTouch}d ago
+          <span className="italic opacity-70">(any field, not a transition)</span>
+        </span>
+        {piece.artifact_url ? <span>artifact linked</span> : <span>no artifact</span>}
+      </div>
+    </div>
+  );
+}
+
 export function VariantC({ pieces, today }: VariantProps) {
   // Read in flow direction — proposed first, published last — so the list mirrors
   // the rail in variant A rather than reversing it.
@@ -515,9 +577,7 @@ export function VariantC({ pieces, today }: VariantProps) {
 
       <div className="flex flex-col gap-2">
         {ordered.map((piece) => {
-          const reachedIdx = TRACK.findIndex((t) => t.state === piece.state);
           const flags = flagsFor(piece, pieces, today);
-          const lastTouch = days(piece.updated_at, today);
           return (
             <Card key={piece.id} className="gap-3 p-3">
               <div className="flex flex-wrap items-start gap-2">
@@ -530,55 +590,7 @@ export function VariantC({ pieces, today }: VariantProps) {
                 </div>
               </div>
 
-              {/* The track. Horizontal on desktop, stacked on mobile. */}
-              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-4">
-                {TRACK.map((stop, i) => {
-                  const reached = i <= reachedIdx;
-                  const current = i === reachedIdx;
-                  const d = reached ? stopDate(piece, stop.state) : null;
-                  return (
-                    <div
-                      key={stop.state}
-                      className={cn(
-                        "flex items-center gap-2 rounded-md border px-2 py-1.5 sm:flex-col sm:items-start sm:gap-0.5",
-                        current
-                          ? "border-foreground/30 bg-muted/50"
-                          : reached
-                            ? "border-border"
-                            : "border-dashed opacity-50"
-                      )}
-                    >
-                      <span className="flex items-center gap-1 text-[0.7rem] font-medium">
-                        {reached ? (
-                          <Check aria-hidden className="size-3 text-emerald-500" />
-                        ) : (
-                          <CircleDashed aria-hidden className="text-muted-foreground size-3" />
-                        )}
-                        {stop.label}
-                      </span>
-                      <span
-                        className={cn(
-                          "text-[0.65rem] tabular-nums",
-                          d?.known
-                            ? "text-muted-foreground"
-                            : "text-amber-700 italic dark:text-amber-400"
-                        )}
-                      >
-                        {d ? d.text : "—"}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.7rem]">
-                <span className="inline-flex items-center gap-1">
-                  <Clock aria-hidden className="size-3" />
-                  last touched {lastTouch}d ago
-                  <span className="italic opacity-70">(any field, not a transition)</span>
-                </span>
-                {piece.artifact_url ? <span>artifact linked</span> : <span>no artifact</span>}
-              </div>
+              <JourneyTrack piece={piece} today={today} />
 
               {flags.length > 0 ? (
                 <div className="flex flex-col gap-1 rounded-md border border-amber-500/40 bg-amber-500/5 px-2 py-1.5">
@@ -598,6 +610,337 @@ export function VariantC({ pieces, today }: VariantProps) {
         a <code>piece_events</code> table or per-state columns, written by the RPC verbs. That is a
         contract change (#87 / #93 territory), not a UI change.
       </ProtoNote>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// VARIANT D — Flow board (drag & drop), journey on demand
+// Davide's reaction to A/B/C: the board is the congenial container, dragging is
+// the move he wants, and C's information is welcome but must not cost a row of
+// screen for every Piece.
+//
+// So: the existing four columns, plus (a) the stuck flag on the card, (b) the
+// joint printed in each column header, (c) drag & drop between columns, and
+// (d) C's journey track behind a per-card expander.
+//
+// The interesting part is what dragging *reveals*: the lifecycle is not a free
+// kanban. `slot_piece` needs a date, `publish_piece` accepts only slotted/ready,
+// and nothing un-publishes or un-readies a Piece — so half the drop targets must
+// refuse, out loud. Every accepted drop moves the card in local state only and
+// appends the RPC call it *would* have made to the verb log at the bottom.
+// ═════════════════════════════════════════════════════════════════════════════
+
+type Move = { ok: true; verb: string; needsDate: boolean } | { ok: false; why: string };
+
+// Derived from the real verbs in src/lib/actions.ts — not invented for the demo.
+function moveFor(from: PieceState, to: PieceState): Move {
+  if (from === to) return { ok: false, why: "already there" };
+  if (from === "published") return { ok: false, why: "no verb un-publishes a Piece" };
+  if (from === "proposed" && to === "slotted")
+    return { ok: true, verb: "slot_piece", needsDate: true };
+  if (from === "slotted" && to === "proposed")
+    return { ok: true, verb: "deslot_piece", needsDate: false };
+  if (from === "slotted" && to === "ready")
+    return { ok: true, verb: "mark_ready", needsDate: false };
+  if ((from === "slotted" || from === "ready") && to === "published")
+    return { ok: true, verb: "publish_piece", needsDate: false };
+  if (from === "ready" && (to === "slotted" || to === "proposed"))
+    return { ok: false, why: "no verb un-readies a Piece" };
+  if (from === "proposed") return { ok: false, why: "must be slotted (dated) first" };
+  return { ok: false, why: "no verb for this move" };
+}
+
+export function VariantD({ pieces: initial, today }: VariantProps) {
+  // Local only — the prototype never writes (see the verb log instead).
+  const [pieces, setPieces] = useState(initial);
+  const [log, setLog] = useState<{ seq: number; line: string }[]>([]);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overState, setOverState] = useState<PieceState | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const [pendingDate, setPendingDate] = useState<{ id: string; value: string } | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const dragged = pieces.find((p) => p.id === dragId) ?? null;
+
+  function apply(id: string, to: PieceState, verb: string, date?: string) {
+    setPieces((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, state: to, publish_date: date ?? p.publish_date } : p))
+    );
+    const piece = pieces.find((p) => p.id === id);
+    setLog((prev) => [
+      {
+        seq: prev.length + 1,
+        line: `${verb}(${id.slice(0, 8)}${date ? `, "${date}"` : ""}) — ${piece?.title.slice(0, 44)}…`,
+      },
+      ...prev,
+    ]);
+  }
+
+  function onDrop(to: PieceState) {
+    setOverState(null);
+    if (!dragged) return;
+    const move = moveFor(dragged.state, to);
+    setDragId(null);
+    if (!move.ok) {
+      setRefusal(`${dragged.state} → ${to}: ${move.why}`);
+      return;
+    }
+    setRefusal(null);
+    if (move.needsDate) {
+      setPendingDate({ id: dragged.id, value: today });
+      return;
+    }
+    apply(dragged.id, to, move.verb);
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <ProtoNote>
+        <strong className="text-foreground">D — Flow board, journey on demand.</strong> The board
+        you already have, plus the three things it can&apos;t show: the stuck flag on the card, the{" "}
+        <em>joint</em> in each column header, and C&apos;s journey behind a chevron. Drag a card
+        between columns — <strong className="text-foreground">nothing is written</strong>; every
+        accepted drop appends the RPC call it would have made to the log at the bottom, and every
+        illegal drop says why it refuses.
+      </ProtoNote>
+
+      {/* Drop refused — the contract talking back. */}
+      {refusal ? (
+        <div className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-400">
+          <Ban aria-hidden className="size-3.5 shrink-0" />
+          <span>{refusal}</span>
+          <button type="button" onClick={() => setRefusal(null)} className="ml-auto underline">
+            dismiss
+          </button>
+        </div>
+      ) : null}
+
+      {/* slot_piece needs a date — a drop into Slotted cannot be a pure drag. */}
+      {pendingDate ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-xs">
+          <CalendarDays aria-hidden className="size-3.5 shrink-0" />
+          <span>
+            <code>slot_piece</code> needs a date:
+          </span>
+          <input
+            type="date"
+            value={pendingDate.value}
+            onChange={(e) => setPendingDate({ ...pendingDate, value: e.target.value })}
+            className="rounded border bg-background px-1.5 py-0.5"
+          />
+          <Button
+            size="xs"
+            onClick={() => {
+              apply(pendingDate.id, "slotted", "slot_piece", pendingDate.value);
+              setPendingDate(null);
+            }}
+          >
+            Slot it
+          </Button>
+          <Button size="xs" variant="ghost" onClick={() => setPendingDate(null)}>
+            Cancel
+          </Button>
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {STAGES.map((stage) => {
+          const items = pieces.filter((p) => p.state === stage.state);
+          const joint = JOINTS.find((j) => j.from === stage.state);
+          const preview = dragged ? moveFor(dragged.state, stage.state) : null;
+          const isTarget = overState === stage.state;
+          return (
+            <Fragment key={stage.state}>
+              {/* biome-ignore lint/a11y/noStaticElementInteractions: a pointer drop target;
+                the touch/keyboard path is the "move to" buttons on each card. */}
+              <section
+                aria-label={`${stage.label} column`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setOverState(stage.state);
+                }}
+                onDragLeave={() => setOverState((s) => (s === stage.state ? null : s))}
+                onDrop={() => onDrop(stage.state)}
+                className={cn(
+                  "flex flex-col gap-2 rounded-lg border p-2 transition-colors",
+                  isTarget && preview?.ok && "border-emerald-500/60 bg-emerald-500/5",
+                  isTarget && preview && !preview.ok && "border-red-500/60 bg-red-500/5",
+                  !isTarget && "border-transparent"
+                )}
+              >
+                <header className="flex flex-col gap-1 px-1">
+                  <h2 className="flex items-baseline gap-2 text-sm font-semibold tracking-tight">
+                    {stage.label}
+                    <span className="text-muted-foreground text-xs tabular-nums">
+                      {items.length}
+                    </span>
+                    {stage.watcher ? null : (
+                      <span
+                        title="no Beat watches this stage"
+                        className="text-red-600 dark:text-red-400"
+                      >
+                        <EyeOff aria-hidden className="size-3.5" />
+                      </span>
+                    )}
+                  </h2>
+                  {/* The joint out of this column — the automation status, in the header. */}
+                  {joint ? (
+                    <span
+                      className={cn(
+                        "inline-flex w-fit items-center gap-1 rounded border px-1.5 py-0.5 text-[0.65rem]",
+                        MODE_META[joint.mode].cls
+                      )}
+                      title={joint.note}
+                    >
+                      {joint.mode === "hand-forever" ? (
+                        <Hand aria-hidden className="size-2.5" />
+                      ) : (
+                        <HelpCircle aria-hidden className="size-2.5" />
+                      )}
+                      <code>{joint.verb}</code>
+                      <ArrowRight aria-hidden className="size-2.5" />
+                      {MODE_META[joint.mode].label}
+                    </span>
+                  ) : null}
+                  {/* While dragging, each column says up front whether it will accept. */}
+                  {preview ? (
+                    <span
+                      className={cn(
+                        "text-[0.65rem]",
+                        preview.ok
+                          ? "text-emerald-700 dark:text-emerald-400"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      {preview.ok ? `drop → ${preview.verb}` : preview.why}
+                    </span>
+                  ) : null}
+                </header>
+
+                <div className="flex flex-col gap-2">
+                  {items.length === 0 ? (
+                    <p className="text-muted-foreground rounded-lg border border-dashed px-3 py-4 text-center text-xs">
+                      empty
+                    </p>
+                  ) : (
+                    items.map((piece) => {
+                      const flags = flagsFor(piece, pieces, today);
+                      const worst = flags[0];
+                      const open = expanded === piece.id;
+                      return (
+                        <Card
+                          key={piece.id}
+                          draggable
+                          onDragStart={() => setDragId(piece.id)}
+                          onDragEnd={() => {
+                            setDragId(null);
+                            setOverState(null);
+                          }}
+                          className={cn(
+                            "cursor-grab gap-2 p-3 active:cursor-grabbing",
+                            dragId === piece.id && "opacity-40",
+                            worst?.severity === 1 && "border-red-500/50",
+                            worst?.severity === 2 && "border-amber-500/50"
+                          )}
+                        >
+                          {/* Compact by default — the density Davide asked to protect. */}
+                          <div className="flex items-start gap-2">
+                            <p className="min-w-0 flex-1 text-xs leading-snug font-medium text-pretty">
+                              {piece.title}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setExpanded(open ? null : piece.id)}
+                              aria-label={open ? "hide journey" : "show journey"}
+                              className="text-muted-foreground hover:text-foreground shrink-0"
+                            >
+                              <ChevronDown
+                                aria-hidden
+                                className={cn(
+                                  "size-3.5 transition-transform",
+                                  open && "rotate-180"
+                                )}
+                              />
+                            </button>
+                          </div>
+                          <div className="text-muted-foreground flex items-center gap-1.5 text-[0.7rem]">
+                            <span className="uppercase tracking-wide">{piece.channel}</span>
+                            <span>·</span>
+                            <span>{formatDate(piece.publish_date) ?? "no date"}</span>
+                            <span>·</span>
+                            <span>{piece.flag_side}</span>
+                          </div>
+                          {worst ? <FlagLine flag={worst} /> : null}
+
+                          {/* C's information, on demand. */}
+                          {open ? (
+                            <div className="flex flex-col gap-2 border-t pt-2">
+                              <JourneyTrack piece={piece} today={today} />
+                              {/* Touch fallback: dragging is desktop-only, and the console is
+                                mobile-first — so the same moves live here as buttons. */}
+                              <div className="flex flex-wrap items-center gap-1">
+                                <span className="text-muted-foreground text-[0.65rem]">
+                                  move to
+                                </span>
+                                {STAGES.filter((s) => s.state !== piece.state).map((s) => {
+                                  const m = moveFor(piece.state, s.state);
+                                  return (
+                                    <Button
+                                      key={s.state}
+                                      size="xs"
+                                      variant="outline"
+                                      disabled={!m.ok}
+                                      title={m.ok ? m.verb : m.why}
+                                      onClick={() => {
+                                        if (!m.ok) return;
+                                        if (m.needsDate)
+                                          setPendingDate({ id: piece.id, value: today });
+                                        else apply(piece.id, s.state, m.verb);
+                                      }}
+                                    >
+                                      {s.label}
+                                    </Button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : null}
+                        </Card>
+                      );
+                    })
+                  )}
+                </div>
+              </section>
+            </Fragment>
+          );
+        })}
+      </div>
+
+      {/* Surface the state: what the drags would have called. */}
+      <div className="flex flex-col gap-1.5 rounded-lg border border-dashed p-3">
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold">
+          <Bot aria-hidden className="size-3.5" />
+          RPC calls this board would have made
+          <span className="text-muted-foreground font-normal tabular-nums">{log.length}</span>
+        </h3>
+        {log.length === 0 ? (
+          <p className="text-muted-foreground text-xs italic">
+            nothing yet — drag a card, or open one and use “move to”
+          </p>
+        ) : (
+          <ol className="flex flex-col gap-0.5">
+            {log.map((entry) => (
+              <li key={entry.seq} className="text-muted-foreground font-mono text-[0.7rem]">
+                {entry.line}
+              </li>
+            ))}
+          </ol>
+        )}
+        <p className="text-muted-foreground text-[0.65rem] italic">
+          stub — every move is local state; reload restores the real Pipeline.
+        </p>
+      </div>
     </div>
   );
 }

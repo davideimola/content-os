@@ -4,7 +4,7 @@ import { EmptyState, Section } from "@/components/pipeline";
 // PROTOTYPE (#86) — throwaway: three "seeing the flow" variants mounted on this
 // route behind `?variant=`, with `?demo=1` for synthetic stuck cases. Remove the
 // three imports below, the variant switch, and the switcher to get main back.
-import { VariantA, VariantB, VariantC } from "@/components/prototype-flow";
+import { VariantA, VariantB, VariantC, VariantD } from "@/components/prototype-flow";
 import { PrototypeSwitcher } from "@/components/prototype-switcher";
 import { View } from "@/components/view";
 import {
@@ -36,6 +36,7 @@ const PROTO_VARIANTS = [
   { key: "A", name: "Flow rail + joints" },
   { key: "B", name: "Attention list" },
   { key: "C", name: "Per-Piece journey" },
+  { key: "D", name: "Flow board (drag & drop)" },
 ];
 
 export default async function PipelinePage({
@@ -92,6 +93,7 @@ export default async function PipelinePage({
       {variant === "A" ? <VariantA pieces={pieces} today={today} /> : null}
       {variant === "B" ? <VariantB pieces={pieces} today={today} /> : null}
       {variant === "C" ? <VariantC pieces={pieces} today={today} /> : null}
+      {variant === "D" ? <VariantD pieces={pieces} today={today} /> : null}
       <PrototypeSwitcher variants={PROTO_VARIANTS} current={variant} demo={demo} />
 
       {/* Lifecycle board — one column per state; stacks on mobile, spreads on desktop. */}
