@@ -11,8 +11,9 @@
 //   A    — Flow rail + joints: the machine, system-wide, read-only
 //   B    — Attention list: exceptions first, actions inline (stubbed)
 //   C    — Per-Piece journey: one track per Piece, exposing the missing history
-//   D    — Flow board: the board, with drag & drop and C's journey on demand
-//          (added after Davide's reaction to A/B/C)
+//   D    — Flow board: the board, with drag & drop, the read-only flow map (#83
+//          ruled the canvas is a map and never an engine, described in code) and
+//          C's journey in the drawer (added after Davide's reactions)
 //
 // Every "stuck" rule here is a *candidate* — it must agree with the fourth-Beat
 // signal set (#88) if it survives. The point is to react to concrete flags.
@@ -32,6 +33,7 @@ import {
   Hand,
   HelpCircle,
   Pencil,
+  ShieldCheck,
   TriangleAlert,
 } from "lucide-react";
 import { Fragment, useState } from "react";
@@ -635,24 +637,254 @@ export function VariantC({ pieces, today }: VariantProps) {
 // appends the RPC call it *would* have made to the verb log at the bottom.
 // ═════════════════════════════════════════════════════════════════════════════
 
-type Move = { ok: true; verb: string; needsDate: boolean } | { ok: false; why: string };
+// Two kinds of "no", and the difference is the whole point (#83's resolution):
+//   guarded — the VERB refuses server-side. Only `mark_ready` (slotted → ready)
+//             and `publish_piece` ({slotted, ready} → published) have from-state
+//             guards.
+//   ui      — the verb would happily accept it. `slot_piece`, `deslot_piece` and
+//             `decline_piece` carry NO from-state guard, so `slot_piece` on a
+//             published Piece silently resurrects it. Only the UI stands between
+//             that and the data — which is #87's fourth bullet, made visible.
+type Move =
+  | { ok: true; verb: string; needsDate: boolean; guarded: boolean }
+  | { ok: false; kind: "guarded" | "ui"; why: string };
 
-// Derived from the real verbs in src/lib/actions.ts — not invented for the demo.
 function moveFor(from: PieceState, to: PieceState): Move {
-  if (from === to) return { ok: false, why: "already there" };
-  if (from === "published") return { ok: false, why: "no verb un-publishes a Piece" };
+  if (from === to) return { ok: false, kind: "ui", why: "already there" };
+
   if (from === "proposed" && to === "slotted")
-    return { ok: true, verb: "slot_piece", needsDate: true };
+    return { ok: true, verb: "slot_piece", needsDate: true, guarded: false };
   if (from === "slotted" && to === "proposed")
-    return { ok: true, verb: "deslot_piece", needsDate: false };
+    return { ok: true, verb: "deslot_piece", needsDate: false, guarded: false };
   if (from === "slotted" && to === "ready")
-    return { ok: true, verb: "mark_ready", needsDate: false };
+    return { ok: true, verb: "mark_ready", needsDate: false, guarded: true };
   if ((from === "slotted" || from === "ready") && to === "published")
-    return { ok: true, verb: "publish_piece", needsDate: false };
-  if (from === "ready" && (to === "slotted" || to === "proposed"))
-    return { ok: false, why: "no verb un-readies a Piece" };
-  if (from === "proposed") return { ok: false, why: "must be slotted (dated) first" };
-  return { ok: false, why: "no verb for this move" };
+    return { ok: true, verb: "publish_piece", needsDate: false, guarded: true };
+
+  // Real refusals — the verb's own guard says no.
+  if (to === "ready")
+    return { ok: false, kind: "guarded", why: "mark_ready guards slotted → ready" };
+  if (to === "published")
+    return {
+      ok: false,
+      kind: "guarded",
+      why: "publish_piece guards {slotted, ready} → published",
+    };
+
+  // Everything else: the verb would accept it. Nothing but this UI says no.
+  if (from === "published")
+    return {
+      ok: false,
+      kind: "ui",
+      why: "slot_piece / deslot_piece are unguarded — this would silently resurrect it (#87)",
+    };
+  return {
+    ok: false,
+    kind: "ui",
+    why: "deslot_piece / slot_piece are unguarded — the UI refuses the regression (#87)",
+  };
+}
+
+// ── the flow map (read-only) ─────────────────────────────────────────────────
+// #83 ruled: a drawn graph is a MAP, never an engine, and its description lives
+// in code — never in the DB. This is that description, and the whole drawing:
+// dependency-free inline SVG, following the console's trend-chart precedent
+// rather than adding react-flow.
+type Edge = {
+  from: PieceState;
+  to: PieceState;
+  verb: string;
+  guarded: boolean;
+  // "offered" = the board lets you do it; "risk" = the verb allows it and nobody
+  // guards it, so it is drawn as the hole it is.
+  kind: "offered" | "risk";
+  label?: string;
+};
+
+const EDGES: Edge[] = [
+  { from: "proposed", to: "slotted", verb: "slot_piece", guarded: false, kind: "offered" },
+  { from: "slotted", to: "ready", verb: "mark_ready", guarded: true, kind: "offered" },
+  { from: "ready", to: "published", verb: "publish_piece", guarded: true, kind: "offered" },
+  { from: "slotted", to: "proposed", verb: "deslot_piece", guarded: false, kind: "offered" },
+  {
+    from: "published",
+    to: "slotted",
+    verb: "slot_piece",
+    guarded: false,
+    kind: "risk",
+    label: "unguarded — silently resurrects a published Piece (#87)",
+  },
+];
+
+const NODE_X: Record<PieceState, number> = {
+  proposed: 8,
+  slotted: 168,
+  ready: 328,
+  published: 488,
+  declined: 0,
+};
+const NODE_W = 132;
+const NODE_Y = 62;
+const NODE_H = 34;
+const cx = (st: PieceState) => NODE_X[st] + NODE_W / 2;
+
+function FlowMap({ pieces }: { pieces: Piece[] }) {
+  const count = (st: PieceState) => pieces.filter((p) => p.state === st).length;
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg border p-3">
+      <h3 className="flex flex-wrap items-center gap-1.5 text-xs font-semibold tracking-tight">
+        The flow
+        <span className="text-muted-foreground font-normal">
+          — a map, not an engine (#83): drawn from a description in code, it executes nothing
+        </span>
+      </h3>
+      <div className="overflow-x-auto">
+        <svg
+          viewBox="0 0 632 150"
+          className="text-foreground h-[150px] w-[632px] min-w-[632px]"
+          role="img"
+          aria-label="The Piece lifecycle: proposed, slotted, ready, published, with the RPC verb on each transition"
+        >
+          <title>Piece lifecycle and the verbs that move it</title>
+          {/* forward edges, above the nodes */}
+          {EDGES.filter((e) => e.kind === "offered" && NODE_X[e.from] < NODE_X[e.to]).map((e) => {
+            const x1 = NODE_X[e.from] + NODE_W;
+            const x2 = NODE_X[e.to];
+            return (
+              <g key={`${e.from}-${e.to}`}>
+                <line
+                  x1={x1}
+                  y1={NODE_Y + NODE_H / 2}
+                  x2={x2 - 6}
+                  y2={NODE_Y + NODE_H / 2}
+                  stroke="currentColor"
+                  strokeOpacity="0.35"
+                />
+                <polygon
+                  points={`${x2},${NODE_Y + NODE_H / 2} ${x2 - 6},${NODE_Y + NODE_H / 2 - 3.5} ${x2 - 6},${NODE_Y + NODE_H / 2 + 3.5}`}
+                  fill="currentColor"
+                  fillOpacity="0.45"
+                />
+                <text
+                  x={(x1 + x2) / 2}
+                  y={NODE_Y + NODE_H / 2 - 8}
+                  textAnchor="middle"
+                  fontSize="9"
+                  fontFamily="ui-monospace, monospace"
+                  fill="currentColor"
+                  fillOpacity="0.75"
+                >
+                  {e.verb}
+                </text>
+                <text
+                  x={(x1 + x2) / 2}
+                  y={NODE_Y + NODE_H / 2 + 14}
+                  textAnchor="middle"
+                  fontSize="8"
+                  fill="currentColor"
+                  fillOpacity="0.45"
+                >
+                  {e.guarded ? "guarded" : "no guard"}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* the one backward edge that is offered: deslot */}
+          <path
+            d={`M ${cx("slotted")} ${NODE_Y} C ${cx("slotted")} ${NODE_Y - 34}, ${cx("proposed")} ${NODE_Y - 34}, ${cx("proposed")} ${NODE_Y}`}
+            fill="none"
+            stroke="currentColor"
+            strokeOpacity="0.3"
+          />
+          <text
+            x={(cx("proposed") + cx("slotted")) / 2}
+            y={NODE_Y - 26}
+            textAnchor="middle"
+            fontSize="9"
+            fontFamily="ui-monospace, monospace"
+            fill="currentColor"
+            fillOpacity="0.6"
+          >
+            deslot_piece
+          </text>
+
+          {/* the risk edge: allowed by the verb, offered by nobody */}
+          {EDGES.filter((e) => e.kind === "risk").map((e) => (
+            <g key={`risk-${e.from}-${e.to}`} className="text-red-600 dark:text-red-400">
+              <path
+                d={`M ${cx(e.from)} ${NODE_Y + NODE_H} C ${cx(e.from)} ${NODE_Y + NODE_H + 40}, ${cx(e.to)} ${NODE_Y + NODE_H + 40}, ${cx(e.to)} ${NODE_Y + NODE_H}`}
+                fill="none"
+                stroke="currentColor"
+                strokeOpacity="0.7"
+                strokeDasharray="4 3"
+              />
+              <text
+                x={(cx(e.to) + cx(e.from)) / 2}
+                y={NODE_Y + NODE_H + 52}
+                textAnchor="middle"
+                fontSize="8.5"
+                fill="currentColor"
+              >
+                {e.verb} — {e.label}
+              </text>
+            </g>
+          ))}
+
+          {/* nodes */}
+          {STAGES.map((stage) => (
+            <g key={stage.state}>
+              <rect
+                x={NODE_X[stage.state]}
+                y={NODE_Y}
+                width={NODE_W}
+                height={NODE_H}
+                rx="7"
+                fill="none"
+                stroke="currentColor"
+                strokeOpacity="0.35"
+              />
+              <text
+                x={NODE_X[stage.state] + 10}
+                y={NODE_Y + 21}
+                fontSize="11"
+                fontWeight="600"
+                fill="currentColor"
+              >
+                {stage.label}
+              </text>
+              <text
+                x={NODE_X[stage.state] + NODE_W - 10}
+                y={NODE_Y + 21}
+                textAnchor="end"
+                fontSize="11"
+                fill="currentColor"
+                fillOpacity="0.5"
+              >
+                {count(stage.state)}
+              </text>
+              {stage.watcher ? null : (
+                <text
+                  x={NODE_X[stage.state] + NODE_W / 2}
+                  y={NODE_Y + NODE_H + 13}
+                  textAnchor="middle"
+                  fontSize="8"
+                  className="fill-red-600 dark:fill-red-400"
+                >
+                  no Beat watches this
+                </text>
+              )}
+            </g>
+          ))}
+        </svg>
+      </div>
+      <p className="text-muted-foreground text-[0.65rem]">
+        Five edges drawn; a sixth, <code>publish_piece</code> from <em>slotted</em>, skips Ready
+        entirely. Two are guarded by their verb — the dashed one is legal in the contract and
+        offered by nothing, the gap this board holds shut by hand.
+      </p>
+    </div>
+  );
 }
 
 export function VariantD({
@@ -693,7 +925,9 @@ export function VariantD({
     const move = moveFor(dragged.state, to);
     setDragId(null);
     if (!move.ok) {
-      setRefusal(`${dragged.state} → ${to}: ${move.why}`);
+      setRefusal(
+        `${dragged.state} → ${to}: ${move.kind === "guarded" ? "the verb refuses" : "only this UI refuses"} — ${move.why}`
+      );
       return;
     }
     setRefusal(null);
@@ -712,8 +946,11 @@ export function VariantD({
         <em>joint</em> in each column header, and C&apos;s journey behind a chevron. Drag a card
         between columns — <strong className="text-foreground">nothing is written</strong>; every
         accepted drop appends the RPC call it would have made to the log at the bottom, and every
-        illegal drop says why it refuses.
+        refused drop says <em>who</em> refuses — the verb&apos;s own guard, or only this UI (#83:
+        just <code>mark_ready</code> and <code>publish_piece</code> guard their from-state).
       </ProtoNote>
+
+      <FlowMap pieces={pieces} />
 
       {/* Drop refused — the contract talking back. */}
       {refusal ? (
@@ -819,7 +1056,9 @@ export function VariantD({
                         : "text-muted-foreground"
                     )}
                   >
-                    {preview.ok ? `drop → ${preview.verb}` : preview.why}
+                    {preview.ok
+                      ? `drop → ${preview.verb}${preview.guarded ? "" : " (verb has no guard)"}`
+                      : `${preview.kind === "guarded" ? "verb refuses" : "UI refuses"} — ${preview.why}`}
                   </span>
                 ) : null}
               </header>
@@ -1051,10 +1290,19 @@ function ProtoPieceDrawer({
                 </Button>
                 <span
                   className={cn(
-                    "text-[0.7rem]",
-                    m.ok ? "text-muted-foreground font-mono" : "text-muted-foreground italic"
+                    "flex items-start gap-1 text-[0.7rem]",
+                    m.ok
+                      ? "text-muted-foreground font-mono"
+                      : m.kind === "guarded"
+                        ? "text-muted-foreground italic"
+                        : "text-amber-700 italic dark:text-amber-400"
                   )}
                 >
+                  {m.ok ? null : m.kind === "guarded" ? (
+                    <ShieldCheck aria-hidden className="mt-0.5 size-3 shrink-0" />
+                  ) : (
+                    <TriangleAlert aria-hidden className="mt-0.5 size-3 shrink-0" />
+                  )}
                   {m.ok ? `${m.verb}${m.needsDate ? "(id, date)" : "(id)"}` : m.why}
                 </span>
               </div>
