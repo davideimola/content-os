@@ -5,6 +5,9 @@ import { EmptyState, Section } from "@/components/pipeline";
 // route behind `?variant=`, with `?demo=1` for synthetic stuck cases. Remove the
 // three imports below, the variant switch, and the switcher to get main back.
 import { VariantA, VariantB, VariantC, VariantD } from "@/components/prototype-flow";
+// PROTOTYPE (#104) — the per-Piece flow re-prototype: three timeline treatments
+// over the seven contract-permitted cases, behind `?variant=E|F|G`.
+import { VariantE, VariantF, VariantG } from "@/components/prototype-rungs";
 import { PrototypeSwitcher } from "@/components/prototype-switcher";
 import { View } from "@/components/view";
 import {
@@ -18,9 +21,33 @@ import {
   type PieceState,
   sumByPostUrl,
 } from "@/lib/pipeline";
+import { protoCases, protoDeclinedCases } from "@/lib/prototype-cases";
 import { demoPieces } from "@/lib/prototype-demo";
 
 export const dynamic = "force-dynamic";
+
+// PROTOTYPE (#104) — the cases are built here (Server Component) and handed to
+// the client bench, the same way `?demo=1` already works.
+function RungVariant({
+  variant,
+  today,
+  showVerb,
+  act,
+  openCase,
+}: {
+  variant: "E" | "F" | "G";
+  today: string;
+  showVerb: boolean;
+  act: "strict" | "dated";
+  openCase?: string;
+}) {
+  const cases = protoCases(today);
+  const declined = protoDeclinedCases(today);
+  const props = { cases, declined, showVerb, act, openCase };
+  if (variant === "E") return <VariantE {...props} />;
+  if (variant === "F") return <VariantF {...props} />;
+  return <VariantG {...props} />;
+}
 
 const STATE_LABEL: Record<PieceState, string> = {
   proposed: "Proposed",
@@ -37,18 +64,32 @@ const PROTO_VARIANTS = [
   { key: "B", name: "Attention list" },
   { key: "C", name: "Per-Piece journey" },
   { key: "D", name: "Flow board (drag & drop)" },
+  // PROTOTYPE (#104) — the rungs and their sub-lines.
+  { key: "E", name: "Rungs — prose sub-lines" },
+  { key: "F", name: "Rungs — fact chips" },
+  { key: "G", name: "Rungs — current rung only" },
 ];
 
 export default async function PipelinePage({
   searchParams,
 }: {
-  searchParams: Promise<{ variant?: string; demo?: string }>;
+  searchParams: Promise<{
+    variant?: string;
+    demo?: string;
+    verb?: string;
+    act?: string;
+    open?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const variant = PROTO_VARIANTS.some((v) => v.key === sp.variant)
     ? (sp.variant as string)
     : "live";
   const demo = sp.demo === "1";
+  // PROTOTYPE (#104) — Q4 (does the sub-line name the verb?) and the two readings
+  // of #95 dec.2's activation, both flippable from the switcher bar.
+  const showVerb = sp.verb === "1";
+  const act = sp.act === "dated" ? "dated" : "strict";
 
   const [livePieces, talks, liPosts, site] = await Promise.all([
     getPieces(),
@@ -100,7 +141,41 @@ export default async function PipelinePage({
           metrics={Object.fromEntries(pieces.map((p) => [p.id, metricsFor(p)]))}
         />
       ) : null}
-      <PrototypeSwitcher variants={PROTO_VARIANTS} current={variant} demo={demo} />
+      {/* PROTOTYPE (#104) — the three rung treatments over the seven cases. */}
+      {variant === "E" || variant === "F" || variant === "G" ? (
+        <RungVariant
+          variant={variant}
+          today={today}
+          showVerb={showVerb}
+          act={act}
+          openCase={sp.open}
+        />
+      ) : null}
+      <PrototypeSwitcher
+        variants={PROTO_VARIANTS}
+        current={variant}
+        demo={demo}
+        toggles={
+          variant === "E" || variant === "F" || variant === "G"
+            ? [
+                {
+                  param: "verb",
+                  label: "verb",
+                  on: "1",
+                  active: showVerb,
+                  title: "name the RPC verb that leaves each rung (Q4)",
+                },
+                {
+                  param: "act",
+                  label: "act: dated",
+                  on: "dated",
+                  active: act === "dated",
+                  title: "activate the flow on a date too, not only on a production fact",
+                },
+              ]
+            : []
+        }
+      />
 
       {/* Lifecycle board — one column per state; stacks on mobile, spreads on desktop. */}
       {variant !== "live" ? null : (

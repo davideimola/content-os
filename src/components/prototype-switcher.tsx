@@ -12,18 +12,41 @@ import { cn } from "@/lib/utils";
 
 export type VariantKey = string;
 
+// PROTOTYPE (#104) — extra param toggles beside the demo one, so a question can
+// be answered by flipping rather than by a rebuild (`?verb=1`, `?act=dated`).
+export type ParamToggle = {
+  param: string;
+  label: string;
+  /** the value written when the toggle goes on; absent removes the param */
+  on: string;
+  active: boolean;
+  title?: string;
+};
+
 export function PrototypeSwitcher({
   variants,
   current,
   demo,
+  toggles = [],
 }: {
   variants: { key: VariantKey; name: string }[];
   current: VariantKey;
   demo: boolean;
+  toggles?: ParamToggle[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
+
+  const set = useCallback(
+    (param: string, value: string | null) => {
+      const sp = new URLSearchParams(params.toString());
+      if (value === null) sp.delete(param);
+      else sp.set(param, value);
+      router.replace(`${pathname}?${sp.toString()}`, { scroll: false });
+    },
+    [params, pathname, router]
+  );
 
   const go = useCallback(
     (next: Partial<{ variant: VariantKey; demo: boolean }>) => {
@@ -108,6 +131,21 @@ export function PrototypeSwitcher({
           <FlaskConical aria-hidden className="size-3.5" />
           demo
         </button>
+        {toggles.map((t) => (
+          <button
+            key={t.param}
+            type="button"
+            onClick={() => set(t.param, t.active ? null : t.on)}
+            aria-pressed={t.active}
+            title={t.title}
+            className={cn(
+              "flex items-center gap-1 border-l border-white/20 px-3 py-2 text-xs dark:border-black/20",
+              t.active ? "bg-sky-400 text-neutral-900" : "hover:bg-white/15 dark:hover:bg-black/10"
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
     </div>
   );
