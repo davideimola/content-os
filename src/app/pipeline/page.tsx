@@ -7,7 +7,13 @@ import { EmptyState, Section } from "@/components/pipeline";
 import { VariantA, VariantB, VariantC, VariantD } from "@/components/prototype-flow";
 // PROTOTYPE (#104) — the per-Piece flow re-prototype: three timeline treatments
 // over the seven contract-permitted cases, behind `?variant=E|F|G`.
-import { VariantE, VariantF, VariantG } from "@/components/prototype-rungs";
+import {
+  type TimelineMode,
+  VariantE,
+  VariantF,
+  VariantG,
+  VariantH,
+} from "@/components/prototype-rungs";
 import { PrototypeSwitcher } from "@/components/prototype-switcher";
 import { View } from "@/components/view";
 import {
@@ -21,7 +27,7 @@ import {
   type PieceState,
   sumByPostUrl,
 } from "@/lib/pipeline";
-import { protoCases, protoDeclinedCases } from "@/lib/prototype-cases";
+import { protoCases, protoDeclinedCases, widenPiece } from "@/lib/prototype-cases";
 import { demoPieces } from "@/lib/prototype-demo";
 
 export const dynamic = "force-dynamic";
@@ -34,13 +40,22 @@ function RungVariant({
   showVerb,
   act,
   openCase,
+  tl,
+  livePieces,
 }: {
-  variant: "E" | "F" | "G";
+  variant: "E" | "F" | "G" | "H";
   today: string;
   showVerb: boolean;
   act: "strict" | "dated";
   openCase?: string;
+  tl: TimelineMode;
+  livePieces: Piece[];
 }) {
+  // H answers the density question, so it runs over the LIVE Pipeline; E/F/G
+  // answer the legibility question, so they run over the seven cases.
+  if (variant === "H") {
+    return <VariantH pieces={livePieces.map(widenPiece)} mode={tl} showVerb={showVerb} act={act} />;
+  }
   const cases = protoCases(today);
   const declined = protoDeclinedCases(today);
   const props = { cases, declined, showVerb, act, openCase };
@@ -68,6 +83,7 @@ const PROTO_VARIANTS = [
   { key: "E", name: "Rungs — prose sub-lines" },
   { key: "F", name: "Rungs — fact chips" },
   { key: "G", name: "Rungs — current rung only" },
+  { key: "H", name: "All cards, one list (vs kanban)" },
 ];
 
 export default async function PipelinePage({
@@ -79,6 +95,7 @@ export default async function PipelinePage({
     verb?: string;
     act?: string;
     open?: string;
+    tl?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -90,6 +107,9 @@ export default async function PipelinePage({
   // of #95 dec.2's activation, both flippable from the switcher bar.
   const showVerb = sp.verb === "1";
   const act = sp.act === "dated" ? "dated" : "strict";
+  // H carries the flow on every card, so which treatment rides there is the
+  // whole per-row cost question — `current` is the only one that was ever cheap.
+  const tl: TimelineMode = sp.tl === "prose" ? "prose" : sp.tl === "chips" ? "chips" : "current";
 
   const [livePieces, talks, liPosts, site] = await Promise.all([
     getPieces(),
@@ -142,13 +162,15 @@ export default async function PipelinePage({
         />
       ) : null}
       {/* PROTOTYPE (#104) — the three rung treatments over the seven cases. */}
-      {variant === "E" || variant === "F" || variant === "G" ? (
+      {variant === "E" || variant === "F" || variant === "G" || variant === "H" ? (
         <RungVariant
           variant={variant}
           today={today}
           showVerb={showVerb}
           act={act}
           openCase={sp.open}
+          tl={tl}
+          livePieces={pieces}
         />
       ) : null}
       <PrototypeSwitcher
@@ -156,7 +178,7 @@ export default async function PipelinePage({
         current={variant}
         demo={demo}
         toggles={
-          variant === "E" || variant === "F" || variant === "G"
+          variant === "E" || variant === "F" || variant === "G" || variant === "H"
             ? [
                 {
                   param: "verb",

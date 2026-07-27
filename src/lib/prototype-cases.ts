@@ -180,6 +180,26 @@ export function protoCases(today: string): ProtoPiece[] {
   ];
 }
 
+// Widen a *real* Piece to the decided shape, for the density question (#104's
+// "all cards vs kanban"). Everything #93 has not built yet is honestly `null`,
+// so the flow suppresses exactly where the data is genuinely absent today —
+// which is the whole point of seeing this over the live Pipeline rather than
+// over seven hand-picked cases.
+export function widenPiece(p: Piece): ProtoPiece {
+  return {
+    ...p,
+    body: null,
+    asset_name: null,
+    publish_hour: null,
+    manual: false,
+    ready_at: null,
+    metrics_gap: false,
+    caseKey: "live",
+    caseTitle: "live Pipeline",
+    caseExpectation: "",
+  };
+}
+
 // The ticket's first open question: `declined` sits off the four-rung route.
 // Two shapes, because they are not the same question:
 //   d1 — declined straight out of `proposed`: no production facts at all

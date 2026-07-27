@@ -1040,6 +1040,118 @@ export function RungBench({
   );
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// H — all cards, one flat list. The other half of "tutte le card o kanban":
+// no columns, one card per Piece, the flow carried *in line* on every card.
+//
+// This is #86's variant C put back on the table, because #104 changed its price:
+// C lost on the per-row cost of the journey, and G (`?tl=current`) is three rows
+// cheaper. Rendered over the LIVE Pipeline, not the seven cases, because the
+// question is density — and the live shape is lopsided (see the header).
+// ═════════════════════════════════════════════════════════════════════════════
+
+const ORDER: PieceState[] = ["proposed", "slotted", "ready", "published", "declined"];
+
+export function VariantH({
+  pieces,
+  mode,
+  showVerb,
+  act,
+}: {
+  pieces: ProtoPiece[];
+  mode: TimelineMode;
+  showVerb: boolean;
+  act: ActivationMode;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const Timeline = TIMELINES[mode];
+
+  const ordered = [...pieces].sort((a, b) => {
+    const d = ORDER.indexOf(a.state) - ORDER.indexOf(b.state);
+    if (d !== 0) return d;
+    return (a.publish_date ?? "9999").localeCompare(b.publish_date ?? "9999");
+  });
+
+  const byState = ORDER.map((s) => ({ s, n: pieces.filter((p) => p.state === s).length })).filter(
+    (r) => r.n > 0
+  );
+  const lit = pieces.filter((p) => activation(p, act).on).length;
+
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2.5">
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          <strong className="text-foreground">H — all cards, one list.</strong> No columns: every
+          Piece is a row, and the flow rides <em>in line</em> on each card. This is #86&apos;s
+          variant C, re-priced — it lost on the per-row cost of the journey, and{" "}
+          <code>?tl=current</code> is three rows cheaper than the prose ladder. Switch the treatment
+          with <code>?tl=current|prose|chips</code> to feel the difference per row.
+        </p>
+        <p className="text-xs leading-relaxed">
+          <strong>The deciding fact is the shape of the live Pipeline, not taste.</strong>{" "}
+          {byState.map((r, i) => (
+            <span key={r.s}>
+              {i > 0 ? " · " : ""}
+              <code>{r.s}</code> {r.n}
+            </span>
+          ))}{" "}
+          — so the kanban currently draws <strong>four columns to hold one tall stack</strong>,
+          while this list has no empty space at all. Against that:{" "}
+          <strong>
+            only {lit} of {pieces.length}
+          </strong>{" "}
+          Pieces have a production fact, so {pieces.length - lit} cards below carry a{" "}
+          <em>nothing in production yet</em> line — which in a list is {pieces.length - lit} rows of
+          it, where the kanban says the same thing for free by the card simply sitting in{" "}
+          <code>slotted</code>.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {ordered.map((p) => {
+          const a = activation(p, act);
+          return (
+            <Fragment key={p.id}>
+              <Card className="gap-2 p-3">
+                <button
+                  type="button"
+                  onClick={() => setOpenId(p.id)}
+                  className="flex w-full flex-col gap-1.5 text-left"
+                >
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <StateBadge state={p.state} />
+                    <ChannelBadge channel={p.channel} />
+                    <FlagBadge flagSide={p.flag_side} />
+                    <span className="text-muted-foreground ml-auto text-[0.7rem] tabular-nums">
+                      {formatDate(p.publish_date) ?? "no date"}
+                    </span>
+                  </div>
+                  <p className="text-sm leading-snug font-medium text-pretty">{p.title}</p>
+                </button>
+                <div className="border-t pt-2">
+                  <Timeline piece={p} showVerb={showVerb} act={act} />
+                </div>
+                {a.on ? null : (
+                  <p className="text-muted-foreground/70 text-[0.6rem] italic">{a.why}</p>
+                )}
+              </Card>
+
+              <ProtoRungDrawer
+                piece={p}
+                mode={mode}
+                showVerb={showVerb}
+                act={act}
+                open={openId === p.id}
+                onOpenChange={(o) => setOpenId(o ? p.id : null)}
+              />
+            </Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function VariantE(props: Omit<Parameters<typeof RungBench>[0], "mode">) {
   return <RungBench {...props} mode="prose" />;
 }
