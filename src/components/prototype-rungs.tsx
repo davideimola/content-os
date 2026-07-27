@@ -3,14 +3,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // PROTOTYPE — THROWAWAY. Do not merge to main. (wayfinder ticket #104)
 //
-// Plan: three variants of the per-Piece flow timeline — #95 dec.3's four rungs
-// with their sub-lines — switchable via `?variant=E|F|G` on the existing
-// /pipeline route, rendered over a bench of the seven contract-permitted cases
-// at the drawer's *true* width, plus the real drawer for the mobile question.
+// Plan: variants of the per-Piece flow timeline — #95 dec.3's four rungs with
+// their sub-lines — switchable via `?variant=` on the existing /pipeline route,
+// rendered over a bench of the seven contract-permitted cases at the drawer's
+// *true* width, plus the real drawer for the mobile question.
 //
 //   E — prose sub-lines     the #95 dec.3 sketch, taken literally
 //   F — fact chips          no prose: facts as chips, one consequence footer
 //   G — current rung only   reached rungs collapse into a breadcrumb
+//   R — the recommendation  G + F's bot/hand icon + the date column repaired
+//   H — all cards, no columns (in this file's second half; the density question)
 //
 // Two toggles answer two of the ticket's questions without a rebuild:
 //   ?verb=1     — name the verb that leaves each rung (Q4)
@@ -47,7 +49,7 @@ import type { PieceState } from "@/lib/pipeline";
 import type { ProtoPiece } from "@/lib/prototype-cases";
 import { cn } from "@/lib/utils";
 
-export type TimelineMode = "prose" | "chips" | "current";
+export type TimelineMode = "prose" | "chips" | "current" | "recommended";
 export type ActivationMode = "strict" | "dated";
 
 // ── the ladder, and what each rung derives ───────────────────────────────────
@@ -200,6 +202,12 @@ export function rungViews(p: ProtoPiece): RungView[] {
 export function subLineLength(v: RungView): number {
   return [v.facts.join(" · "), v.consequence ? `→ ${v.consequence}` : ""].filter(Boolean).join(" ")
     .length;
+}
+
+/** The same measure for R, whose consequence is rewritten (see below). */
+export function subLineLengthRecommended(p: ProtoPiece, v: RungView): number {
+  const c = recommendedConsequence(p);
+  return [v.facts.join(" · "), c ? `→ ${c.text}` : ""].filter(Boolean).join(" ").length;
 }
 
 // ── the "nothing to draw" state (case 6 — must look deliberate) ───────────────
@@ -480,10 +488,154 @@ export function TimelineCurrent({
   );
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// R — the recommendation: G's shape, F's bot/hand icon, and the date column
+// repaired. Three grafts, each with its own reason:
+//
+//  1. G's shape, because it is #95 dec.6 turned into layout — dec.6 wrote that
+//     `slotted` "has no interesting moment, because what matters IS the date"
+//     and that three of four per-rung timestamps "say nothing that is not
+//     already readable". A four-rung ladder spends height on rungs #95 itself
+//     declared empty. All four names still appear, so dec.3's vocabulary holds.
+//  2. F's icon, because automatic-vs-manual is the one thing you want to read
+//     at a glance, and #89 dec.9's flag is otherwise buried in a fact list.
+//  3. The column holds only OBSERVATIONS (`created_at`, the log's `ready_at`,
+//     the publish fact); the PLAN moves into the consequence line, where
+//     "goes out 28 Jul at 11:00" was already half-saying it. That is what makes
+//     the ladder monotonic, and it follows #91 — a wall-clock intent is not an
+//     instant, so it does not belong in a column of instants.
+// ═════════════════════════════════════════════════════════════════════════════
+
+function planLabel(p: ProtoPiece): string | null {
+  if (!p.publish_date) return null;
+  const d = formatDate(p.publish_date);
+  return p.publish_hour != null ? `${d} at ${String(p.publish_hour).padStart(2, "0")}:00` : d;
+}
+
+/** The consequence, with the plan folded in — and whether a machine acts on it.
+ *
+ *  Q3, answered rather than admired: folding the plan in made case 3 *longer*,
+ *  so the icon has to earn its place by absorbing words — and it does. The facts
+ *  line already carries "I'll send it myself", so *"the cron will not fire; only
+ *  the ship Beat pings"* was stating a third time what the flag and the hand
+ *  icon state twice (and the ship Beat pings on the date regardless — that is
+ *  #88's business, not this line's). The actor stays in words as well as in the
+ *  icon, because an icon alone is not readable by a screen reader. `slotted`
+ *  loses its clause outright: its only fact already IS "nothing written yet". */
+function recommendedConsequence(p: ProtoPiece): { text: string; auto: boolean } | null {
+  const plan = planLabel(p);
+  switch (p.state) {
+    case "proposed":
+      return p.body ? { text: "not slotted, so nothing will ship it", auto: false } : null;
+    case "slotted":
+      return p.channel === "blog"
+        ? { text: `due ${plan} — you merge it`, auto: false }
+        : { text: `due ${plan} — the cron sends it`, auto: true };
+    case "ready":
+      if (p.channel === "blog")
+        return { text: `due ${plan} — your merge publishes it`, auto: false };
+      return p.manual
+        ? { text: `due ${plan} — you send it`, auto: false }
+        : { text: `goes out ${plan}`, auto: true };
+    default:
+      return null;
+  }
+}
+
+export function TimelineRecommended({
+  piece,
+  showVerb,
+  act,
+}: {
+  piece: ProtoPiece;
+  showVerb: boolean;
+  act: ActivationMode;
+}) {
+  const a = activation(piece, act);
+  if (!a.on) return <Suppressed why={a.why} />;
+
+  // Graft 3: `slotted` loses its column entry — `publish_date` is an intention,
+  // and mixing it with observations is what made the ladder read backwards.
+  const views = rungViews(piece).map((v) =>
+    v.state === "slotted" ? { ...v, when: null, whenNote: null } : v
+  );
+  const idx = views.findIndex((v) => v.current);
+  const passed = views.slice(0, Math.max(0, idx));
+  const current = views[idx];
+  const ahead = views.slice(idx + 1);
+  const consequence = recommendedConsequence(piece);
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {passed.length > 0 ? (
+        <p className="text-muted-foreground flex flex-wrap items-center gap-1 text-[0.7rem]">
+          {passed.map((v, i) => (
+            <Fragment key={v.state}>
+              {i > 0 ? <ChevronRight aria-hidden className="size-3 opacity-50" /> : null}
+              <span>
+                {v.label}
+                {v.when ? <span className="ml-1 tabular-nums opacity-70">{v.when}</span> : null}
+              </span>
+            </Fragment>
+          ))}
+          <ChevronRight aria-hidden className="size-3 opacity-50" />
+        </p>
+      ) : null}
+
+      {current ? (
+        <div className="border-foreground/25 bg-muted/40 flex flex-col gap-1 rounded-md border px-2.5 py-2">
+          <div className="flex items-baseline gap-2">
+            <span className="text-xs font-semibold">{current.label}</span>
+            <span className="text-muted-foreground ml-auto text-[0.7rem] tabular-nums">
+              {current.when ?? ""}
+              {current.whenNote ? <em className="ml-1 opacity-60">{current.whenNote}</em> : null}
+            </span>
+          </div>
+          {current.facts.length > 0 ? (
+            <p className="text-muted-foreground text-[0.7rem] leading-snug text-pretty">
+              {piece.channel} · {current.facts.join(" · ")}
+            </p>
+          ) : null}
+          {consequence ? (
+            <p className="flex items-start gap-1.5 text-[0.7rem] leading-snug text-pretty">
+              {/* Graft 2: who acts, at a glance. */}
+              {consequence.auto ? (
+                <Bot aria-hidden className="mt-0.5 size-3 shrink-0 opacity-70" />
+              ) : (
+                <Hand aria-hidden className="mt-0.5 size-3 shrink-0 opacity-70" />
+              )}
+              <span>
+                {consequence.text}
+                {showVerb && current.verb ? (
+                  <code className="text-muted-foreground/70 ml-1.5 text-[0.65rem]">
+                    {current.verb}
+                  </code>
+                ) : null}
+              </span>
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {ahead.length > 0 ? (
+        <p className="text-muted-foreground/60 flex flex-wrap items-center gap-1 text-[0.7rem]">
+          then
+          {ahead.map((v) => (
+            <span key={v.state} className="italic">
+              {v.label}
+            </span>
+          ))}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 const TIMELINES: Record<TimelineMode, typeof TimelineProse> = {
   prose: TimelineProse,
   chips: TimelineChips,
   current: TimelineCurrent,
+  recommended: TimelineRecommended,
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -846,6 +998,12 @@ const MODE_META: Record<TimelineMode, { key: string; name: string; pitch: string
     pitch:
       "No prose in the ladder — the facts are chips on the rung, and the consequence is lifted out into a single footer, because only one rung is ever current.",
   },
+  recommended: {
+    key: "R",
+    name: "the recommendation (G + F's icon + the date column repaired)",
+    pitch:
+      "G's shape because it is #95 dec.6 turned into layout; F's bot/hand icon because automatic-vs-manual is the one thing worth reading at a glance; and the date column holding only observations, with the plan folded into the consequence line — which is what makes the ladder monotonic and follows #91 (a wall-clock intent is not an instant, so it does not belong in a column of instants).",
+  },
   current: {
     key: "G",
     name: "current rung only",
@@ -902,7 +1060,13 @@ export function RungBench({
           const a = activation(p, act);
           const views = rungViews(p);
           const current = views.find((v) => v.current);
-          const len = current ? subLineLength(current) : 0;
+          // R rewrites the consequence, so the readout has to be mode-aware or it
+          // would report E's numbers while showing R's text.
+          const len = current
+            ? mode === "recommended"
+              ? subLineLengthRecommended(p, current)
+              : subLineLength(current)
+            : 0;
           return (
             <Fragment key={p.id}>
               <Card className="w-full max-w-[416px] flex-1 gap-2.5 p-3 sm:min-w-[340px]">
@@ -1152,6 +1316,9 @@ export function VariantH({
   );
 }
 
+export function VariantR(props: Omit<Parameters<typeof RungBench>[0], "mode">) {
+  return <RungBench {...props} mode="recommended" />;
+}
 export function VariantE(props: Omit<Parameters<typeof RungBench>[0], "mode">) {
   return <RungBench {...props} mode="prose" />;
 }

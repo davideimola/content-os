@@ -13,6 +13,7 @@ import {
   VariantF,
   VariantG,
   VariantH,
+  VariantR,
 } from "@/components/prototype-rungs";
 import { PrototypeSwitcher } from "@/components/prototype-switcher";
 import { View } from "@/components/view";
@@ -43,7 +44,7 @@ function RungVariant({
   tl,
   livePieces,
 }: {
-  variant: "E" | "F" | "G" | "H";
+  variant: "E" | "F" | "G" | "H" | "R";
   today: string;
   showVerb: boolean;
   act: "strict" | "dated";
@@ -51,7 +52,7 @@ function RungVariant({
   tl: TimelineMode;
   livePieces: Piece[];
 }) {
-  // H answers the density question, so it runs over the LIVE Pipeline; E/F/G
+  // H answers the density question, so it runs over the LIVE Pipeline; E/F/G/R
   // answer the legibility question, so they run over the seven cases.
   if (variant === "H") {
     return <VariantH pieces={livePieces.map(widenPiece)} mode={tl} showVerb={showVerb} act={act} />;
@@ -59,6 +60,7 @@ function RungVariant({
   const cases = protoCases(today);
   const declined = protoDeclinedCases(today);
   const props = { cases, declined, showVerb, act, openCase };
+  if (variant === "R") return <VariantR {...props} />;
   if (variant === "E") return <VariantE {...props} />;
   if (variant === "F") return <VariantF {...props} />;
   return <VariantG {...props} />;
@@ -80,6 +82,7 @@ const PROTO_VARIANTS = [
   { key: "C", name: "Per-Piece journey" },
   { key: "D", name: "Flow board (drag & drop)" },
   // PROTOTYPE (#104) — the rungs and their sub-lines.
+  { key: "R", name: "Rungs — THE RECOMMENDATION" },
   { key: "E", name: "Rungs — prose sub-lines" },
   { key: "F", name: "Rungs — fact chips" },
   { key: "G", name: "Rungs — current rung only" },
@@ -162,7 +165,11 @@ export default async function PipelinePage({
         />
       ) : null}
       {/* PROTOTYPE (#104) — the three rung treatments over the seven cases. */}
-      {variant === "E" || variant === "F" || variant === "G" || variant === "H" ? (
+      {variant === "E" ||
+      variant === "F" ||
+      variant === "G" ||
+      variant === "H" ||
+      variant === "R" ? (
         <RungVariant
           variant={variant}
           today={today}
@@ -178,7 +185,11 @@ export default async function PipelinePage({
         current={variant}
         demo={demo}
         toggles={
-          variant === "E" || variant === "F" || variant === "G" || variant === "H"
+          variant === "E" ||
+          variant === "F" ||
+          variant === "G" ||
+          variant === "H" ||
+          variant === "R"
             ? [
                 {
                   param: "verb",
