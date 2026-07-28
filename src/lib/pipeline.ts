@@ -54,6 +54,12 @@ export type SpawnedPiece = {
   publish_date: string | null;
 };
 
+// A Piece with its blocker resolved to a title. `blocked_by_piece_id` on its own is
+// an opaque id, and a cue reading "blocked by 7629" tells nobody anything (#111), so
+// every read of the Pieces table resolves the blocker's title against the same rows.
+// Derived at read time — never a column.
+export type PieceWithBlocker = Piece & { blockedByTitle: string | null };
+
 // A theme: a hand-assigned subject lens over Ideas, data (not an enum) so it can
 // be minted/retired without a migration (#78). `archived` retires it reversibly —
 // kept on record, excluded from the live picker.
@@ -128,8 +134,19 @@ async function selectAll<T>(
   return (data ?? []) as T[];
 }
 
-export function getPieces(): Promise<Piece[]> {
-  return selectAll<Piece>("pieces", "*", { column: "created_at" });
+// Resolve each Piece's `blocked_by_piece_id` to the blocking Piece's title (#111).
+// A blocker is always another Piece, so the whole-table read resolves itself; an
+// unresolvable id keeps a null title and the cue falls back to the id.
+export function withBlockerTitles(pieces: Piece[]): PieceWithBlocker[] {
+  const titleById = new Map(pieces.map((p) => [p.id, p.title]));
+  return pieces.map((p) => ({
+    ...p,
+    blockedByTitle: p.blocked_by_piece_id ? (titleById.get(p.blocked_by_piece_id) ?? null) : null,
+  }));
+}
+
+export async function getPieces(): Promise<PieceWithBlocker[]> {
+  return withBlockerTitles(await selectAll<Piece>("pieces", "*", { column: "created_at" }));
 }
 
 export function getLiveIdeas(): Promise<Idea[]> {
@@ -276,6 +293,27 @@ export function monthEngagements(posts: LinkedinPost[], month: string): number {
   return posts.filter((p) => p.month === month).reduce((sum, p) => sum + (p.engagements ?? 0), 0);
 }
 
+// Per-Piece metrics as a plain record keyed by piece id — the lookup a card or a row
+// is handed (plain records cross the RSC boundary; a Map does not). A LinkedIn Piece
+// gets its linked post summed across months; a blog Piece gets its publish month's
+// site-wide visitors, since there is no per-post site figure (ADR-0019).
+export async function getPieceMetricsById(pieces: Piece[]): Promise<Record<string, PieceMetrics>> {
+  const [posts, site] = await Promise.all([getLinkedinPosts(), getSiteMetrics()]);
+  const byUrl = sumByPostUrl(posts);
+  const siteByMonth = new Map(site.map((s) => [s.month.slice(0, 7), s.visitors]));
+  const byPiece: Record<string, PieceMetrics> = {};
+  for (const p of pieces) {
+    if (p.channel === "linkedin") {
+      byPiece[p.id] = {
+        linkedin: p.linkedin_post_url ? (byUrl.get(p.linkedin_post_url) ?? null) : null,
+      };
+    } else if (p.channel === "blog" && p.publish_date) {
+      byPiece[p.id] = { siteVisitors: siteByMonth.get(p.publish_date.slice(0, 7)) ?? null };
+    }
+  }
+  return byPiece;
+}
+
 // ── Monthly trend: LinkedIn + site, merged per month for the /metrics view ─────
 export type MonthlyMetrics = {
   month: string; // YYYY-MM-01
@@ -399,4 +437,105 @@ export async function getCalendarItems(): Promise<CalendarItem[]> {
 
   items.sort((a, b) => a.date.localeCompare(b.date));
   return items;
+}
+
+// ── Engagement tier: Talk → its CFPs → their Event ──────────────────────────────
+// The tier has existed since init and no view ever read it whole: the Calendar's
+// by-date read only picks up CFPs that carry a deadline, and every live Engagement
+// has `deadline: null`. These types mirror the enums in the init migration
+// (`engagement_kind`, `engagement_outcome`) — the outcome vocabulary is constrained
+// by kind server-side (`engagement_outcome_matches_kind`).
+export type EngagementKind = "cfp" | "direct";
+export type EngagementOutcome = "to_submit" | "submitted" | "accepted" | "rejected" | "confirmed";
+
+// Named `EventRecord`, not `Event`, so it never shadows the DOM's `Event`.
+export type EventRecord = {
+  id: string;
+  name: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  location: string | null;
+  url: string | null;
+  roles: string[];
+  is_public: boolean;
+};
+
+export type Engagement = {
+  id: string;
+  talk_id: string;
+  event_id: string;
+  kind: EngagementKind;
+  outcome: EngagementOutcome;
+  deadline: string | null;
+  cfp_link: string | null;
+};
+
+// A Talk taken to an Event through one Engagement: the submission's own outcome
+// alongside the Talk's readiness. One Talk → many Engagements, so the same Talk
+// state shows under every Event it was taken to — one fact, one meaning.
+export type EngagementTalk = {
+  engagementId: string;
+  talkId: string;
+  talkTitle: string;
+  talkState: TalkState;
+  outcome: EngagementOutcome;
+  deadline: string | null;
+  cfpLink: string | null;
+};
+
+// The lookup a row needs to open an Event or CFP drawer, keyed by the id the row
+// carries. **Plain records, never Maps**: this crosses from a Server Component into
+// a Client one and a Map does not survive the RSC payload (#111).
+export type EngagementContext = {
+  events: Record<string, EventRecord>;
+  engagements: Record<string, Engagement>;
+  talksByEvent: Record<string, EngagementTalk[]>; // every Talk taken to an Event
+  talkByEngagement: Record<string, EngagementTalk>; // the Talk one submission is of
+  engagementsByTalk: Record<string, Engagement[]>; // a Talk's submissions
+};
+
+export async function getEngagementContext(): Promise<EngagementContext> {
+  const db = supabaseAdmin();
+  const [talks, engagements, events] = await Promise.all([
+    getTalks(),
+    db
+      .from("engagements")
+      .select("id,talk_id,event_id,kind,outcome,deadline,cfp_link")
+      .order("created_at"),
+    db
+      .from("events")
+      .select("id,name,starts_on,ends_on,location,url,roles,is_public")
+      .order("name"),
+  ]);
+  if (engagements.error) throw new Error(`read engagements failed: ${engagements.error.message}`);
+  if (events.error) throw new Error(`read events failed: ${events.error.message}`);
+
+  const talkById = new Map(talks.map((t) => [t.id, t]));
+  const ctx: EngagementContext = {
+    events: Object.fromEntries(((events.data ?? []) as EventRecord[]).map((e) => [e.id, e])),
+    engagements: {},
+    talksByEvent: {},
+    talkByEngagement: {},
+    engagementsByTalk: {},
+  };
+
+  for (const e of (engagements.data ?? []) as Engagement[]) {
+    ctx.engagements[e.id] = e;
+    ctx.engagementsByTalk[e.talk_id] = [...(ctx.engagementsByTalk[e.talk_id] ?? []), e];
+    const talk = talkById.get(e.talk_id);
+    if (!talk) continue; // defensive: the FK keeps an Engagement's Talk alive
+    const attached: EngagementTalk = {
+      engagementId: e.id,
+      talkId: talk.id,
+      talkTitle: talk.title,
+      talkState: talk.state,
+      outcome: e.outcome,
+      deadline: e.deadline,
+      cfpLink: e.cfp_link,
+    };
+    ctx.talkByEngagement[e.id] = attached;
+    ctx.talksByEvent[e.event_id] = [...(ctx.talksByEvent[e.event_id] ?? []), attached];
+  }
+
+  return ctx;
 }

@@ -4,14 +4,16 @@ import { Pencil } from "lucide-react";
 import { useState, useTransition } from "react";
 
 import { CopyId } from "@/components/copy-id";
-import { CardTrigger, DetailSheet } from "@/components/detail/detail-sheet";
+import { DetailOpener, DetailSheet, type DetailTrigger } from "@/components/detail/detail-sheet";
 import { FlagBadge, StateBadge, TalkCard } from "@/components/pipeline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { declineTalk, editTalk } from "@/lib/actions";
 import type { Talk } from "@/lib/pipeline";
 
-export function TalkDetail({ talk }: { talk: Talk }) {
+// `trigger` is the shared opener contract (`DetailTrigger`): omit it for the Talk's
+// own card, supply one to open the same drawer from a row.
+export function TalkDetail({ talk, trigger }: { talk: Talk; trigger?: DetailTrigger }) {
   const [open, setOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(talk.title);
@@ -38,9 +40,9 @@ export function TalkDetail({ talk }: { talk: Talk }) {
 
   return (
     <>
-      <CardTrigger onClick={() => setOpen(true)}>
+      <DetailOpener trigger={trigger} open={() => setOpen(true)}>
         <TalkCard talk={talk} />
-      </CardTrigger>
+      </DetailOpener>
 
       <DetailSheet open={open} onOpenChange={setOpen} title={talk.title}>
         <div className="flex flex-wrap items-center gap-1.5">

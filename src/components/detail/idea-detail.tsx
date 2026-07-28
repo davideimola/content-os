@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { CopyId } from "@/components/copy-id";
-import { CardTrigger, DetailSheet } from "@/components/detail/detail-sheet";
+import { DetailOpener, DetailSheet, type DetailTrigger } from "@/components/detail/detail-sheet";
 import { ThemeTagger } from "@/components/detail/theme-tagger";
 import { ChannelBadge, formatDate, IdeaCard, StateBadge, UsedBadge } from "@/components/pipeline";
 import { Button } from "@/components/ui/button";
@@ -14,14 +14,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { archiveIdea, editIdea } from "@/lib/actions";
 import type { IdeaWithProvenance, Theme } from "@/lib/pipeline";
 
+// `trigger` is the shared opener contract (`DetailTrigger`): omit it for the Idea's
+// own card, supply one to open the same drawer from a row.
 export function IdeaDetail({
   idea,
   themes,
   themesInUse,
+  trigger,
 }: {
   idea: IdeaWithProvenance;
   themes: Theme[];
   themesInUse: Set<string>;
+  trigger?: DetailTrigger;
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -62,9 +66,9 @@ export function IdeaDetail({
 
   return (
     <>
-      <CardTrigger className="h-full" onClick={() => setOpen(true)}>
+      <DetailOpener trigger={trigger} open={() => setOpen(true)} className="h-full">
         <IdeaCard idea={idea} />
-      </CardTrigger>
+      </DetailOpener>
 
       <DetailSheet
         open={open}

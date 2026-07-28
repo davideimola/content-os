@@ -4,7 +4,7 @@ import { Pencil } from "lucide-react";
 import { useState, useTransition } from "react";
 
 import { CopyId } from "@/components/copy-id";
-import { CardTrigger, DetailSheet } from "@/components/detail/detail-sheet";
+import { DetailOpener, DetailSheet, type DetailTrigger } from "@/components/detail/detail-sheet";
 import { ChannelBadge, FlagBadge, formatDate, PieceCard, StateBadge } from "@/components/pipeline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,19 @@ import type { Piece, PieceMetrics } from "@/lib/pipeline";
 
 const numFmt = new Intl.NumberFormat("en-GB");
 
-export function PieceDetail({ piece, metrics }: { piece: Piece; metrics?: PieceMetrics }) {
+// `trigger` is the shared opener contract (see `DetailTrigger`): omit it and the
+// Piece's own card opens the drawer; supply one and a row does. `blockedByTitle` is
+// the resolved title of the blocking Piece — optional so a caller holding a bare
+// `Piece` still type-checks, and the cue falls back to the id when it is absent.
+export function PieceDetail({
+  piece,
+  metrics,
+  trigger,
+}: {
+  piece: Piece & { blockedByTitle?: string | null };
+  metrics?: PieceMetrics;
+  trigger?: DetailTrigger;
+}) {
   const [open, setOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(piece.title);
@@ -61,9 +73,9 @@ export function PieceDetail({ piece, metrics }: { piece: Piece; metrics?: PieceM
 
   return (
     <>
-      <CardTrigger id={piece.id} onClick={() => setOpen(true)}>
+      <DetailOpener trigger={trigger} open={() => setOpen(true)} id={piece.id}>
         <PieceCard piece={piece} />
-      </CardTrigger>
+      </DetailOpener>
 
       <DetailSheet open={open} onOpenChange={setOpen} title={piece.title}>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -120,7 +132,10 @@ export function PieceDetail({ piece, metrics }: { piece: Piece; metrics?: PieceM
           {piece.blocked_by_piece_id ? (
             <>
               <dt className="text-muted-foreground">Blocked by</dt>
-              <dd>
+              <dd className="flex flex-col items-start gap-1">
+                {piece.blockedByTitle ? (
+                  <span className="leading-snug text-pretty">{piece.blockedByTitle}</span>
+                ) : null}
                 <CopyId id={piece.blocked_by_piece_id} />
               </dd>
             </>

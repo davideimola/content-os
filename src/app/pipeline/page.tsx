@@ -3,15 +3,12 @@ import { TalkDetail } from "@/components/detail/talk-detail";
 import { EmptyState, Section } from "@/components/pipeline";
 import { View } from "@/components/view";
 import {
-  getLinkedinPosts,
+  getPieceMetricsById,
   getPieces,
-  getSiteMetrics,
   getTalks,
   PIECE_STATE_ORDER,
-  type Piece,
-  type PieceMetrics,
   type PieceState,
-  sumByPostUrl,
+  type PieceWithBlocker,
 } from "@/lib/pipeline";
 
 export const dynamic = "force-dynamic";
@@ -25,33 +22,15 @@ const STATE_LABEL: Record<PieceState, string> = {
 };
 
 export default async function PipelinePage() {
-  const [pieces, talks, liPosts, site] = await Promise.all([
-    getPieces(),
-    getTalks(),
-    getLinkedinPosts(),
-    getSiteMetrics(),
-  ]);
-
-  // Per-Piece metrics: a linkedin Piece's linked post summed across months; a blog
-  // Piece's publish-month site visitors (site-wide — no per-post site data, ADR-0019).
-  const byUrl = sumByPostUrl(liPosts);
-  const siteByMonth = new Map(site.map((s) => [s.month.slice(0, 7), s.visitors]));
-  const metricsFor = (p: Piece): PieceMetrics | undefined => {
-    if (p.channel === "linkedin") {
-      return { linkedin: p.linkedin_post_url ? (byUrl.get(p.linkedin_post_url) ?? null) : null };
-    }
-    if (p.channel === "blog" && p.publish_date) {
-      return { siteVisitors: siteByMonth.get(p.publish_date.slice(0, 7)) ?? null };
-    }
-    return undefined;
-  };
+  const [pieces, talks] = await Promise.all([getPieces(), getTalks()]);
+  const metrics = await getPieceMetricsById(pieces);
 
   const proposedPieces = pieces.filter((p) => p.state === "proposed");
   const proposedTalks = talks.filter((t) => t.state === "proposed");
   const proposalsCount = proposedPieces.length + proposedTalks.length;
 
   const boardStates = PIECE_STATE_ORDER.filter((s) => s !== "proposed");
-  const byState = new Map<PieceState, Piece[]>(
+  const byState = new Map<PieceState, PieceWithBlocker[]>(
     boardStates.map((s) => [s, pieces.filter((p) => p.state === s)])
   );
 
@@ -65,7 +44,7 @@ export default async function PipelinePage() {
           ) : (
             <div className="flex flex-col gap-2">
               {proposedPieces.map((p) => (
-                <PieceDetail key={p.id} piece={p} metrics={metricsFor(p)} />
+                <PieceDetail key={p.id} piece={p} metrics={metrics[p.id]} />
               ))}
               {proposedTalks.map((t) => (
                 <TalkDetail key={t.id} talk={t} />
@@ -83,7 +62,7 @@ export default async function PipelinePage() {
               ) : (
                 <div className="flex flex-col gap-2">
                   {items.map((p) => (
-                    <PieceDetail key={p.id} piece={p} metrics={metricsFor(p)} />
+                    <PieceDetail key={p.id} piece={p} metrics={metrics[p.id]} />
                   ))}
                 </div>
               )}

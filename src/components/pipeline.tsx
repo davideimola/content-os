@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import type {
   Cadence,
   CalendarItem,
+  EngagementOutcome,
   FlagSide,
   IdeaWithProvenance,
   Piece,
@@ -150,8 +151,31 @@ export function StateBadge({ state }: { state: PieceState | TalkState }) {
   );
 }
 
+// An Engagement's outcome — the *submission's* state, which is not the Talk's
+// readiness: a CFP can read `accepted` while the slides are not written. Both show
+// on an Engagement, side by side, so neither can be mistaken for the other.
+const OUTCOME_DOT: Record<EngagementOutcome, string> = {
+  to_submit: "text-amber-500",
+  submitted: "text-sky-500",
+  accepted: "text-emerald-500",
+  rejected: "text-muted-foreground",
+  confirmed: "text-violet-500",
+};
+
+export function OutcomeBadge({ outcome }: { outcome: EngagementOutcome }) {
+  return (
+    <Badge variant="outline" className="gap-1 font-normal">
+      <CircleDot aria-hidden className={cn(OUTCOME_DOT[outcome])} />
+      {outcome.replace("_", " ")}
+    </Badge>
+  );
+}
+
 // ── cards ─────────────────────────────────────────────────────────────────────
-export function PieceCard({ piece }: { piece: Piece }) {
+// `blockedByTitle` is the blocking Piece's title, resolved at read time
+// (`withBlockerTitles`) — the cue is only legible with it. Optional so a caller
+// holding a bare `Piece` still type-checks; it then falls back to the id's tail.
+export function PieceCard({ piece }: { piece: Piece & { blockedByTitle?: string | null } }) {
   const date = formatDate(piece.publish_date);
   return (
     <Card className="gap-3 p-4">
@@ -161,11 +185,16 @@ export function PieceCard({ piece }: { piece: Piece }) {
         <ChannelBadge channel={piece.channel} />
         <FlagBadge flagSide={piece.flag_side} />
       </div>
-      <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
-        <CalendarDays aria-hidden className="size-3.5" />
-        {date ?? <span className="italic">no date</span>}
+      <div className="text-muted-foreground flex flex-col gap-1 text-xs">
+        <span className="flex items-center gap-1.5">
+          <CalendarDays aria-hidden className="size-3.5 shrink-0" />
+          {date ?? <span className="italic">no date</span>}
+        </span>
+        {/* Its own line, so a blocker's title has the card's width to read in. */}
         {piece.blocked_by_piece_id ? (
-          <span className="ml-auto">blocked by {piece.blocked_by_piece_id.slice(-4)}</span>
+          <span className="truncate pl-5">
+            blocked by {piece.blockedByTitle ?? piece.blocked_by_piece_id.slice(-4)}
+          </span>
         ) : null}
       </div>
     </Card>

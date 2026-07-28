@@ -1,8 +1,7 @@
-import { CopyId } from "@/components/copy-id";
-import { calendarKindMeta, EmptyState } from "@/components/pipeline";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import type { CalendarItem } from "@/lib/pipeline";
+import { AgendaRow } from "@/components/drawer-rows";
+import { EmptyState } from "@/components/pipeline";
+import type { EngagementContext, PieceMetrics } from "@/lib/pipeline";
+import { groupRowsByDate, type Row, rowKey } from "@/lib/rows";
 
 const fmtHeading = new Intl.DateTimeFormat("en-GB", {
   weekday: "short",
@@ -16,58 +15,49 @@ function heading(date: string): string {
   return Number.isNaN(d.getTime()) ? date : fmtHeading.format(d);
 }
 
-function KindBadge({ item }: { item: CalendarItem }) {
-  const { icon: Icon, label, variant } = calendarKindMeta(item);
-  return (
-    <Badge variant={variant} className="gap-1">
-      <Icon aria-hidden />
-      {label}
-    </Badge>
-  );
-}
-
-function DayGroup({ date, items }: { date: string; items: CalendarItem[] }) {
+function DayGroup({
+  date,
+  rows,
+  engagements,
+  metrics,
+}: {
+  date: string;
+  rows: Row[];
+  engagements: EngagementContext;
+  metrics: Record<string, PieceMetrics>;
+}) {
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-muted-foreground px-1 text-xs font-medium tracking-wide uppercase">
         {heading(date)}
       </h3>
-      {items.map((item) => (
-        <Card key={`${item.kind}-${item.id}`} className="gap-2 p-3.5">
-          <p className="text-sm leading-snug font-medium text-pretty">{item.title}</p>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <KindBadge item={item} />
-            {item.state ? (
-              <span className="text-muted-foreground text-xs">{item.state.replace("_", " ")}</span>
-            ) : null}
-            {item.kind !== "piece" && item.detail ? (
-              <span className="text-muted-foreground text-xs">· {item.detail}</span>
-            ) : null}
-            <CopyId id={item.id} className="ml-auto" />
-          </div>
-        </Card>
+      {rows.map((row) => (
+        <AgendaRow key={rowKey(row)} row={row} engagements={engagements} metrics={metrics} />
       ))}
     </div>
   );
 }
 
-function groupByDate(items: CalendarItem[]): [string, CalendarItem[]][] {
-  const map = new Map<string, CalendarItem[]>();
-  for (const it of items) {
-    const arr = map.get(it.date) ?? [];
-    arr.push(it);
-    map.set(it.date, arr);
-  }
-  return [...map.entries()];
-}
-
-export function CalendarAgenda({ items, today }: { items: CalendarItem[]; today: string }) {
-  if (items.length === 0) {
+// The by-date agenda: every row opens the drawer of the thing it stands for — a Piece
+// with all its actions, an Event with the Talks taken to it, a CFP with its submission
+// (#111). A Server Component: the rows themselves are the client modules.
+export function CalendarAgenda({
+  rows,
+  today,
+  engagements,
+  metrics,
+}: {
+  rows: Row[];
+  today: string;
+  engagements: EngagementContext;
+  metrics: Record<string, PieceMetrics>;
+}) {
+  if (rows.length === 0) {
     return <EmptyState>Nothing dated yet — slot a Piece to see it here.</EmptyState>;
   }
 
-  const upcoming = items.filter((i) => i.date >= today); // ascending already
-  const past = items.filter((i) => i.date < today).reverse(); // most recent first
+  const upcoming = rows.filter((r) => r.item.date >= today); // ascending already
+  const past = rows.filter((r) => r.item.date < today).reverse(); // most recent first
 
   return (
     <div className="flex flex-col gap-8">
@@ -76,8 +66,14 @@ export function CalendarAgenda({ items, today }: { items: CalendarItem[]; today:
         {upcoming.length === 0 ? (
           <EmptyState>Nothing scheduled ahead.</EmptyState>
         ) : (
-          groupByDate(upcoming).map(([date, group]) => (
-            <DayGroup key={date} date={date} items={group} />
+          groupRowsByDate(upcoming).map(([date, group]) => (
+            <DayGroup
+              key={date}
+              date={date}
+              rows={group}
+              engagements={engagements}
+              metrics={metrics}
+            />
           ))
         )}
       </section>
@@ -85,8 +81,14 @@ export function CalendarAgenda({ items, today }: { items: CalendarItem[]; today:
       {past.length > 0 ? (
         <section className="flex flex-col gap-5 opacity-70">
           <h2 className="text-sm font-semibold tracking-tight">Past</h2>
-          {groupByDate(past).map(([date, group]) => (
-            <DayGroup key={date} date={date} items={group} />
+          {groupRowsByDate(past).map(([date, group]) => (
+            <DayGroup
+              key={date}
+              date={date}
+              rows={group}
+              engagements={engagements}
+              metrics={metrics}
+            />
           ))}
         </section>
       ) : null}
