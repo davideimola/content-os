@@ -99,8 +99,15 @@ export type LinkedinAccount = {
   month: string; // YYYY-MM-01
   impressions: number | null;
   members_reached: number | null;
-  followers_total: number | null;
   new_followers: number | null;
+};
+
+// The follower LEVEL, keyed by the date it was observed (#113). It is not a
+// quantity of a period, so it never sits on a month row: the export reports the
+// total at export time, which is always after the month it came with has ended.
+export type FollowerLevel = {
+  observed_on: string; // YYYY-MM-DD — the date the number is true for
+  total: number;
 };
 export type LinkedinPost = {
   month: string;
@@ -315,11 +322,25 @@ export async function getFlagMix(): Promise<FlagMix> {
 export async function getLinkedinAccounts(limit = 2): Promise<LinkedinAccount[]> {
   const { data, error } = await supabaseAdmin()
     .from("metrics_linkedin_account")
-    .select("month,impressions,members_reached,followers_total,new_followers")
+    .select("month,impressions,members_reached,new_followers")
     .order("month", { ascending: false })
     .limit(limit);
   if (error) throw new Error(`read metrics_linkedin_account failed: ${error.message}`);
   return (data ?? []) as LinkedinAccount[];
+}
+
+// The most recent follower observation, or null while none is on record. One row,
+// carrying its own date — the tile shows the level AND when it was true, because
+// a level without its date is the thing #113 removed.
+export async function getLatestFollowerLevel(): Promise<FollowerLevel | null> {
+  const { data, error } = await supabaseAdmin()
+    .from("metrics_linkedin_followers")
+    .select("observed_on,total")
+    .order("observed_on", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`read metrics_linkedin_followers failed: ${error.message}`);
+  return (data as FollowerLevel | null) ?? null;
 }
 
 export function getLinkedinPosts(): Promise<LinkedinPost[]> {
@@ -381,8 +402,7 @@ export type MonthlyMetrics = {
   li_impressions: number | null;
   li_reach: number | null;
   li_engagements: number; // summed from the month's per-post rows
-  li_followers: number | null;
-  li_new_followers: number | null;
+  li_new_followers: number | null; // the month's growth — a quantity OF the month
   site_visitors: number | null;
   site_page_views: number | null;
 };
@@ -411,7 +431,6 @@ export async function getMonthlyMetrics(): Promise<MonthlyMetrics[]> {
       li_impressions: a?.impressions ?? null,
       li_reach: a?.members_reached ?? null,
       li_engagements: eng.get(m) ?? 0,
-      li_followers: a?.followers_total ?? null,
       li_new_followers: a?.new_followers ?? null,
       site_visitors: s?.visitors ?? null,
       site_page_views: s?.page_views ?? null,
@@ -419,6 +438,28 @@ export async function getMonthlyMetrics(): Promise<MonthlyMetrics[]> {
   });
   rows.sort((x, y) => y.month.localeCompare(x.month)); // newest first
   return rows;
+}
+
+// The follower curve: CUMULATIVE GROWTH from the first month with data, not a
+// level series (#113). Each step is that month's exact `new_followers` — verified
+// window-independent — so the slope is true even though the baseline is unknown;
+// the absolute level is the Followers tile's job, with its observation date. One
+// month of data is one honest point, and the same curve becomes a real series the
+// moment the follower backfill lands.
+//
+// Months with no growth figure are skipped rather than read as zero: a month that
+// was never ingested is unknown, and drawing it flat would invent a fact.
+export function cumulativeFollowerGrowth(
+  rows: MonthlyMetrics[]
+): Array<{ month: string; value: number }> {
+  let running = 0;
+  return [...rows]
+    .reverse() // rows arrive newest-first; a curve runs oldest -> newest
+    .filter((r) => r.li_new_followers != null)
+    .map((r) => {
+      running += r.li_new_followers as number;
+      return { month: r.month, value: running };
+    });
 }
 
 // ── Calendar: the by-date projection over the Pipeline ──────────────────────────

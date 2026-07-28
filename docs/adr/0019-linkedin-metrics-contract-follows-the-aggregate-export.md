@@ -5,6 +5,19 @@ relates: [ADR-0009, ADR-0014, ADR-0015, ADR-0016]
 
 # The LinkedIn metrics contract follows the aggregate export
 
+> **Amended by [#98](https://github.com/davideimola/content-os/issues/98), implemented in
+> [#113](https://github.com/davideimola/content-os/issues/113):** decision 2 below put `followers_total` on
+> `metrics_linkedin_account`, whose key is the **month** — but the export reports the follower total **at
+> export time**, and the export always arrives after the month has ended, so no value that column could
+> carry ever belonged to its own key (June's row held a 22 July figure). The column is **dropped**, and with
+> it `p_followers_total` from `record_linkedin_account`; **the drop is the repair**, so there is no cleanup
+> write. The follower **level** moves to `metrics_linkedin_followers`, keyed by **`observed_on`**, recorded
+> through `record_linkedin_followers(observed_on, total)` — the key is the date the number is true for, so
+> it cannot lie by construction. `impressions`, `members_reached` and `new_followers` stay on the month row:
+> they are quantities of a period and the period is the row's key. Consequently the console's Followers tile
+> shows the level **with its observation date** and the follower chart is **cumulative growth** from the
+> first month with data. Everything else in this ADR stands.
+
 The metrics ingest contract — documented in [`metrics-ingest.md`](../agents/metrics-ingest.md) and coded in
 the MCP adapter ([ADR-0015](0015-operations-surface-is-an-mcp-adapter-over-the-rpc-contract.md)) — asked for
 a per-post CSV with `date, post_url, impressions, reactions, comments, reshares`, and stored a

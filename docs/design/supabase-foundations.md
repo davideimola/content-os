@@ -98,7 +98,12 @@ erDiagram
   Per-period, so a still-active post has a row per month; the Piece link is **`pieces.linkedin_post_url`**
   (the post's stable identity), joined by URL — not an FK — so it rolls up every monthly slice.
 - **metrics_linkedin_account** (`mla_…`) — the monthly account-level snapshot: `month` (unique),
-  `impressions`, `members_reached`, `followers_total`, `new_followers` (ADR-0019).
+  `impressions`, `members_reached`, `new_followers` (ADR-0019). Every field is a **quantity of the period**,
+  and the period is the row's key — which is why the follower **level** is not here (#113).
+- **metrics_linkedin_followers** — the follower **level**, keyed by **`observed_on` (the primary key)** with
+  `total`. The export reports the total at export time, always after the month has ended, so a level on a
+  month-keyed row is wrong by construction; keyed by the day it was read it cannot lie, and the rows accrue
+  a level series (#113). Re-recording a date replaces it.
 - **metrics_site** (`mst_…`) — monthly `visitors`/`page_views` (the website), read by hand from the Umami
   Cloud dashboard (free plan → no API; Vercel Analytics until mid-July 2026).
 
@@ -127,7 +132,8 @@ land as they're built.
 | `set_piece_artifact(piece_id, url)` | Write the Factory draft pointer into `pieces.artifact_url`. Called by the Factory skills. |
 | `set_piece_linkedin_url(piece_id, url)` | Attach a LinkedIn post URL to a `linkedin` Piece (guarded to channel; null clears). The per-Piece metrics cross joins on it (ADR-0019). Called by the console; MCP-adapter parity is a later additive step. |
 | `ingest_linkedin_metrics(month, csv_text)` | Deterministic parse of the per-post CSV (`date, post_url, impressions, engagements`) + replace that month's rows in `metrics_linkedin_posts` (ADR-0019, replaces the retired `contentos metrics-ingest` per ADR-0015). |
-| `record_linkedin_account(month, impressions?, members_reached?, followers_total?, new_followers?)` | Upsert a month's LinkedIn account-level snapshot into `metrics_linkedin_account` (ADR-0019). |
+| `record_linkedin_account(month, impressions?, members_reached?, new_followers?)` | Upsert a month's LinkedIn account-level snapshot into `metrics_linkedin_account` (ADR-0019; the follower level left this verb with the column, #113). |
+| `record_linkedin_followers(observed_on, total)` | Record the follower **level** on the date it was observed (upsert on that date — re-recording replaces). **Raises with no observation date**: a level without its date is the lie the key exists to prevent (#113). |
 | `record_site_metrics(month, visitors?, page_views?)` | Upsert a month's website numbers into `metrics_site`. |
 
 Advancing a Piece to `ready`/`published` has its own guarded verbs (`mark_ready`/`publish_piece`,

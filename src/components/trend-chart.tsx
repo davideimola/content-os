@@ -4,8 +4,11 @@ import { cn } from "@/lib/utils";
 // A compact single-series trend (change-over-time → area+line). Mono-hue, so no
 // categorical CVD concern; theme-aware via the accent class + currentColor. Pure
 // SVG, no charting dependency. The full numbers live in the /metrics table (the
-// accessible "table view"); this is the glance. Degrades to the latest number
-// when there are fewer than two months to plot.
+// accessible "table view"); this is the glance.
+//
+// It plots whatever it is given, including a SINGLE point — one month of data is
+// one honest point, not an empty chart (#113: the follower curve starts with one).
+// It falls back to text only when there is nothing defined to plot at all.
 type Point = { month: string; value: number | null };
 
 const numFmt = new Intl.NumberFormat("en-GB");
@@ -36,12 +39,14 @@ export function TrendChart({
           {latest != null ? format(latest) : "—"}
         </span>
       </div>
-      {defined.length >= 2 ? (
+      {defined.length >= 1 ? (
         <>
           <Sparkline points={defined} accentClassName={accentClassName} height={height} />
           <div className="text-muted-foreground flex justify-between text-[0.65rem] tabular-nums">
             <span>{shortMonth(defined[0].month)}</span>
-            <span>{shortMonth(defined[defined.length - 1].month)}</span>
+            {defined.length > 1 ? (
+              <span>{shortMonth(defined[defined.length - 1].month)}</span>
+            ) : null}
           </div>
         </>
       ) : (
@@ -67,12 +72,19 @@ function Sparkline({
   const span = Math.max(...vals) - min || 1;
   const n = points.length;
   const PAD = 8; // keep the line off the top/bottom edges (viewBox units)
-  const x = (i: number) => (i / (n - 1)) * 100;
-  const y = (v: number) => PAD + (1 - (v - min) / span) * (100 - 2 * PAD);
-  const line = points
-    .map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(2)},${y(p.value).toFixed(2)}`)
-    .join(" ");
-  const area = `${line} L100,100 L0,100 Z`;
+  // One point has no horizontal extent and no range: place it mid-card and draw it
+  // as a dot (a round-capped zero-length stroke — the viewBox is non-uniformly
+  // scaled, so a <circle> would come out an ellipse). No area under one point:
+  // there is no interval for it to cover.
+  const single = n === 1;
+  const x = (i: number) => (single ? 50 : (i / (n - 1)) * 100);
+  const y = (v: number) => (single ? 50 : PAD + (1 - (v - min) / span) * (100 - 2 * PAD));
+  const line = single
+    ? "M50,50 L50,50"
+    : points
+        .map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(2)},${y(p.value).toFixed(2)}`)
+        .join(" ");
+  const area = single ? null : `${line} L100,100 L0,100 Z`;
   return (
     // biome-ignore lint/a11y/noSvgWithoutTitle: decorative; the numbers live in the header + the /metrics table
     <svg
@@ -82,12 +94,12 @@ function Sparkline({
       style={{ height }}
       aria-hidden
     >
-      <path d={area} fill="currentColor" fillOpacity={0.12} />
+      {area ? <path d={area} fill="currentColor" fillOpacity={0.12} /> : null}
       <path
         d={line}
         fill="none"
         stroke="currentColor"
-        strokeWidth={2}
+        strokeWidth={single ? 6 : 2}
         strokeLinejoin="round"
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"

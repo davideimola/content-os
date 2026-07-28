@@ -6,9 +6,11 @@ import { CadenceStrip, CalendarKindIcon, EmptyState, Section } from "@/component
 import { TrendChart } from "@/components/trend-chart";
 import { MetricTile, StatTile, View } from "@/components/view";
 import {
+  cumulativeFollowerGrowth,
   getCadence,
   getCalendarItems,
   getFlagMix,
+  getLatestFollowerLevel,
   getLiveIdeas,
   getMonthlyMetrics,
   getPieces,
@@ -20,6 +22,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const upcomingFmt = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short" });
+const observedFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
 const monthLongFmt = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
 const monthShortFmt = new Intl.DateTimeFormat("en-GB", { month: "short" });
 const numFmt = new Intl.NumberFormat("en-GB");
@@ -46,16 +49,18 @@ function series(rows: MonthlyMetrics[], pick: (r: MonthlyMetrics) => number | nu
 }
 
 export default async function OverviewPage() {
-  const [pieces, ideas, talks, cadence, mix, calendar, monthly, themes] = await Promise.all([
-    getPieces(),
-    getLiveIdeas(),
-    getTalks(),
-    getCadence(),
-    getFlagMix(),
-    getCalendarItems(),
-    getMonthlyMetrics(),
-    getThemeContext(),
-  ]);
+  const [pieces, ideas, talks, cadence, mix, calendar, monthly, themes, followerLevel] =
+    await Promise.all([
+      getPieces(),
+      getLiveIdeas(),
+      getTalks(),
+      getCadence(),
+      getFlagMix(),
+      getCalendarItems(),
+      getMonthlyMetrics(),
+      getThemeContext(),
+      getLatestFollowerLevel(),
+    ]);
 
   const proposedPieces = pieces.filter((p) => p.state === "proposed");
   const proposedTalks = talks.filter((t) => t.state === "proposed");
@@ -69,7 +74,7 @@ export default async function OverviewPage() {
   // The LinkedIn tiles + trend track the latest months that actually have LinkedIn
   // data — a site-only month (e.g. a provisional Vercel figure parked ahead of the
   // LinkedIn ingest) must not blank the section (ADR-0019).
-  const liMonths = monthly.filter((m) => m.li_impressions != null || m.li_followers != null);
+  const liMonths = monthly.filter((m) => m.li_impressions != null || m.li_new_followers != null);
   const latest = liMonths[0];
   const prev = liMonths[1];
   const prevLabel = prev ? monthShortFmt.format(asMonth(prev.month)) : "";
@@ -96,12 +101,20 @@ export default async function OverviewPage() {
               value={numFmt.format(latest.li_engagements)}
               {...pctDelta(latest.li_engagements, prev?.li_engagements, prevLabel)}
             />
+            {/* The LEVEL carries the date it was observed, never the month's key: the
+                export reports the total at export time, so it belongs to that day
+                (#113). The month's growth sits beside it, named by its month, because
+                the two facts are true at two different times. */}
             <MetricTile
-              label="Followers"
-              value={latest.li_followers != null ? numFmt.format(latest.li_followers) : "—"}
+              label={
+                followerLevel
+                  ? `Followers · as of ${observedFmt.format(new Date(`${followerLevel.observed_on}T00:00:00`))}`
+                  : "Followers · never observed"
+              }
+              value={followerLevel ? numFmt.format(followerLevel.total) : "—"}
               delta={
                 latest.li_new_followers != null
-                  ? `+${latest.li_new_followers} this month`
+                  ? `+${latest.li_new_followers} in ${monthShortFmt.format(asMonth(latest.month))}`
                   : undefined
               }
               tone={latest.li_new_followers && latest.li_new_followers > 0 ? "up" : "neutral"}
@@ -110,10 +123,13 @@ export default async function OverviewPage() {
         </Section>
       ) : null}
 
-      {liMonths.length >= 2 ? (
+      {liMonths.length >= 1 ? (
         <Section title="Trend">
           <div className="grid grid-cols-2 gap-3">
-            <TrendChart label="Followers" points={series(liMonths, (r) => r.li_followers)} />
+            {/* Cumulative GROWTH, not a level series: each step is the month's exact
+                new_followers, so the slope is true from the first month with data.
+                The absolute level is the tile above, with its observation date. */}
+            <TrendChart label="Follower growth" points={cumulativeFollowerGrowth(liMonths)} />
             <TrendChart label="Impressions" points={series(liMonths, (r) => r.li_impressions)} />
           </div>
         </Section>

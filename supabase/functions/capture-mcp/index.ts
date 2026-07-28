@@ -212,17 +212,33 @@ const TOOLS = [
   {
     name: "record_linkedin_account",
     description:
-      "Record a month's LinkedIn account-level snapshot (upsert): impressions, members reached, follower total, and the month's follower growth — the DISCOVERY + FOLLOWERS figures from the Aggregate Analytics export (ADR-0019).",
+      "Record a month's LinkedIn account-level snapshot (upsert): impressions, members reached, and the month's follower growth — the DISCOVERY + FOLLOWERS figures from the Aggregate Analytics export that are quantities OF THE MONTH (ADR-0019). The follower LEVEL is not a monthly quantity and does not live here: record it with record_linkedin_followers, keyed by the date it was observed (#113).",
     inputSchema: {
       type: "object",
       properties: {
         month: { type: "string", description: "Snapshot month as YYYY-MM." },
         impressions: { type: "integer", description: "Total account impressions for the month." },
         members_reached: { type: "integer", description: "Unique members reached for the month." },
-        followers_total: { type: "integer", description: "Follower count at the month's end." },
         new_followers: { type: "integer", description: "Followers gained during the month." },
       },
       required: ["month"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "record_linkedin_followers",
+    description:
+      "Record the LinkedIn follower LEVEL as observed on one date (upsert on that date — re-recording the same date replaces it). The export reports the total at export time, so the level belongs to the day it was read, never to a month: pass the date you actually read it (the export date), never a month boundary (#113).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        observed_on: {
+          type: "string",
+          description: "The date the level was observed, YYYY-MM-DD (the export date / the day you read it).",
+        },
+        total: { type: "integer", description: "The follower total on that date." },
+      },
+      required: ["observed_on", "total"],
       additionalProperties: false,
     },
   },
@@ -253,7 +269,7 @@ const TOOLS = [
   {
     name: "get_metrics",
     description:
-      "A month's ingested metrics: LinkedIn per-post rows (impressions, engagements), the LinkedIn account-level snapshot, and the site numbers.",
+      "A month's ingested metrics: LinkedIn per-post rows (impressions, engagements), the LinkedIn account-level snapshot (impressions, members reached, the month's follower growth), the site numbers, and the latest follower level with the date it was observed (that one is not a figure of the queried month).",
     inputSchema: {
       type: "object",
       properties: { month: { type: "string", description: "Month as YYYY-MM." } },
@@ -589,16 +605,44 @@ async function ingestLinkedinMetrics(args: Record<string, unknown> | undefined) 
 async function recordLinkedinAccount(args: Record<string, unknown> | undefined) {
   const month = monthToFirstDay(args?.month);
   if (!month) return toolError("month is required as YYYY-MM");
+  // A caller still passing the retired follower level is REFUSED, not quietly
+  // ignored: silently dropping it would leave the level unrecorded and the
+  // caller believing otherwise — the failure mode #113 exists to end.
+  if (args && "followers_total" in args) {
+    return toolError(
+      "followers_total is gone: the follower level is keyed by its observation date — call record_linkedin_followers(observed_on, total) instead"
+    );
+  }
   const intOrNull = (v: unknown) => (Number.isInteger(v) ? (v as number) : null);
   const { data, error } = await db().rpc("record_linkedin_account", {
     p_month: month,
     p_impressions: intOrNull(args?.impressions),
     p_members_reached: intOrNull(args?.members_reached),
-    p_followers_total: intOrNull(args?.followers_total),
     p_new_followers: intOrNull(args?.new_followers),
   });
   if (error) return toolError(`record_linkedin_account failed: ${error.message}`);
   return toolOk(`Recorded LinkedIn account snapshot for ${args!.month}`, { account: firstRow(data) });
+}
+
+// The follower level, keyed by the date it was observed (#113). The date is
+// required and never defaulted to today: a level with a guessed date is the lie
+// the observation key exists to prevent.
+async function recordLinkedinFollowers(args: Record<string, unknown> | undefined) {
+  const observedOn = args?.observed_on;
+  if (!nonEmptyString(observedOn) || !isYmd(observedOn)) {
+    return toolError("observed_on is required as YYYY-MM-DD (the date the level was observed)");
+  }
+  if (!Number.isInteger(args?.total) || (args!.total as number) < 0) {
+    return toolError("total is required as a non-negative integer");
+  }
+  const { data, error } = await db().rpc("record_linkedin_followers", {
+    p_observed_on: observedOn,
+    p_total: args!.total as number,
+  });
+  if (error) return toolError(`record_linkedin_followers failed: ${error.message}`);
+  return toolOk(`Recorded ${args!.total} followers observed on ${observedOn}`, {
+    followers: firstRow(data),
+  });
 }
 
 async function recordSiteMetrics(args: Record<string, unknown> | undefined) {
@@ -634,19 +678,31 @@ async function getMetrics(args: Record<string, unknown> | undefined) {
   const month = monthToFirstDay(args?.month);
   if (!month) return toolError("month is required as YYYY-MM");
   const client = db();
-  const [posts, account, site] = await Promise.all([
+  // The follower level is NOT a figure of the queried month (it is keyed by the
+  // date it was observed, #113), so it comes back as its own field, carrying that
+  // date — the latest observation on record, whenever it was read.
+  const [posts, account, site, followers] = await Promise.all([
     client.from("metrics_linkedin_posts")
       .select("posted_on,post_url,impressions,engagements")
       .eq("month", month).order("impressions", { ascending: false }),
     client.from("metrics_linkedin_account")
-      .select("month,impressions,members_reached,followers_total,new_followers")
+      .select("month,impressions,members_reached,new_followers")
       .eq("month", month).maybeSingle(),
     client.from("metrics_site").select("month,visitors,page_views").eq("month", month).maybeSingle(),
+    client.from("metrics_linkedin_followers")
+      .select("observed_on,total")
+      .order("observed_on", { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (posts.error) return toolError(`get_metrics failed: ${posts.error.message}`);
   if (account.error) return toolError(`get_metrics failed: ${account.error.message}`);
   if (site.error) return toolError(`get_metrics failed: ${site.error.message}`);
-  const payload = { linkedin: posts.data ?? [], linkedin_account: account.data, site: site.data };
+  if (followers.error) return toolError(`get_metrics failed: ${followers.error.message}`);
+  const payload = {
+    linkedin: posts.data ?? [],
+    linkedin_account: account.data,
+    linkedin_followers_latest: followers.data,
+    site: site.data,
+  };
   return toolOk(JSON.stringify(payload), payload);
 }
 
@@ -669,6 +725,7 @@ function callTool(name: unknown, args: Record<string, unknown> | undefined) {
     case "set_piece_artifact": return setPieceArtifact(args);
     case "ingest_linkedin_metrics": return ingestLinkedinMetrics(args);
     case "record_linkedin_account": return recordLinkedinAccount(args);
+    case "record_linkedin_followers": return recordLinkedinFollowers(args);
     case "record_site_metrics": return recordSiteMetrics(args);
     case "flag_mix": return flagMix();
     case "cadence_status": return cadenceStatus();

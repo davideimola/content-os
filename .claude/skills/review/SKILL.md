@@ -1,6 +1,6 @@
 ---
 name: review
-description: Open the Review — the interactive monthly session over the Content OS Pipeline, the monthly sibling of /desk. Run the Metrics snapshot ritual, ingest via the content-os MCP tools (ingest_linkedin_metrics / record_linkedin_account / record_site_metrics), cross the numbers with the Calendar, and report the realized Flag/Side mix vs ~70% and Cadence vs the floor — counted over Pieces — with number-cited recommendations. Use when Davide wants to run the monthly review (turn a month's metrics into next month's steer), or when the Monthly reminder nudges him.
+description: Open the Review — the interactive monthly session over the Content OS Pipeline, the monthly sibling of /desk. Run the Metrics snapshot ritual, ingest via the content-os MCP tools (ingest_linkedin_metrics / record_linkedin_account / record_linkedin_followers / record_site_metrics), cross the numbers with the Calendar, and report the realized Flag/Side mix vs ~70% and Cadence vs the floor — counted over Pieces — with number-cited recommendations. Use when Davide wants to run the monthly review (turn a month's metrics into next month's steer), or when the Monthly reminder nudges him.
 ---
 
 # The Review
@@ -29,6 +29,11 @@ with Davide; it is not restated here. This skill holds only what running it *liv
   Request them and pause; the Review never invents data. Read the XLSX live in-session (it's a zip of XML —
   unzip and read the sheets) and derive the inputs per the sheet map in
   [`metrics-ingest.md`](../../../docs/agents/metrics-ingest.md#producing-the-inputs-from-the-export).
+- **The follower level carries the date it was read** — the export reports the total *at export time*, so it
+  goes to `record_linkedin_followers(observed_on = the export date, total = N)`, never onto the month row
+  (`record_linkedin_account` refuses a `followers_total`). If the export date isn't obvious from the file,
+  **ask Davide** rather than assuming a month boundary; and when you quote a level in the report, quote its
+  date with it.
 - **Cross before you conclude** — join the metrics (`get_metrics`) to the month's published Pieces
   (`list_calendar`, step 3) before any steer, so every recommendation is grounded.
 - **Over Pieces** — mix and Cadence are ratios over **Pieces, never Ideas**, computed over the reviewed
@@ -39,7 +44,7 @@ with Davide; it is not restated here. This skill holds only what running it *liv
 ## The one write: ingest the metrics
 
 The only thing the Review writes is the month's numbers into the DB — `ingest_linkedin_metrics`,
-`record_linkedin_account`, and `record_site_metrics` (step 2). There are **no committed metrics files**
+`record_linkedin_account`, `record_linkedin_followers`, and `record_site_metrics` (step 2). There are **no committed metrics files**
 anymore: the numbers live in the Pipeline, and re-ingesting a corrected export just replaces the month. The report itself is **live in the
 session**; send it as a [ping](../../../docs/agents/notify.md) only if Davide asks (`notify_ping`, step 6).
 
