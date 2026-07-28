@@ -18,15 +18,8 @@ import { PieceDetail } from "@/components/detail/piece-detail";
 import { calendarKindMeta, formatDate, OutcomeBadge } from "@/components/pipeline";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import type {
-  CalendarItem,
-  Engagement,
-  EngagementContext,
-  EngagementTalk,
-  EventRecord,
-  PieceMetrics,
-} from "@/lib/pipeline";
-import type { Row } from "@/lib/rows";
+import type { CalendarItem, EngagementContext, PieceMetrics } from "@/lib/pipeline";
+import { type CfpSubmission, cfpSubmission, type Row } from "@/lib/rows";
 
 function KindBadge({ item }: { item: CalendarItem }) {
   const { icon: Icon, label, variant } = calendarKindMeta(item);
@@ -90,34 +83,18 @@ export function AgendaRow({
     );
   }
 
-  const engagement = engagements.engagements[row.item.id];
-  if (!engagement) return body;
-  return (
-    <CfpDetail
-      engagement={engagement}
-      event={engagements.events[engagement.event_id] ?? null}
-      talk={engagements.talkByEngagement[engagement.id] ?? null}
-      trigger={asRow}
-    />
-  );
+  const submission = cfpSubmission(engagements, row.item.id);
+  if (!submission) return body;
+  return <CfpDetail submission={submission} trigger={asRow} />;
 }
 
 // One submission under a Talk: the conference, the deadline (or the fact there is
 // none) and the outcome — opening the same CFP drawer a Calendar row opens.
-export function SubmissionRow({
-  engagement,
-  event,
-  talk,
-}: {
-  engagement: Engagement;
-  event: EventRecord | null;
-  talk: EngagementTalk | null;
-}) {
+export function SubmissionRow({ submission }: { submission: CfpSubmission }) {
+  const { engagement, event } = submission;
   return (
     <CfpDetail
-      engagement={engagement}
-      event={event}
-      talk={talk}
+      submission={submission}
       trigger={(open) => (
         <RowTrigger onClick={open} className="rounded-lg border px-3 py-2">
           <CalendarClock aria-hidden className="text-muted-foreground size-3.5 shrink-0" />

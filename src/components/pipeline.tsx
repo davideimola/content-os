@@ -19,9 +19,9 @@ import type {
   EngagementOutcome,
   FlagSide,
   IdeaWithProvenance,
-  Piece,
   PieceChannel,
   PieceState,
+  PieceWithBlocker,
   Talk,
   TalkState,
 } from "@/lib/pipeline";
@@ -172,10 +172,11 @@ export function OutcomeBadge({ outcome }: { outcome: EngagementOutcome }) {
 }
 
 // ── cards ─────────────────────────────────────────────────────────────────────
-// `blockedByTitle` is the blocking Piece's title, resolved at read time
-// (`withBlockerTitles`) — the cue is only legible with it. Optional so a caller
-// holding a bare `Piece` still type-checks; it then falls back to the id's tail.
-export function PieceCard({ piece }: { piece: Piece & { blockedByTitle?: string | null } }) {
+// Takes a `PieceWithBlocker`, not a bare `Piece`: the blocked-by cue is only legible
+// with the blocking Piece's title, so the type is what keeps a caller from rendering
+// four characters of an id again (#111). It falls back to the id only when the
+// blocker itself could not be resolved.
+export function PieceCard({ piece }: { piece: PieceWithBlocker }) {
   const date = formatDate(piece.publish_date);
   return (
     <Card className="gap-3 p-4">

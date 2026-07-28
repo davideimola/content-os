@@ -19,20 +19,20 @@ import {
   setPieceLinkedinUrl,
   slotPiece,
 } from "@/lib/actions";
-import type { Piece, PieceMetrics } from "@/lib/pipeline";
+import type { PieceMetrics, PieceWithBlocker } from "@/lib/pipeline";
 
 const numFmt = new Intl.NumberFormat("en-GB");
 
 // `trigger` is the shared opener contract (see `DetailTrigger`): omit it and the
-// Piece's own card opens the drawer; supply one and a row does. `blockedByTitle` is
-// the resolved title of the blocking Piece — optional so a caller holding a bare
-// `Piece` still type-checks, and the cue falls back to the id when it is absent.
+// Piece's own card opens the drawer; supply one and a row does. The Piece comes with
+// its blocker already resolved to a title (`PieceWithBlocker`) — the cue is only
+// legible with it (#111).
 export function PieceDetail({
   piece,
   metrics,
   trigger,
 }: {
-  piece: Piece & { blockedByTitle?: string | null };
+  piece: PieceWithBlocker;
   metrics?: PieceMetrics;
   trigger?: DetailTrigger;
 }) {

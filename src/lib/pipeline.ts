@@ -137,7 +137,7 @@ async function selectAll<T>(
 // Resolve each Piece's `blocked_by_piece_id` to the blocking Piece's title (#111).
 // A blocker is always another Piece, so the whole-table read resolves itself; an
 // unresolvable id keeps a null title and the cue falls back to the id.
-export function withBlockerTitles(pieces: Piece[]): PieceWithBlocker[] {
+function withBlockerTitles(pieces: Piece[]): PieceWithBlocker[] {
   const titleById = new Map(pieces.map((p) => [p.id, p.title]));
   return pieces.map((p) => ({
     ...p,
@@ -448,7 +448,8 @@ export async function getCalendarItems(): Promise<CalendarItem[]> {
 export type EngagementKind = "cfp" | "direct";
 export type EngagementOutcome = "to_submit" | "submitted" | "accepted" | "rejected" | "confirmed";
 
-// Named `EventRecord`, not `Event`, so it never shadows the DOM's `Event`.
+// Named `EventRecord`, not `Event`, so it never shadows the DOM's `Event`. Only what
+// a drawer shows is read — `is_public` and the timestamps stay in the table.
 export type EventRecord = {
   id: string;
   name: string;
@@ -457,7 +458,6 @@ export type EventRecord = {
   location: string | null;
   url: string | null;
   roles: string[];
-  is_public: boolean;
 };
 
 export type Engagement = {
@@ -480,7 +480,6 @@ export type EngagementTalk = {
   talkState: TalkState;
   outcome: EngagementOutcome;
   deadline: string | null;
-  cfpLink: string | null;
 };
 
 // The lookup a row needs to open an Event or CFP drawer, keyed by the id the row
@@ -502,10 +501,7 @@ export async function getEngagementContext(): Promise<EngagementContext> {
       .from("engagements")
       .select("id,talk_id,event_id,kind,outcome,deadline,cfp_link")
       .order("created_at"),
-    db
-      .from("events")
-      .select("id,name,starts_on,ends_on,location,url,roles,is_public")
-      .order("name"),
+    db.from("events").select("id,name,starts_on,ends_on,location,url,roles").order("name"),
   ]);
   if (engagements.error) throw new Error(`read engagements failed: ${engagements.error.message}`);
   if (events.error) throw new Error(`read events failed: ${events.error.message}`);
@@ -531,7 +527,6 @@ export async function getEngagementContext(): Promise<EngagementContext> {
       talkState: talk.state,
       outcome: e.outcome,
       deadline: e.deadline,
-      cfpLink: e.cfp_link,
     };
     ctx.talkByEngagement[e.id] = attached;
     ctx.talksByEvent[e.event_id] = [...(ctx.talksByEvent[e.event_id] ?? []), attached];

@@ -18,7 +18,8 @@ import { useState } from "react";
 import { CopyId } from "@/components/copy-id";
 import { DetailSheet, type DetailTrigger } from "@/components/detail/detail-sheet";
 import { formatDate, OutcomeBadge, StateBadge } from "@/components/pipeline";
-import type { Engagement, EngagementTalk, EventRecord } from "@/lib/pipeline";
+import type { EngagementTalk, EventRecord } from "@/lib/pipeline";
+import type { CfpSubmission } from "@/lib/rows";
 
 // The Calendar's spine is a date: a CFP with no deadline and an Event with no start
 // date are simply not dated facts, so they never reach the by-date view. Say both
@@ -50,17 +51,17 @@ function TalkLine({ talk }: { talk: EngagementTalk }) {
       <div className="flex flex-wrap items-center gap-1.5 pl-5">
         <StateBadge state={talk.talkState} />
         <OutcomeBadge outcome={talk.outcome} />
+        {/* The submission's deadline, or the bare fact that it has none — the full
+            "and that is why it is not on the Calendar" belongs in the CFP's own
+            drawer, not stamped on every line of an Event that *is* on the Calendar. */}
         {talk.deadline ? (
           <span className="text-muted-foreground text-xs tabular-nums">
             deadline {formatDate(talk.deadline)}
           </span>
-        ) : null}
+        ) : (
+          <span className="text-xs text-amber-600 dark:text-amber-400">no deadline</span>
+        )}
       </div>
-      {talk.deadline ? null : (
-        <div className="pl-5">
-          <MissingDateNote kind="deadline" />
-        </div>
-      )}
     </div>
   );
 }
@@ -152,18 +153,16 @@ export function EventDetail({
 }
 
 // A CFP submission's drawer: one Talk taken to one conference — its deadline, its
-// outcome, its Talk's readiness and the CFP link.
+// outcome, its Talk's readiness and the CFP link. Takes the whole submission, since
+// the Engagement alone says nothing about which conference or Talk it is.
 export function CfpDetail({
-  engagement,
-  event,
-  talk,
+  submission,
   trigger,
 }: {
-  engagement: Engagement;
-  event: EventRecord | null;
-  talk: EngagementTalk | null;
+  submission: CfpSubmission;
   trigger: DetailTrigger;
 }) {
+  const { engagement, event, talk } = submission;
   const [open, setOpen] = useState(false);
 
   return (
