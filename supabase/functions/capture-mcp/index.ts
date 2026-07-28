@@ -45,6 +45,14 @@ const IDEA_IDS_PROP = {
   description: "Optional source Idea ids to link (piece_sources / talk_sources).",
 } as const;
 
+// The whole set, always: the two theme setters replace rather than append (#121).
+const THEME_IDS_PROP = {
+  type: "array",
+  items: { type: "string" },
+  description:
+    "Theme ids from list_themes — the COMPLETE set to end up with, not an addition. `[]` clears.",
+} as const;
+
 const TOOLS = [
   {
     name: "capture_idea",
@@ -192,6 +200,63 @@ const TOOLS = [
         url: { type: "string", description: "The Factory draft URL." },
       },
       required: ["id", "url"],
+      additionalProperties: false,
+    },
+  },
+  // ── Themes (#121) ──────────────────────────────────────────────────────────
+  // The subject lens carried by Ideas and Pieces. Parity, not new behaviour: the
+  // model was born console-side and the Desk could not see it. Deliberately NOT
+  // exposed here: create_theme and archive_theme. Minting stays a hand act in the
+  // console, because an LLM handed a create verb grows the vocabulary until it
+  // stops meaning anything — the exact failure merge_themes exists to bound.
+  {
+    name: "list_themes",
+    description:
+      "List the Theme vocabulary — the controlled subject lens carried by Ideas and Pieces, label-sorted. Each carries `archived`: retired vocabulary, which still resolves on anything already tagged with it but must NOT be assigned afresh. Read this before setting Themes — assignment is by id, and reusing an existing Theme is the point of the vocabulary.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "set_idea_themes",
+    description:
+      "Set an Idea's Themes. REPLACE-ALL, not additive: the Idea ends carrying EXACTLY the ids given, so to add one you must pass the Themes it already has alongside it, and `[]` clears them. Ids come from list_themes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "The Idea id." },
+        theme_ids: THEME_IDS_PROP,
+      },
+      required: ["id", "theme_ids"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "set_piece_themes",
+    description:
+      "Set a Piece's Themes. REPLACE-ALL, not additive: the Piece ends carrying EXACTLY the ids given, so to add one you must pass the Themes it already has alongside it, and `[]` clears them (which is how a wrongly inherited Theme comes off). A Piece inherits its source Ideas' live Themes at spawn; that inheritance is a default to correct, and this is the correction. Ids come from list_themes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "The Piece id." },
+        theme_ids: THEME_IDS_PROP,
+      },
+      required: ["id", "theme_ids"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "merge_themes",
+    description:
+      "Merge two Themes that turned out to be the same subject: every Idea and Piece carrying the absorbed Theme comes to carry the survivor instead (an item that carried both keeps it once), and the absorbed Theme is archived — retired vocabulary, its record kept. Nothing loses a Theme. This is the vocabulary's only repair, so name the survivor deliberately: no verb un-merges, and none un-archives the absorbed Theme.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        absorbed_id: { type: "string", description: "The Theme folded away and archived." },
+        survivor_id: {
+          type: "string",
+          description: "The Theme that survives and receives the assignments. Must not be archived.",
+        },
+      },
+      required: ["absorbed_id", "survivor_id"],
       additionalProperties: false,
     },
   },
@@ -502,6 +567,76 @@ async function setPieceArtifact(args: Record<string, unknown> | undefined) {
   return toolOk(`Set artifact on piece ${row?.id}`, { piece: row });
 }
 
+// ── themes (#121) ────────────────────────────────────────────────────────────
+async function listThemes() {
+  const { data, error } = await db()
+    .from("themes")
+    .select("id,label,archived,created_at")
+    .order("label", { ascending: true });
+  if (error) return toolError(`list_themes failed: ${error.message}`);
+  return toolOk(JSON.stringify(data ?? []), { themes: data ?? [] });
+}
+
+// An array of ids, or null if it is not one. Shape only — the FK on theme_id is
+// what rejects an id that names no Theme (the DB stays the validator, ADR-0015).
+function themeIds(v: unknown): string[] | null {
+  if (!Array.isArray(v)) return null;
+  const out: string[] = [];
+  for (const id of v) {
+    if (!nonEmptyString(id)) return null;
+    out.push(id);
+  }
+  return out;
+}
+
+// The two replace-all setters share one shape: an entity id, the complete set of
+// theme ids, and the same replace semantics — so they share one handler, the way
+// the id-only write verbs share `idVerb`. `kind` names both the RPC and its first
+// parameter (set_idea_themes(p_idea_id, …) / set_piece_themes(p_piece_id, …)).
+async function setThemes(kind: "idea" | "piece", args: Record<string, unknown> | undefined) {
+  if (!nonEmptyString(args?.id)) return toolError("id is required");
+  // Absent is refused rather than read as `[]`: an omitted set would CLEAR every
+  // Theme, so silence must not be a valid way to say "none" — clearing is `[]`.
+  const ids = themeIds(args?.theme_ids);
+  if (ids === null) {
+    return toolError("theme_ids is required and must be an array of theme ids ([] clears them)");
+  }
+  const { data, error } = await db().rpc(`set_${kind}_themes`, {
+    [`p_${kind}_id`]: args!.id,
+    p_theme_ids: ids,
+  });
+  if (error) return toolError(`set_${kind}_themes failed: ${error.message}`);
+  const landed = (Array.isArray(data) ? data : []).map((r) => (r as { theme_id: string }).theme_id);
+  const noun = kind === "idea" ? "Idea" : "Piece";
+  return toolOk(
+    `${noun} ${args!.id} now carries ${landed.length} theme(s)` +
+      (landed.length ? `: ${landed.join(", ")}` : ""),
+    { theme_ids: landed },
+  );
+}
+
+async function mergeThemes(args: Record<string, unknown> | undefined) {
+  if (!nonEmptyString(args?.absorbed_id)) return toolError("absorbed_id is required");
+  if (!nonEmptyString(args?.survivor_id)) return toolError("survivor_id is required");
+  const { data, error } = await db().rpc("merge_themes", {
+    p_absorbed_id: args!.absorbed_id,
+    p_survivor_id: args!.survivor_id,
+  });
+  if (error) return toolError(`merge_themes failed: ${error.message}`);
+  const row = firstRow(data) as {
+    survivor_label?: string;
+    absorbed_label?: string;
+    ideas_moved?: number;
+    pieces_moved?: number;
+  } | null;
+  return toolOk(
+    `Merged "${row?.absorbed_label}" into "${row?.survivor_label}" — ` +
+      `${row?.ideas_moved} Idea and ${row?.pieces_moved} Piece assignment(s) moved; ` +
+      `"${row?.absorbed_label}" is archived`,
+    { merge: row },
+  );
+}
+
 // ── metrics: deterministic LinkedIn CSV parse (ported from internal/metrics) ──
 const LINKEDIN_COLUMNS = ["date", "post_url", "impressions", "engagements"];
 
@@ -722,6 +857,10 @@ function callTool(name: unknown, args: Record<string, unknown> | undefined) {
     case "archive_idea": return archiveIdea(args);
     case "block_piece": return blockPiece(args);
     case "set_piece_artifact": return setPieceArtifact(args);
+    case "list_themes": return listThemes();
+    case "set_idea_themes": return setThemes("idea", args);
+    case "set_piece_themes": return setThemes("piece", args);
+    case "merge_themes": return mergeThemes(args);
     case "ingest_linkedin_metrics": return ingestLinkedinMetrics(args);
     case "record_linkedin_account": return recordLinkedinAccount(args);
     case "record_linkedin_followers": return recordLinkedinFollowers(args);
@@ -780,8 +919,11 @@ async function handleMessage(msg: JsonRpcMessage): Promise<object | null> {
           "The Content OS operations adapter. Read the Pipeline with list_ideas / " +
           "list_proposals / list_calendar; act with spawn_piece / slot_piece / " +
           "deslot_piece / decline_piece / spawn_talk / decline_talk; capture raw " +
-          "sparks with capture_idea. Editorial judgement lives in the caller's skill, " +
-          "not here.",
+          "sparks with capture_idea. Themes are the subject lens on Ideas and Pieces: " +
+          "read the vocabulary with list_themes and assign it with set_idea_themes / " +
+          "set_piece_themes (both REPLACE the whole set); merge_themes folds two " +
+          "duplicates together. Minting a new Theme is not available here — reuse the " +
+          "vocabulary. Editorial judgement lives in the caller's skill, not here.",
       });
 
     // MCP keep-alive.

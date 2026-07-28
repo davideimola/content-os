@@ -48,6 +48,19 @@ erDiagram
     text talk_id FK
     text idea_id FK
   }
+  THEME {
+    text id PK
+    text label
+    bool archived
+  }
+  IDEA_THEMES {
+    text idea_id FK
+    text theme_id FK
+  }
+  PIECE_THEMES {
+    text piece_id FK
+    text theme_id FK
+  }
   METRICS_LINKEDIN_POSTS {
     text id PK
     date month
@@ -73,6 +86,10 @@ erDiagram
   PIECE ||--o{ PIECE_SOURCES : ""
   IDEA  ||--o{ TALK_SOURCES  : ""
   TALK  ||--o{ TALK_SOURCES  : ""
+  IDEA  ||--o{ IDEA_THEMES   : ""
+  THEME ||--o{ IDEA_THEMES   : ""
+  PIECE ||--o{ PIECE_THEMES  : ""
+  THEME ||--o{ PIECE_THEMES  : ""
   TALK  ||--o{ ENGAGEMENT : has
   EVENT ||--o{ ENGAGEMENT : hosts
   ENGAGEMENT |o--o{ PIECE : announces
@@ -92,6 +109,11 @@ erDiagram
   Source Ideas via **`piece_sources`** (N-M).
 - **talks** (`talk_…`) — dateless. `flag_side`; `state` ∈ `proposed`/`in_production`/`ready`/`declined`;
   `brief_url` (TALK.md). Source Ideas via **`talk_sources`** (N-M).
+- **themes** (`theme_…`) — the controlled subject vocabulary: `label`, `archived` (retired, reversible,
+  kept on record). Data, not an enum, so minting one needs no migration. A **partial** unique index on
+  `lower(label) where not archived` is the guarantee the vocabulary cannot split into near-duplicates;
+  retiring a label frees it. Carried by Ideas via **`idea_themes`** and by Pieces via **`piece_themes`**
+  (both N-M) — a Piece inherits its sources' live Themes at spawn, as a default to correct.
 - **engagements** (`eng_…`) — a Talk taken to an Event. `kind` ∈ `cfp`/`direct`; `outcome` ∈
   `to_submit`/`submitted`/`accepted`/`rejected` (cfp) or `confirmed` (direct), enforced by a check;
   `deadline`/`cfp_link`/`answers_path` (cfp only); FK `talk_id`, `event_id`. The **accepted** engagement
@@ -138,6 +160,9 @@ land as they're built.
 | `create_engagement(talk_id, event_id, kind = cfp, deadline?, cfp_link?)` | Insert one submission of one Talk to one Event, born at the bottom of its ladder (`cfp` → `to_submit`, `direct` → `confirmed`) — the outcome is not a parameter. Raises if the Talk or the Event does not exist. **A `cfp` with no deadline is invisible on the Calendar** — that is why the three hand-seeded ones never appeared (#114). |
 | `set_engagement_outcome(id, outcome)` | Record where a submission stands (`to_submit`/`submitted`/`accepted`/`rejected`; `confirmed` for a `direct`). **Kind-guarded**: the verb validates `engagement_outcome_matches_kind` with a legible message and the check stays the backstop. No transition guard — an outcome records an outside decision, so it must be correctable (#114). |
 | `set_piece_artifact(piece_id, url)` | Write the Factory draft pointer into `pieces.artifact_url`. Called by the Factory skills. |
+| `create_theme(label)` / `archive_theme(id)` | Mint a live Theme (get-or-create by case-insensitive label) / retire one (reversible flag, keeps the row and its links). **Console only** — deliberately not on the MCP adapter, because an LLM handed a create verb inflates the vocabulary (#121). |
+| `set_idea_themes(idea_id, theme_ids[])` / `set_piece_themes(piece_id, theme_ids[])` | **Replace-all**, idempotent: the item ends carrying exactly the given set, `{}` clears. `set_piece_themes` accepts an archived id on purpose, so a Piece that inherited a since-retired Theme stays representable (#112). |
+| `merge_themes(absorbed_id, survivor_id)` | Fold two Themes into one: **both** joins move onto the survivor, duplicates collapse (composite PK), and the absorbed Theme is archived, keeping its record. The vocabulary's only repair — without it it can only grow (#121). Raises on a self-merge, an unknown id, or an **archived survivor** (folding live assignments into retired vocabulary is a loss, not a repair). Preserves the live-label index trivially: it creates no new live label. **One-way through the contract** — nothing un-archives a Theme. |
 | `set_piece_linkedin_url(piece_id, url)` | Attach a LinkedIn post URL to a `linkedin` Piece (guarded to channel; null clears). The per-Piece metrics cross joins on it (ADR-0019). Called by the console; MCP-adapter parity is a later additive step. |
 | `ingest_linkedin_metrics(month, csv_text)` | Deterministic parse of the per-post CSV (`date, post_url, impressions, engagements`) + replace that month's rows in `metrics_linkedin_posts` (ADR-0019, replaces the retired `contentos metrics-ingest` per ADR-0015). |
 | `record_linkedin_account(month, impressions?, members_reached?, new_followers?)` | Upsert a month's LinkedIn account-level snapshot into `metrics_linkedin_account` (ADR-0019; the follower level left this verb with the column, #113). |
