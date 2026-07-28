@@ -72,7 +72,30 @@ export async function setPieceLinkedinUrl(id: string, url: string): Promise<Acti
   return callVerb("set_piece_linkedin_url", { p_id: id, p_url: url.trim() });
 }
 
-// decline_talk(p_id): keep the Talk proposal on the record.
+// ── the Talk ladder (#115 verbs) ──────────────────────────────────────────────
+// The three rungs the contract could not reach until #115: nothing could set
+// `in_production` or `ready`, which is why all three live Talks read `ready` from a
+// hand-written migration value. No UI calls these yet — the surface that lets Davide
+// climb the ladder is the Talks rework's (#119); this is the console's half of the
+// contract, wired the way #114's Engagement verbs were, so #119 does not build a
+// second set. Both verbs are from-state guarded server-side, so an illegal move comes
+// back as an error rather than being written.
+
+// start_talk_production(p_id): {proposed, ready} -> in_production. The second source
+// is a `ready` Talk whose slides are reopened — the normal life of a reusable asset.
+export async function startTalkProduction(id: string): Promise<ActionResult> {
+  return callVerb("start_talk_production", { p_id: id });
+}
+
+// mark_talk_ready(p_id): in_production -> ready (the deck is finished). The twin of
+// the Piece's mark_ready; there is no jump from `proposed`, because `ready` claims
+// work was done and `proposed` claims none has been.
+export async function markTalkReady(id: string): Promise<ActionResult> {
+  return callVerb("mark_talk_ready", { p_id: id });
+}
+
+// decline_talk(p_id): keep the Talk proposal on the record. Still the ONLY route to
+// `declined` — neither ladder verb can produce it, and neither accepts it as a source.
 export async function declineTalk(id: string): Promise<ActionResult> {
   return callVerb("decline_talk", { p_id: id });
 }

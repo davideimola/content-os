@@ -132,6 +132,8 @@ land as they're built.
 | `slot_piece(id, on_date)` / `deslot_piece(id)` | Slot/de-slot on the Calendar. |
 | `mark_ready(id)` | Advance a slotted Piece to `ready` — written, in the can, awaiting its date (keeps its date). From-state-guarded (slotted-only); called by the console (ADR-0018). |
 | `publish_piece(id)` | Advance a `slotted`/`ready` Piece to `published` (keeps its date). From-state-guarded; called by the console (ADR-0017, widened to `ready` by ADR-0018). |
+| `start_talk_production(id)` | Advance a Talk to `in_production` — the deck is being built. From-state-guarded to `{proposed, ready}`: the second source is a `ready` Talk whose slides are **reopened** (a talk re-cut for another conference), which is the normal life of a reusable asset, not an error (#115). |
+| `mark_talk_ready(id)` | Advance a Talk to `ready` — the slides are finished, the twin of the Piece's `mark_ready`. From-state-guarded to `in_production` only: no jump from `proposed`, because `ready` claims work was done and `proposed` claims none has been (#115). |
 | `create_event(name, starts_on?, ends_on?, location?, url?, roles?)` | Insert an Event (a conference exists before anything is submitted to it). Only the name is required; blank roles are dropped and the set deduped. **Not** get-or-create by name — two Events may share a name (the same conference, another year). `is_public` is not a parameter: putting an Event on `davideimola.dev` is a separate act with its own verb when a surface asks (#114). |
 | `create_engagement(talk_id, event_id, kind = cfp, deadline?, cfp_link?)` | Insert one submission of one Talk to one Event, born at the bottom of its ladder (`cfp` → `to_submit`, `direct` → `confirmed`) — the outcome is not a parameter. Raises if the Talk or the Event does not exist. **A `cfp` with no deadline is invisible on the Calendar** — that is why the three hand-seeded ones never appeared (#114). |
 | `set_engagement_outcome(id, outcome)` | Record where a submission stands (`to_submit`/`submitted`/`accepted`/`rejected`; `confirmed` for a `direct`). **Kind-guarded**: the verb validates `engagement_outcome_matches_kind` with a legible message and the check stays the backstop. No transition guard — an outcome records an outside decision, so it must be correctable (#114). |
@@ -143,8 +145,21 @@ land as they're built.
 | `record_site_metrics(month, visitors?, page_views?)` | Upsert a month's website numbers into `metrics_site`. |
 
 Advancing a Piece to `ready`/`published` has its own guarded verbs (`mark_ready`/`publish_piece`,
-ADR-0018/0017). Advancing a **Talk** to `in_production`/`ready` is still a plain state update — no verb yet,
-added when a consumer needs one (the deferred-guard rule from the ops slice).
+ADR-0018/0017); a **Talk** now climbs its ladder the same way (`start_talk_production`/`mark_talk_ready`,
+#115):
+
+```
+proposed      → start_talk_production → in_production
+in_production → mark_talk_ready       → ready
+ready         → start_talk_production → in_production   (slides reopened)
+```
+
+`declined` is reachable **only** through `decline_talk` — neither ladder verb can write it, and neither
+accepts it as a source. Two gaps the ladder therefore has, both deliberate and both open (#115): a Talk
+declined by mistake is **stuck** (there is no `deslot_piece`-shaped way back down, unlike the Piece
+verbs, which set state unconditionally), and **nothing returns a Talk to `proposed`** — that is not an
+oversight to close in passing, because `proposed` is what `untriaged_proposals` counts, so such a verb
+would put a Talk back in front of the Monday Beat.
 
 ## Views
 
