@@ -8,7 +8,7 @@
 // nor `server-only` may appear here. The type imports below are erased at compile
 // time, which is why importing them from the `server-only` read module is safe.
 
-import type { Piece, PieceState } from "@/lib/pipeline";
+import type { IdeaStatus, Piece, PieceState, ThemeRef } from "@/lib/pipeline";
 import type { Row } from "@/lib/rows";
 
 // ── the four dials (#116) ─────────────────────────────────────────────────────
@@ -393,4 +393,167 @@ export function agendaWindowRows(rows: Row[], today: string): Row[] {
 export function capped<T>(items: T[], max: number): { shown: T[]; hidden: number } {
   if (max <= 0 || items.length <= max) return { shown: items, hidden: 0 };
   return { shown: items.slice(0, max), hidden: items.length - max };
+}
+
+// ── how much of the output is measured (#120) ─────────────────────────────────
+// Completeness, counted **over Pieces** — the same metre as Cadence and the Flag mix.
+// Three counts and their complement, and nothing else: this is what makes an empty
+// per-Piece cell explicable rather than a puzzle.
+export type MetricsCoverage = {
+  /** Distinct post URLs with per-post rows. */
+  measuredPosts: number;
+  /** Pieces carrying a LinkedIn post URL. */
+  linkedPieces: number;
+  /** …of those, how many join a measured post. */
+  withNumbers: number;
+  /** Measured posts no Piece points at — expected, not a backlog (most are not output). */
+  unlinkedPosts: number;
+};
+
+export function metricsCoverage(
+  pieces: Array<Pick<Piece, "linkedin_post_url">>,
+  posts: Array<{ post_url: string }>
+): MetricsCoverage {
+  const measured = new Set(posts.map((p) => p.post_url));
+  const linked = pieces
+    .map((p) => p.linkedin_post_url)
+    .filter((url): url is string => url != null && url !== "");
+  const linkedUrls = new Set(linked);
+  return {
+    measuredPosts: measured.size,
+    linkedPieces: linked.length,
+    withNumbers: linked.filter((url) => measured.has(url)).length,
+    unlinkedPosts: [...measured].filter((url) => !linkedUrls.has(url)).length,
+  };
+}
+
+// ── themes: what came in, what went out, and what shares an output (#120) ─────
+// Counts, not judgement (ADR-0021 dec.1 — arithmetic over a target set held
+// elsewhere): how many live Ideas carry a Theme, how many Pieces carry it, how those
+// Pieces split Flag/Side, and which Themes appear on the same output. Coverage is
+// counted **over Pieces** — the same metre as Cadence and the Flag mix — so a Theme
+// says something about the output only once it is on the output.
+//
+// Nothing here ranks a Theme or infers what should be written next: `accumulating`
+// is `ideas > pieces`, an arithmetic comparison of two counts of record.
+export type ThemeNode = {
+  id: string;
+  label: string;
+  archived: boolean;
+  ideas: number; // live Ideas carrying it
+  pieces: number; // non-declined Pieces carrying it
+  published: number; // …of which already shipped
+  flag: number;
+  side: number;
+  /** More Ideas in than Pieces out. A comparison of two counts, not a verdict. */
+  accumulating: boolean;
+};
+
+/** Two Themes on the same output; `weight` is how many outputs they share. */
+export type ThemeEdge = {
+  a: string;
+  b: string;
+  aLabel: string;
+  bLabel: string;
+  weight: number;
+};
+
+export type ThemeGraph = { nodes: ThemeNode[]; edges: ThemeEdge[] };
+
+// A Theme carried by an ARCHIVED Idea is not counted (the pool's live set is the
+// subject), while a Theme that was itself archived after being assigned still counts
+// and is marked `archived` — dropping it would hide output that exists. Both joins
+// resolve labels against the whole vocabulary upstream (`getThemeContext`), so a
+// retired Theme still reads as itself.
+//
+// Deterministic by construction, because the picture drawn from it has to be
+// identical on every render to be worth arguing about: nodes sort by Pieces desc then
+// label, edges by weight desc then the two labels, and every tie falls back to an id.
+export function themeGraph(
+  ideas: Array<{ status: IdeaStatus; themes: ThemeRef[] }>,
+  pieces: Array<Pick<Piece, "id" | "state" | "flag_side">>,
+  themesByPiece: Record<string, ThemeRef[]>
+): ThemeGraph {
+  const nodes = new Map<string, ThemeNode>();
+  const touch = (t: ThemeRef): ThemeNode => {
+    const existing = nodes.get(t.id);
+    if (existing) return existing;
+    const fresh: ThemeNode = {
+      id: t.id,
+      label: t.label,
+      archived: t.archived,
+      ideas: 0,
+      pieces: 0,
+      published: 0,
+      flag: 0,
+      side: 0,
+      accumulating: false,
+    };
+    nodes.set(t.id, fresh);
+    return fresh;
+  };
+
+  for (const idea of ideas) {
+    if (idea.status !== "live") continue;
+    for (const t of idea.themes) touch(t).ideas += 1;
+  }
+
+  const edges = new Map<string, ThemeEdge>();
+  for (const piece of pieces) {
+    // A declined Piece is not output, the same exclusion the production arithmetic
+    // above makes.
+    if (piece.state === "declined") continue;
+    const themes = themesByPiece[piece.id] ?? [];
+    for (const t of themes) {
+      const node = touch(t);
+      node.pieces += 1;
+      if (piece.state === "published") node.published += 1;
+      if (piece.flag_side === "flag") node.flag += 1;
+      else node.side += 1;
+    }
+    // Co-occurrence on ONE output: every unordered pair of the Themes it carries.
+    const ids = themes.map((t) => t).sort((x, y) => x.id.localeCompare(y.id));
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const key = `${ids[i].id}|${ids[j].id}`;
+        const edge = edges.get(key) ?? {
+          a: ids[i].id,
+          b: ids[j].id,
+          aLabel: ids[i].label,
+          bLabel: ids[j].label,
+          weight: 0,
+        };
+        edge.weight += 1;
+        edges.set(key, edge);
+      }
+    }
+  }
+
+  for (const node of nodes.values()) node.accumulating = node.ideas > node.pieces;
+
+  return {
+    nodes: [...nodes.values()].sort(
+      (x, y) => y.pieces - x.pieces || x.label.localeCompare(y.label) || x.id.localeCompare(y.id)
+    ),
+    edges: [...edges.values()].sort(
+      (x, y) =>
+        y.weight - x.weight ||
+        x.aLabel.localeCompare(y.aLabel) ||
+        x.bLabel.localeCompare(y.bLabel) ||
+        `${x.a}${x.b}`.localeCompare(`${y.a}${y.b}`)
+    ),
+  };
+}
+
+// How many Themes each Theme shares an output with — the graph's degree, which is
+// what makes an isolated Theme a *fact* on the scoreboard and not only a picture with
+// no lines touching it.
+export function themeDegree(graph: ThemeGraph): Record<string, number> {
+  const degree: Record<string, number> = {};
+  for (const node of graph.nodes) degree[node.id] = 0;
+  for (const edge of graph.edges) {
+    degree[edge.a] = (degree[edge.a] ?? 0) + 1;
+    degree[edge.b] = (degree[edge.b] ?? 0) + 1;
+  }
+  return degree;
 }

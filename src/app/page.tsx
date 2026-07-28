@@ -21,7 +21,6 @@ import {
   getEngagementContext,
   getFlagMix,
   getLatestFollowerLevel,
-  getLinkedinPosts,
   getLiveIdeas,
   getMonthlyMetrics,
   getPieceMetricsById,
@@ -77,7 +76,7 @@ function EqualHeight({ children }: { children: React.ReactNode }) {
 }
 
 export default async function OverviewPage() {
-  const [pieces, ideas, talks, cadence, mix, monthly, themes, followerLevel, engagements, posts] =
+  const [pieces, ideas, talks, cadence, mix, monthly, themes, followerLevel, engagements] =
     await Promise.all([
       getPieces(),
       getLiveIdeas(),
@@ -88,7 +87,6 @@ export default async function OverviewPage() {
       getThemeContext(),
       getLatestFollowerLevel(),
       getEngagementContext(),
-      getLinkedinPosts(),
     ]);
   const metrics = await getPieceMetricsById(pieces);
 
@@ -119,14 +117,6 @@ export default async function OverviewPage() {
   const prev = liMonths[1];
   const prevLabel = prev ? monthShortFmt.format(asMonth(prev.month)) : "";
 
-  // A month with no per-post ingest reads as **no data**, not as zero engagements.
-  // `getMonthlyMetrics` defaults per-month engagements to 0 where every other field
-  // uses null (the fix at the source is #120's); the post rows themselves are the
-  // honest presence test, so the home asks them rather than trusting the 0.
-  const ingestedEngagementMonths = new Set(posts.map((p) => p.month.slice(0, 7)));
-  const engagementsOf = (row: MonthlyMetrics | undefined): number | null =>
-    row && ingestedEngagementMonths.has(row.month.slice(0, 7)) ? row.li_engagements : null;
-
   return (
     <View
       title="Overview"
@@ -155,10 +145,13 @@ export default async function OverviewPage() {
             value={cell(latest?.li_reach)}
             {...pctDelta(latest?.li_reach, prev?.li_reach, prevLabel)}
           />
+          {/* A month with no per-post ingest reads as **no data**, not as zero
+              engagements: `li_engagements` is null where the rows are absent, fixed at
+              the source in #120 — so the tile shows `—` with no arithmetic of its own. */}
           <MetricTile
             label="Engagements"
-            value={cell(engagementsOf(latest))}
-            {...pctDelta(engagementsOf(latest), engagementsOf(prev), prevLabel)}
+            value={cell(latest?.li_engagements)}
+            {...pctDelta(latest?.li_engagements, prev?.li_engagements, prevLabel)}
           />
           {/* The LEVEL carries the date it was observed, never the month's key: the
               export reports the total at export time, so it belongs to that day

@@ -367,19 +367,27 @@ export function sumByPostUrl(
   return m;
 }
 
-// Sum a single month's per-post engagements (the account snapshot has no total).
-export function monthEngagements(posts: LinkedinPost[], month: string): number {
-  return posts.filter((p) => p.month === month).reduce((sum, p) => sum + (p.engagements ?? 0), 0);
-}
-
 // Per-Piece metrics as a plain record keyed by piece id — the lookup a card or a row
 // is handed (plain records cross the RSC boundary; a Map does not). A LinkedIn Piece
 // gets its linked post summed across months; a blog Piece gets its publish month's
 // site-wide visitors, since there is no per-post site figure (ADR-0019).
 export async function getPieceMetricsById(pieces: Piece[]): Promise<Record<string, PieceMetrics>> {
   const [posts, site] = await Promise.all([getLinkedinPosts(), getSiteMetrics()]);
+  return pieceMetricsFrom(pieces, posts, site);
+}
+
+// The same fold, pure, over rows the caller already holds — so a view that needs the
+// per-post rows for its own panels (the Metrics page) does not read the table twice
+// to also get this lookup (#120).
+export function pieceMetricsFrom(
+  pieces: Piece[],
+  posts: LinkedinPost[],
+  site: SiteMetric[]
+): Record<string, PieceMetrics> {
   const byUrl = sumByPostUrl(posts);
-  const siteByMonth = new Map(site.map((s) => [s.month.slice(0, 7), s.visitors]));
+  const siteByMonth = new Map<string, number | null>(
+    site.map((s) => [s.month.slice(0, 7), s.visitors])
+  );
   const byPiece: Record<string, PieceMetrics> = {};
   for (const p of pieces) {
     if (p.channel === "linkedin") {
@@ -398,7 +406,15 @@ export type MonthlyMetrics = {
   month: string; // YYYY-MM-01
   li_impressions: number | null;
   li_reach: number | null;
-  li_engagements: number; // summed from the month's per-post rows
+  /**
+   * Summed from the month's per-post rows — **null when the month has none**, like
+   * every other field here. It used to default to `0`, which made a month that was
+   * never ingested read as *zero engagements*: a fabricated fact, and a trend chart
+   * drawing a fall to zero that never happened (#120). Absence of an ingest and a
+   * month that genuinely engaged nobody are different things, so only the presence
+   * of per-post rows makes this a number.
+   */
+  li_engagements: number | null;
   li_new_followers: number | null; // the month's growth — a quantity OF the month
   site_visitors: number | null;
   site_page_views: number | null;
@@ -413,9 +429,21 @@ export async function getMonthlyMetrics(): Promise<MonthlyMetrics[]> {
     getSiteMetrics(),
     getLinkedinPosts(),
   ]);
+  return monthlyMetricsFrom(accounts, site, posts);
+}
+
+// The merge itself, pure — so the Metrics page can build these rows from the three
+// reads it already needs for its other panels (#120).
+export function monthlyMetricsFrom(
+  accounts: LinkedinAccount[],
+  site: SiteMetric[],
+  posts: LinkedinPost[]
+): MonthlyMetrics[] {
   const key = (m: string) => m.slice(0, 7);
   const acc = new Map(accounts.map((a) => [key(a.month), a]));
   const sit = new Map(site.map((s) => [key(s.month), s]));
+  // Keyed on the months that HAVE per-post rows, so "no rows" stays distinguishable
+  // from "rows summing to zero" — the first is null, the second is 0.
   const eng = new Map<string, number>();
   for (const p of posts) eng.set(key(p.month), (eng.get(key(p.month)) ?? 0) + (p.engagements ?? 0));
 
@@ -427,7 +455,7 @@ export async function getMonthlyMetrics(): Promise<MonthlyMetrics[]> {
       month: `${m}-01`,
       li_impressions: a?.impressions ?? null,
       li_reach: a?.members_reached ?? null,
-      li_engagements: eng.get(m) ?? 0,
+      li_engagements: eng.has(m) ? (eng.get(m) as number) : null,
       li_new_followers: a?.new_followers ?? null,
       site_visitors: s?.visitors ?? null,
       site_page_views: s?.page_views ?? null,
@@ -457,6 +485,41 @@ export function cumulativeFollowerGrowth(
       running += r.li_new_followers as number;
       return { month: r.month, value: running };
     });
+}
+
+// ── The metrics page's one read (#120) ──────────────────────────────────────────
+// The Metrics view needs the same three metrics tables for four different panels —
+// the month rows, the per-post list, the per-Piece cross, and which months have been
+// ingested at all. Reading them once and deriving the four is what keeps the view
+// from asking `metrics_linkedin_posts` three times per render, which is exactly the
+// cost #116 flagged when it worked around the fabricated zero on the home.
+export type MetricsContext = {
+  monthly: MonthlyMetrics[]; // newest first
+  posts: LinkedinPost[]; // every measured per-post row, impressions desc
+  followerLevel: FollowerLevel | null;
+  byPiece: Record<string, PieceMetrics>;
+  /**
+   * The YYYY-MM keys that have per-post rows — the one definition of *ingested* the
+   * view uses to explain an empty per-Piece cell. A month can carry an account
+   * snapshot and no per-post rows, so this is not "months with LinkedIn data".
+   */
+  ingestedMonths: string[];
+};
+
+export async function getMetricsContext(pieces: Piece[]): Promise<MetricsContext> {
+  const [accounts, site, posts, followerLevel] = await Promise.all([
+    getLinkedinAccounts(120),
+    getSiteMetrics(),
+    getLinkedinPosts(),
+    getLatestFollowerLevel(),
+  ]);
+  return {
+    monthly: monthlyMetricsFrom(accounts, site, posts),
+    posts,
+    followerLevel,
+    byPiece: pieceMetricsFrom(pieces, posts, site),
+    ingestedMonths: [...new Set(posts.map((p) => p.month.slice(0, 7)))].sort(),
+  };
 }
 
 // ── Calendar: the by-date projection over the Pipeline ──────────────────────────
