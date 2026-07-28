@@ -138,8 +138,8 @@ erDiagram
 
 Atomic multi-step writes are Postgres functions; skills call them through the content-os MCP adapter, the
 front end calls them directly via PostgREST (ADR-0015). Reads are MCP **tools** over tables/views
-(`list_ideas`, `list_proposals`, `list_calendar`) for MCP-only clients, and direct PostgREST for the front
-end. `capture_idea` shipped in the init migration; the Piece/Talk write verbs (`spawn_piece`, `slot_piece`,
+(`list_ideas`, `list_proposals`, `list_calendar`, `list_themes`) for MCP-only clients, and direct
+PostgREST for the front end. `capture_idea` shipped in the init migration; the Piece/Talk write verbs (`spawn_piece`, `slot_piece`,
 `deslot_piece`, `decline_piece`, `spawn_talk`, `decline_talk`) shipped in the Fase-4 ops slice; the rest
 land as they're built.
 

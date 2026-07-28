@@ -212,7 +212,7 @@ const TOOLS = [
   {
     name: "list_themes",
     description:
-      "List the Theme vocabulary — the controlled subject lens carried by Ideas and Pieces, label-sorted. Each carries `archived`: retired vocabulary, which still resolves on anything already tagged with it but must NOT be assigned afresh. Read this before setting Themes — assignment is by id, and reusing an existing Theme is the point of the vocabulary.",
+      "List the Theme vocabulary — the controlled subject lens carried by Ideas and Pieces, label-sorted. Read this before setting Themes: assignment is by id, and reusing an existing Theme is the point of a vocabulary. `archived` marks retired vocabulary: it still resolves on anything already tagged with it, and the setters accept it so those items stay representable — which means nothing stops you assigning one afresh, so do not. Assign only Themes with `archived: false`.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -408,8 +408,9 @@ function toolOk(text: string, structured: Record<string, unknown>) {
   return { content: [{ type: "text", text }], structuredContent: structured, isError: false };
 }
 
-// PostgREST returns a single composite (a `returns <table>` RPC) as an object,
-// but tolerate an array shape just in case.
+// PostgREST returns a single composite (a `returns <table>` RPC) as an object, and
+// a set-returning one (`returns table(…)`, which merge_themes uses for its counts)
+// as an array — so both shapes are real here, not defensive.
 function firstRow(data: unknown) {
   return Array.isArray(data) ? data[0] : data;
 }
@@ -599,7 +600,11 @@ async function setThemes(kind: "idea" | "piece", args: Record<string, unknown> |
   // Theme, so silence must not be a valid way to say "none" — clearing is `[]`.
   const ids = themeIds(args?.theme_ids);
   if (ids === null) {
-    return toolError("theme_ids is required and must be an array of theme ids ([] clears them)");
+    // One message for all three ways it can be wrong (absent, not an array, an empty
+    // or non-string entry), naming each so the caller can tell which it hit.
+    return toolError(
+      "theme_ids is required and must be an array of non-empty theme ids ([] clears them)",
+    );
   }
   const { data, error } = await db().rpc(`set_${kind}_themes`, {
     [`p_${kind}_id`]: args!.id,

@@ -19,8 +19,9 @@
 --      span both; a merge that reasoned over Ideas alone would silently strand the
 --      output side, which is the side coverage is counted over)
 --   3. duplicates COLLAPSE: an Idea or Piece that carried both Themes ends with the
---      survivor once, not twice — the composite primary key makes that automatic
---      rather than a case to handle
+--      survivor once, not twice — the composite primary key is what makes "once" the
+--      only representable answer, and the move defers to it (`on conflict do nothing`)
+--      instead of computing the overlap itself
 --   4. the absorbed Theme is ARCHIVED, which keeps its record: it is retired
 --      vocabulary, never a deleted row (the same flag `archive_theme` writes, so a
 --      merge cannot lose history)
@@ -29,7 +30,19 @@
 -- the moved assignments can each be re-set with `set_idea_themes`/`set_piece_themes`,
 -- but nothing un-archives a Theme — there is no `unarchive_theme` verb today, on
 -- either surface. That is why this verb raises on every ambiguous input instead of
--- guessing, and why the survivor must be named deliberately.
+-- guessing, and why the survivor must be named deliberately. If such a verb is ever
+-- wanted, note the case that makes it more than a flag flip: archiving FREES the
+-- label, so by the time you un-archive, a live Theme may already hold it — the verb
+-- would have to raise on that collision rather than trip the partial unique index.
+--
+-- One window this verb does not close, on purpose: the count, the two moves and the
+-- archive are separate statements, so a `set_idea_themes` committing between the
+-- delete and the archive can leave one Idea carrying the absorbed Theme. A row lock
+-- on `themes` would not help (the FK only needs the row to EXIST, and archiving does
+-- not delete it), and the only thing that would is locking the join tables outright.
+-- It is left open because the outcome is a state the model already supports and
+-- renders honestly — an item carrying a since-archived Theme, exactly what #112 made
+-- representable — and not corruption.
 --
 -- The invariant that makes it a merge and not a delete: after it, NO Idea or Piece
 -- references the absorbed Theme, and NONE lost a Theme it had — the set each item
@@ -61,8 +74,8 @@
 -- was already there. So `ideas_moved` is what the absorbed Theme carried, and the
 -- survivor grows by at most that much.
 --
--- Raises on:
---   - either id unknown — a typo'd id must not silently no-op
+-- Raises, in this order:
+--   - either id unknown (or null) — a typo'd id must not silently no-op
 --   - the same id twice — merging a Theme into itself would archive the very Theme
 --     it just moved everything onto, i.e. quietly retire a live subject; there is
 --     no reading of that as a no-op
@@ -93,18 +106,22 @@ declare
   v_ideas  integer;
   v_pieces integer;
 begin
-  if p_absorbed_id is not null and p_absorbed_id = p_survivor_id then
-    raise exception 'cannot merge theme % into itself', p_absorbed_id;
-  end if;
-
+  -- Existence first, so a typo'd id is reported as unknown rather than as whatever
+  -- else it happens to also be (a doubled typo is "not found", not "into itself").
+  -- It also settles the null cases: a null id matches no row and raises here, which
+  -- is why the identity check below can compare the fetched rows and nothing else.
   select * into absorbed from themes where id = p_absorbed_id;
   if not found then
-    raise exception 'theme % not found', coalesce(p_absorbed_id, 'null');
+    raise exception 'theme % not found', p_absorbed_id;
   end if;
 
   select * into survivor from themes where id = p_survivor_id;
   if not found then
-    raise exception 'theme % not found', coalesce(p_survivor_id, 'null');
+    raise exception 'theme % not found', p_survivor_id;
+  end if;
+
+  if absorbed.id = survivor.id then
+    raise exception 'cannot merge theme % into itself', absorbed.id;
   end if;
 
   if survivor.archived then
