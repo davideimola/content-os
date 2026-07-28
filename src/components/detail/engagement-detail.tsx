@@ -3,9 +3,10 @@
 // The Engagement tier's detail drawers — the tier had none anywhere in the console,
 // so a row for an Event or a CFP deadline had nothing to open (#111).
 //
-// Both are **read-only**: the verbs that create an Event, create a submission and
-// record an outcome exist now (#114, wrapped as Server Actions), but the surface
-// that calls them is the Talks rework's (#119). They show facts; nothing here writes.
+// `CfpDetail` is where a submission's **outcome** is recorded (#119): it is the drawer
+// every submission row opens, on the Talks sheet and on the Calendar alike, so the one
+// fact has one place it is set. `EventDetail` stays read-only — an Event's own details
+// have no edit verb, deliberately (#114).
 //
 // Each takes a **required** `trigger` (the shared opener contract, `DetailTrigger`):
 // unlike a Piece / Idea / Talk, an Event and a CFP have no canonical card in the
@@ -13,12 +14,14 @@
 // its own row.
 
 import { CalendarClock, CalendarOff, Link2, MapPin, Mic } from "lucide-react";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 
 import { CopyId } from "@/components/copy-id";
 import { DetailSheet, type DetailTrigger } from "@/components/detail/detail-sheet";
 import { formatDate, OutcomeBadge, StateBadge } from "@/components/pipeline";
-import type { EngagementTalk, EventRecord } from "@/lib/pipeline";
+import { Button } from "@/components/ui/button";
+import { setEngagementOutcome } from "@/lib/actions";
+import type { EngagementOutcome, EngagementTalk, EventRecord } from "@/lib/pipeline";
 import type { CfpSubmission } from "@/lib/rows";
 
 // The Calendar's spine is a date: a CFP with no deadline and an Event with no start
@@ -35,6 +38,51 @@ function MissingDateNote({ kind }: { kind: "deadline" | "date" }) {
 
 function ReadOnlyNote({ children }: { children: React.ReactNode }) {
   return <p className="text-muted-foreground border-t pt-4 text-xs">{children}</p>;
+}
+
+// A `cfp` submission's four outcomes, in the order it moves through them. The verb has
+// **no transition guard** on purpose (#114): an outcome records a decision made outside
+// the system, so a mis-tapped `rejected` has to be repairable and a conference moving a
+// talk off its waitlist is not a contract violation. So every value is offered, and the
+// current one is the one that reads as pressed. `confirmed` is absent because it is the
+// `direct` kind's only legal outcome and this drawer only ever holds a `cfp`
+// (`cfpSubmission` filters on the kind) — the verb refuses the pair anyway.
+const CFP_OUTCOMES: EngagementOutcome[] = ["to_submit", "submitted", "accepted", "rejected"];
+
+function OutcomeControl({ id, current }: { id: string; current: EngagementOutcome }) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-1.5">
+        {CFP_OUTCOMES.map((outcome) => (
+          // The current value stays focusable rather than being disabled: disabling it
+          // takes it out of the tab order, so a keyboard or screen-reader user tabs the
+          // group and never meets the state they are in. Pressing it is a no-op instead —
+          // it would write the value it already has and bump `updated_at` for nothing.
+          <Button
+            key={outcome}
+            size="xs"
+            variant={outcome === current ? "default" : "outline"}
+            aria-pressed={outcome === current}
+            disabled={pending}
+            onClick={() => {
+              if (outcome === current) return;
+              setError(null);
+              startTransition(async () => {
+                const res = await setEngagementOutcome(id, outcome);
+                if (!res.ok) setError(res.error);
+              });
+            }}
+          >
+            {outcome.replace("_", " ")}
+          </Button>
+        ))}
+      </div>
+      {error ? <p className="text-destructive text-xs">{error}</p> : null}
+    </div>
+  );
 }
 
 // One Talk taken to an Event: its own readiness (the answer to "are the slides
@@ -144,8 +192,8 @@ export function EventDetail({
         </div>
 
         <ReadOnlyNote>
-          Read-only — an Event's details, a submission's outcome and a Talk's readiness are not
-          editable from the console yet.
+          An Event's own details are not editable from the console — no verb edits one. A
+          submission's outcome is set in its own drawer, and a Talk's readiness in the Talk's.
         </ReadOnlyNote>
       </DetailSheet>
     </>
@@ -233,12 +281,30 @@ export function CfpDetail({
           ) : null}
         </dl>
 
-        {engagement.deadline ? null : <MissingDateNote kind="deadline" />}
+        {/* Why this submission cannot be found on the Calendar — and, honestly, that it
+            cannot be fixed from here. The contract can give a deadline only at creation:
+            there is no `set_engagement_deadline` / `edit_engagement` verb (a gap reported
+            with #114 and felt here), and inventing one with a raw table write would put
+            the console outside the contract it exists to be a client of. */}
+        {engagement.deadline ? null : (
+          <div className="flex flex-col gap-1.5">
+            <MissingDateNote kind="deadline" />
+            <p className="text-muted-foreground pl-5 text-xs">
+              A deadline can only be given when the submission is created — no verb sets one
+              afterwards.
+            </p>
+          </div>
+        )}
 
-        <ReadOnlyNote>
-          Read-only — recording an outcome and advancing a Talk's readiness are not available from
-          the console yet.
-        </ReadOnlyNote>
+        {/* The outcome is the fact Davide keeps instead of remembering (#119). */}
+        <div className="flex flex-col gap-2 border-t pt-4">
+          <p className="text-sm font-medium">Record the outcome</p>
+          <p className="text-muted-foreground text-xs">
+            Where the submission stands. Any value, any time: a conference can move a talk off its
+            waitlist, so this has to be correctable and not a one-way ladder.
+          </p>
+          <OutcomeControl id={engagement.id} current={engagement.outcome} />
+        </div>
       </DetailSheet>
     </>
   );

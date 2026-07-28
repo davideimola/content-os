@@ -8,11 +8,19 @@ import { DetailOpener, DetailSheet, type DetailTrigger } from "@/components/deta
 import { FlagBadge, StateBadge, TalkCard } from "@/components/pipeline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { declineTalk, editTalk } from "@/lib/actions";
+import type { ActionResult } from "@/lib/actions";
+import { declineTalk, editTalk, markTalkReady, startTalkProduction } from "@/lib/actions";
 import type { Talk } from "@/lib/pipeline";
 
 // `trigger` is the shared opener contract (`DetailTrigger`): omit it for the Talk's
 // own card, supply one to open the same drawer from a row.
+//
+// This is the **only** place a Talk's readiness is set (#119). The ladder's verbs are
+// from-state guarded server-side (`{proposed, ready} → in_production → ready`), and the
+// drawer offers exactly the legal move for the state it is looking at — an illegal one
+// is not a button that fails, it is a button that is not there. The state it renders is
+// `talks.state` through the one `StateBadge`, so a Talk reads the same here, on its
+// asset sheet, and on the Calendar's Event row (`eventTalkReadiness`).
 export function TalkDetail({ talk, trigger }: { talk: Talk; trigger?: DetailTrigger }) {
   const [open, setOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -20,12 +28,17 @@ export function TalkDetail({ talk, trigger }: { talk: Talk; trigger?: DetailTrig
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  function decline() {
+  // The same helper `PieceDetail` uses, with the same `closeOnDone` — so declining a Talk
+  // closes its drawer exactly as declining a Piece does.
+  function run(action: () => Promise<ActionResult>, closeOnDone = false) {
     setError(null);
     startTransition(async () => {
-      const res = await declineTalk(talk.id);
-      if (res.ok) setOpen(false);
-      else setError(res.error);
+      const res = await action();
+      if (res.ok) {
+        if (closeOnDone) setOpen(false);
+      } else {
+        setError(res.error);
+      }
     });
   }
 
@@ -110,9 +123,78 @@ export function TalkDetail({ talk, trigger }: { talk: Talk; trigger?: DetailTrig
           </dd>
         </dl>
 
+        {/* The ladder (#115's verbs, wired here). One section, one legal move: a deck
+            is either being built, finished, or reopened. `declined` has no rung at all
+            and says so — the contract's only route into it is `decline_talk` and there
+            is none back out, which is a fact worth reading rather than a button to hunt
+            for. */}
+        <div className="flex flex-col gap-2 border-t pt-4">
+          <p className="text-sm font-medium">Slides</p>
+          {talk.state === "proposed" ? (
+            <>
+              <p className="text-muted-foreground text-xs">
+                Building the deck? Move it to <span className="font-medium">in production</span>.
+              </p>
+              <Button
+                size="sm"
+                className="w-fit"
+                onClick={() => run(() => startTalkProduction(talk.id))}
+                disabled={pending}
+              >
+                Start production
+              </Button>
+            </>
+          ) : null}
+          {talk.state === "in_production" ? (
+            <>
+              <p className="text-muted-foreground text-xs">
+                Slides finished? Move it to <span className="font-medium">ready</span> — prepared,
+                and reusable at the next conference.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-fit"
+                onClick={() => run(() => markTalkReady(talk.id))}
+                disabled={pending}
+              >
+                Mark ready
+              </Button>
+            </>
+          ) : null}
+          {talk.state === "ready" ? (
+            <>
+              <p className="text-muted-foreground text-xs">
+                Prepared. Re-cutting it for another conference puts it back into{" "}
+                <span className="font-medium">production</span>.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-fit"
+                onClick={() => run(() => startTalkProduction(talk.id))}
+                disabled={pending}
+              >
+                Back into production
+              </Button>
+            </>
+          ) : null}
+          {talk.state === "declined" ? (
+            <p className="text-muted-foreground text-xs">
+              Declined — the ladder has no rung back, so this Talk cannot be returned to production
+              from here.
+            </p>
+          ) : null}
+        </div>
+
         {talk.state !== "declined" ? (
           <div className="border-t pt-4">
-            <Button size="sm" variant="destructive" onClick={decline} disabled={pending}>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => run(() => declineTalk(talk.id), true)}
+              disabled={pending}
+            >
               Decline
             </Button>
           </div>
