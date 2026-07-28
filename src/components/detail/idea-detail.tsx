@@ -16,17 +16,19 @@ import type { IdeaWithProvenance, Theme } from "@/lib/pipeline";
 
 // `trigger` is the shared opener contract (`DetailTrigger`): omit it for the Idea's
 // own card, supply one to open the same drawer from a row.
-export function IdeaDetail({
-  idea,
-  themes,
-  themesInUse,
-  trigger,
-}: {
+//
+// The two are a union rather than two optional props, because `today` is needed by
+// exactly one of them: the Idea's own card shows an age, and that age has to be the
+// **caller's** "today" or it can disagree with the age-derived band the card sits in
+// (#118). So supplying a `trigger` means no card and no date to pass; omitting one
+// makes the date required, and neither case can be got wrong silently.
+type IdeaDetailProps = {
   idea: IdeaWithProvenance;
   themes: Theme[];
   themesInUse: string[];
-  trigger?: DetailTrigger;
-}) {
+} & ({ trigger: DetailTrigger; today?: never } | { trigger?: undefined; today: string });
+
+export function IdeaDetail({ idea, themes, themesInUse, today, trigger }: IdeaDetailProps) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(idea.title ?? "");
@@ -66,8 +68,10 @@ export function IdeaDetail({
 
   return (
     <>
+      {/* `today` is present exactly when `trigger` is absent (see the props union), so
+          the null branch is what the type already rules out — not a fallback. */}
       <DetailOpener trigger={trigger} open={() => setOpen(true)} className="h-full">
-        <IdeaCard idea={idea} />
+        {today ? <IdeaCard idea={idea} today={today} /> : null}
       </DetailOpener>
 
       <DetailSheet

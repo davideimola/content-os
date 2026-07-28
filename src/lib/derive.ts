@@ -11,11 +11,17 @@
 import type { IdeaStatus, Piece, PieceState, ThemeRef } from "@/lib/pipeline";
 import type { Row } from "@/lib/rows";
 
-// ── the four dials (#116) ─────────────────────────────────────────────────────
+// ── the dials ─────────────────────────────────────────────────────────────────
 // First cuts to tune in use, **not contract**. They live here, in one object, so
 // moving one is a one-line change with a visible blast radius. Each carries the
 // reason its value is what it is, because a number without a reason gets "fixed"
 // by the next person who dislikes it.
+//
+// The set started as **the spec's four** (#116: agenda rows, week semantics, hole
+// horizon, lead time) and has grown twice: #117 gave the hole horizon a second
+// value for the Calendar, and #118 added the two the Idea pool's bands are drawn
+// on. Each entry says which kind it is, because "a dial the spec left open" and "a
+// display cap that is unreadable at any tuning" are moved for different reasons.
 export const TUNING = {
   /**
    * How many agenda rows before the week reads as a wall. A live week holds two to
@@ -103,6 +109,45 @@ export const TUNING = {
    * whatever the cap, so nothing is hidden silently.
    */
   talkSubmissions: 2,
+
+  /**
+   * How many days an Idea still counts as **just captured** (#118) — the window in
+   * which rereading it is repair rather than archaeology. A **dial**, the fifth: the
+   * spec left the value open and only its shape decided. Seven, because the occasion
+   * being served is a spark dictated by voice from a phone: the words are only
+   * checkable while Davide still remembers what he meant, and a week is as far back
+   * as that reconstruction reaches. A first cut, not contract. Measured over the live
+   * pool on 28 Jul: seven days holds 8 of the 14 live Ideas (5 of them never edited
+   * since capture), three days holds 5, fourteen days holds 9 — so seven is where the
+   * band is the recent week's worth rather than most of the pool.
+   */
+  justCapturedDays: 7,
+
+  /**
+   * How long a live, never-used spark must sit before it floats into "Candidates to
+   * work". A **dial** too, the sixth — inherited rather than introduced: it was a
+   * bare constant in `ideas-view.tsx` until #118 moved it here beside its sibling,
+   * since a view cannot own one of the two numbers its bands are drawn on.
+   * Forty-five is #77's original value, kept **unchanged** on purpose: this
+   * ticket rehouses that band beside a new one, and quietly retuning it would change
+   * what the band means under cover of a layout change. A first cut, not contract —
+   * and note that **nothing in the pool is idle that long today** (the oldest Idea is
+   * 10 days old), so the band is empty, and that is correct. Do not lower it to make
+   * it show something.
+   */
+  candidateIdleDays: 45,
+
+  /**
+   * How many Idea cards one band of the pool shows before the rest go behind one
+   * click. Nine — three rows of three on the widest grid — so a band is about a
+   * screenful and the band *below* it is still reachable by scrolling, which is the
+   * entire point of stacking them in triage order. Not one of the four dials. The
+   * true count sits beside the heading whatever the cap and the hidden number is
+   * stated: a triage list must not paginate (in a list where what matters is at the
+   * top by construction, a page two is a page nobody opens) and must never truncate
+   * silently.
+   */
+  ideaBandCards: 9,
 } as const;
 
 // ── dates ─────────────────────────────────────────────────────────────────────
@@ -403,6 +448,112 @@ export function agendaWindowRows(rows: Row[], today: string): Row[] {
 export function capped<T>(items: T[], max: number): { shown: T[]; hidden: number } {
   if (max <= 0 || items.length <= max) return { shown: items, hidden: 0 };
   return { shown: items.slice(0, max), hidden: items.length - max };
+}
+
+// ── the Idea pool: age, repair, and the two triage bands (#118) ───────────────
+// Ideas are a live pool (ADR-0014) and the console's job over them is **repair**: a
+// spark dictated by voice from a phone can land garbled, and nothing in the console
+// has ever pointed at it. The band that does is `age + never edited` — two facts the
+// record already carries, which is why #118 adds **no new state and no schema
+// change**. Both tests are arithmetic over timestamps and a count, so they sit here
+// with the rest of the sanctioned arithmetic (ADR-0021 dec.1).
+
+/**
+ * What the pool's arithmetic needs from an Idea — a structural subset, so an
+ * `IdeaWithProvenance` satisfies it and nothing here has to know about the read.
+ */
+export type IdeaFacts = {
+  created_at: string;
+  updated_at: string;
+  status: IdeaStatus;
+  usedCount: number;
+  themes: ThemeRef[];
+};
+
+/**
+ * Whole days from capture to `today`, floored at 0 (a clock skew must not read −1).
+ * The capture timestamp is UTC and `today` is the local calendar date (`todayISO`),
+ * so a spark captured just after local midnight can read one day older than it feels.
+ * That is a day of slack on an age cue, and it is deliberate: the same slice is used
+ * everywhere, so a band and the card inside it always agree.
+ */
+export function ideaAgeDays(idea: Pick<IdeaFacts, "created_at">, today: string): number {
+  return Math.max(0, daysBetween(idea.created_at, today));
+}
+
+/** "0d" … "29d", then whole 30-day months, so a fresh spark is not "0 mo". */
+export function ideaAgeLabel(days: number): string {
+  return days < 30 ? `${days}d` : `${Math.floor(days / 30)} mo`;
+}
+
+/**
+ * Has this Idea's own row never been rewritten since capture? The only verbs that
+ * UPDATE an Idea are `edit_idea` and `archive_idea`, and `trg_ideas_updated` bumps
+ * the column on any update — while `set_idea_themes` writes the join table and leaves
+ * the Idea alone. So this means exactly "nobody has touched the words", which is the
+ * question the just-captured band asks. Compared as instants, not as strings, so the
+ * answer cannot turn on how the driver renders a timestamp.
+ */
+export function neverEdited(idea: Pick<IdeaFacts, "created_at" | "updated_at">): boolean {
+  return new Date(idea.updated_at).getTime() <= new Date(idea.created_at).getTime();
+}
+
+/**
+ * Does this Idea carry a **live** Theme? The one definition of *categorised*, shared
+ * by the card's "no theme" cue, the no-theme filter and the by-theme grouping's
+ * trailing band — an Idea carrying only a since-archived Theme is uncategorised,
+ * because the vocabulary it was filed under no longer exists to file anything else
+ * under.
+ */
+export function hasLiveTheme(idea: Pick<IdeaFacts, "themes">): boolean {
+  return idea.themes.some((t) => !t.archived);
+}
+
+/** Recently captured and still live — the repair window. */
+export function isJustCaptured(idea: IdeaFacts, today: string): boolean {
+  return idea.status === "live" && ideaAgeDays(idea, today) <= TUNING.justCapturedDays;
+}
+
+/**
+ * A live spark that never became output and has sat a long while (#77's band). The
+ * archived exclusion matters on both bands: an archived Idea is off the pool, and
+ * rereading the words of one nobody will use again is not repair.
+ */
+export function isCandidateToWork(idea: IdeaFacts, today: string): boolean {
+  return (
+    idea.status === "live" &&
+    idea.usedCount === 0 &&
+    ideaAgeDays(idea, today) >= TUNING.candidateIdleDays
+  );
+}
+
+/**
+ * The pool split into its three bands, in triage order and mutually exclusive: what
+ * just landed, what has gone stale unused, and everything else. Each band carries its
+ * own order, because a band's order is its own criterion — the fresh band newest
+ * first, the stale band oldest first — and a band whose most relevant card sat at the
+ * bottom would make its display cap a lie. Total by construction: every Idea handed in
+ * comes back in exactly one band.
+ */
+export function ideaTriage<T extends IdeaFacts>(
+  ideas: T[],
+  today: string
+): { justCaptured: T[]; candidates: T[]; rest: T[] } {
+  const newestFirst = (a: T, b: T) => b.created_at.localeCompare(a.created_at);
+  const oldestFirst = (a: T, b: T) => a.created_at.localeCompare(b.created_at);
+  const justCaptured: T[] = [];
+  const candidates: T[] = [];
+  const rest: T[] = [];
+  for (const idea of ideas) {
+    if (isJustCaptured(idea, today)) justCaptured.push(idea);
+    else if (isCandidateToWork(idea, today)) candidates.push(idea);
+    else rest.push(idea);
+  }
+  return {
+    justCaptured: justCaptured.sort(newestFirst),
+    candidates: candidates.sort(oldestFirst),
+    rest: rest.sort(newestFirst),
+  };
 }
 
 // ── how much of the output is measured (#120) ─────────────────────────────────

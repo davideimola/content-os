@@ -100,6 +100,27 @@ export async function declineTalk(id: string): Promise<ActionResult> {
   return callVerb("decline_talk", { p_id: id });
 }
 
+// ── capture: the console as a capture door (#118) ─────────────────────────────
+// capture_idea(p_body, p_title, p_source): the same verb the `/idea` skill and the
+// AI-app doors call (ADR-0014), with **`console`** as the source, so where a spark
+// came from stays legible on the card. The doors' invariant is kept: the spark is the
+// body, a short summary is the title, and **no judgement at capture** — no channel,
+// no flag, no Theme, no date. What differs is only that this door has no LLM to
+// distil the title with and must not gain one (ADR-0002), so the title is typed or
+// left empty; an Idea with no title falls back to its body everywhere it is shown.
+//
+// The body is trimmed of surrounding whitespace and nothing else. Trailing newlines
+// from a textarea are not part of the spark; the words are, and they are not touched.
+export async function captureIdea(body: string, title: string): Promise<ActionResult> {
+  const spark = body.trim();
+  if (!spark) return { ok: false, error: "The spark cannot be empty." };
+  return callVerb("capture_idea", {
+    p_body: spark,
+    p_title: title.trim() || null,
+    p_source: "console",
+  });
+}
+
 // archive_idea(p_id, p_reason): archive a duplicate/repudiated Idea (reason required).
 export async function archiveIdea(id: string, reason: string): Promise<ActionResult> {
   if (!reason.trim()) return { ok: false, error: "A reason is required to archive." };

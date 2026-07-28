@@ -205,6 +205,17 @@ export type ThemeContext = {
   inUse: string[]; // theme ids carried by any Idea or any Piece
 };
 
+// `inUse` spans BOTH joins: a Theme carried only by a Piece is still in use, and must
+// not be offered for retirement (the tagger's "retire unused" row, #78). Pure and
+// shared, so the Ideas pool's read below cannot arrive at a different answer than the
+// drawers' — a Theme that may not be retired must not be retirable on one page.
+function themeIdsInUse(
+  ideaRows: Array<{ theme_id: string }>,
+  pieceRows: Array<{ theme_id: string }>
+): string[] {
+  return [...new Set([...ideaRows, ...pieceRows].map((r) => r.theme_id))];
+}
+
 export async function getThemeContext(): Promise<ThemeContext> {
   const db = supabaseAdmin();
   const [vocabulary, pieceThemes, ideaThemes] = await Promise.all([
@@ -218,18 +229,12 @@ export async function getThemeContext(): Promise<ThemeContext> {
   const pieceRows = (pieceThemes.data ?? []) as Array<{ piece_id: string; theme_id: string }>;
   const ideaRows = (ideaThemes.data ?? []) as Array<{ theme_id: string }>;
 
-  // `inUse` spans BOTH joins: a Theme carried only by a Piece is still in use, and
-  // must not be offered for retirement (the tagger's "retire unused" row, #78).
-  const inUse = new Set<string>();
-  for (const { theme_id } of pieceRows) inUse.add(theme_id);
-  for (const { theme_id } of ideaRows) inUse.add(theme_id);
-
   const byPiece = foldThemeRefs(
     pieceRows.map((r) => ({ ownerId: r.piece_id, themeId: r.theme_id })),
     vocabulary
   );
 
-  return { vocabulary, byPiece, inUse: [...inUse] };
+  return { vocabulary, byPiece, inUse: themeIdsInUse(ideaRows, pieceRows) };
 }
 
 // Dated Pieces first (oldest→newest), then undated; id as a stable tie-break. Keeps
@@ -242,28 +247,54 @@ function bySpawnOrder(a: SpawnedPiece, b: SpawnedPiece): number {
 }
 
 // The whole Idea pool (live + archived, newest first), each Idea enriched with its
-// spawned-Pieces provenance (#76). Reads the piece_sources join and folds it onto
-// the Ideas: usedCount = the number of linked Pieces, spawnedPieces = the list (for
-// the drawer's clickable provenance). An Idea that spawned nothing reports 0 / an
-// empty list. Archived Ideas are returned too (status carried through) so the triage
-// list's archived toggle can filter client-side (#77); the default view shows live.
-export async function getIdeasWithProvenance(): Promise<IdeaWithProvenance[]> {
-  const [ideas, pieces, sources, themes, ideaThemes] = await Promise.all([
+// spawned-Pieces provenance (#76): usedCount = the number of linked Pieces,
+// spawnedPieces = the list (for the drawer's clickable provenance). An Idea that
+// spawned nothing reports 0 / an empty list. Archived Ideas are returned too (status
+// carried through) so the triage list's archived toggle can filter client-side (#77);
+// the default view shows live.
+//
+// The reads and the fold are separate, and both are shared by the two public reads
+// below — `getIdeasWithProvenance` and `getIdeaPool` — so the pool can never mean two
+// things depending on which door it came through, and the extra read `getIdeaPool`
+// needs is the ONLY difference between them.
+type PoolRows = {
+  ideas: Idea[];
+  pieces: Piece[];
+  sourceRows: Array<{ idea_id: string; piece_id: string }>;
+  ideaThemeRows: Array<{ idea_id: string; theme_id: string }>;
+  vocabulary: Theme[];
+};
+
+async function readPoolRows(): Promise<PoolRows> {
+  const db = supabaseAdmin();
+  const [ideas, pieces, sources, vocabulary, ideaThemes] = await Promise.all([
     selectAll<Idea>("ideas", "*", { column: "created_at", ascending: false }),
     getPieces(),
-    supabaseAdmin().from("piece_sources").select("idea_id,piece_id"),
+    db.from("piece_sources").select("idea_id,piece_id"),
     getThemes(),
-    supabaseAdmin().from("idea_themes").select("idea_id,theme_id"),
+    db.from("idea_themes").select("idea_id,theme_id"),
   ]);
   if (sources.error) throw new Error(`read piece_sources failed: ${sources.error.message}`);
   if (ideaThemes.error) throw new Error(`read idea_themes failed: ${ideaThemes.error.message}`);
+  return {
+    ideas,
+    pieces,
+    vocabulary,
+    sourceRows: (sources.data ?? []) as Array<{ idea_id: string; piece_id: string }>,
+    ideaThemeRows: (ideaThemes.data ?? []) as Array<{ idea_id: string; theme_id: string }>,
+  };
+}
 
+function withProvenance({
+  ideas,
+  pieces,
+  sourceRows,
+  ideaThemeRows,
+  vocabulary,
+}: PoolRows): IdeaWithProvenance[] {
   const pieceById = new Map(pieces.map((p) => [p.id, p]));
   const byIdea = new Map<string, SpawnedPiece[]>();
-  for (const { idea_id, piece_id } of (sources.data ?? []) as Array<{
-    idea_id: string;
-    piece_id: string;
-  }>) {
+  for (const { idea_id, piece_id } of sourceRows) {
     const p = pieceById.get(piece_id);
     if (!p) continue; // a source row can outlive its Piece only via cascade, so this is defensive
     const list = byIdea.get(idea_id) ?? [];
@@ -280,11 +311,8 @@ export async function getIdeasWithProvenance(): Promise<IdeaWithProvenance[]> {
   // Fold the idea_themes join onto the Ideas — the same fold the Piece side uses, so
   // an Idea's tags and a Piece's resolve identically (labels, archived, order).
   const themesByIdea = foldThemeRefs(
-    ((ideaThemes.data ?? []) as Array<{ idea_id: string; theme_id: string }>).map((r) => ({
-      ownerId: r.idea_id,
-      themeId: r.theme_id,
-    })),
-    themes
+    ideaThemeRows.map((r) => ({ ownerId: r.idea_id, themeId: r.theme_id })),
+    vocabulary
   );
 
   return ideas.map((idea) => {
@@ -296,6 +324,48 @@ export async function getIdeasWithProvenance(): Promise<IdeaWithProvenance[]> {
       themes: themesByIdea[idea.id] ?? [],
     };
   });
+}
+
+export async function getIdeasWithProvenance(): Promise<IdeaWithProvenance[]> {
+  return withProvenance(await readPoolRows());
+}
+
+// ── the Ideas view's one read (#118) ────────────────────────────────────────────
+// The pool with its provenance AND the two Theme facts the view's cards, filter and
+// grouping need — every table read **once**. Before this, `/ideas` called
+// `getIdeasWithProvenance()` and `getThemeContext()` side by side and so asked
+// `themes` and `idea_themes` twice per request while throwing away `byPiece`, which
+// nothing on that page renders (flagged by #112 and again by #120).
+//
+// It is `getIdeasWithProvenance` plus **one** read, `piece_themes`, for one reason:
+// `inUse` spans both joins, so a Theme carried only by a Piece is in use and must not
+// be offered for retirement in the tagger — the same answer `getThemeContext` gives,
+// from the same helper. It deliberately does NOT return `byPiece`: that is the fact
+// `/metrics` needs and this page does not, and the whole point here was to stop
+// deriving it for a view that never renders it.
+export type IdeaPool = {
+  ideas: IdeaWithProvenance[];
+  /** Every Theme, label-sorted, archived included (a retired tag still reads as itself). */
+  vocabulary: Theme[];
+  /** Theme ids carried by any Idea or any Piece — the ones that may NOT be retired. */
+  inUse: string[];
+};
+
+export async function getIdeaPool(): Promise<IdeaPool> {
+  const [rows, pieceThemes] = await Promise.all([
+    readPoolRows(),
+    supabaseAdmin().from("piece_themes").select("theme_id"),
+  ]);
+  if (pieceThemes.error) throw new Error(`read piece_themes failed: ${pieceThemes.error.message}`);
+
+  return {
+    ideas: withProvenance(rows),
+    vocabulary: rows.vocabulary,
+    inUse: themeIdsInUse(
+      rows.ideaThemeRows,
+      (pieceThemes.data ?? []) as Array<{ theme_id: string }>
+    ),
+  };
 }
 
 export function getTalks(): Promise<Talk[]> {

@@ -8,11 +8,14 @@ import {
   Lightbulb,
   Mic,
   Newspaper,
+  PencilOff,
+  TagX,
   TriangleAlert,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { ideaAgeDays, ideaAgeLabel, neverEdited } from "@/lib/derive";
 import type {
   Cadence,
   CalendarItem,
@@ -38,24 +41,6 @@ export function formatDate(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? null : dateFmt.format(d);
-}
-
-// Whole days since the capture date — the raw idle age (#76). Drives both the card's
-// cue and the triage "candidate" test (idle ≥ N days, #77). Null on an unparseable date.
-export function idleDays(iso: string): number | null {
-  const from = new Date(iso);
-  if (Number.isNaN(from.getTime())) return null;
-  return Math.max(0, Math.floor((Date.now() - from.getTime()) / 86_400_000));
-}
-
-// "idle N mo" from the capture date — how long a spark has sat untouched (#76).
-// Under a month it reads in days so a fresh spark doesn't collapse to "idle 0 mo";
-// months are floored 30-day buckets (a rough cue, not a precise date).
-export function idleLabel(iso: string): string | null {
-  const days = idleDays(iso);
-  if (days === null) return null;
-  if (days < 30) return `idle ${days}d`;
-  return `idle ${Math.floor(days / 30)} mo`;
 }
 
 // ── badges ────────────────────────────────────────────────────────────────────
@@ -235,17 +220,49 @@ export function UsedBadge({ count }: { count: number }) {
   );
 }
 
-export function IdeaCard({ idea }: { idea: IdeaWithProvenance }) {
+// `today` is **required**, and passed in rather than read here — the same discipline
+// #117 gave `AgendaRow`'s readiness mark ("computed by the caller, which knows what
+// today is"). This module carries no `"use client"`, so a fallback of its own would
+// resolve against a browser clock and could disagree with the server-computed band the
+// card sits in, which is the exact drift the prop exists to prevent. It goes through
+// `ideaAgeDays` like the bands, so an Idea's age has one definition in the console.
+export function IdeaCard({ idea, today }: { idea: IdeaWithProvenance; today: string }) {
   // The title is a summary; fall back to the verbatim spark.
   const headline = idea.title?.trim() || idea.body;
-  const idle = idleLabel(idea.created_at);
+  // Themes on the card, not only in the drawer (#118): the model was invisible in the
+  // view that owns it. LIVE Themes are the ones shown, because a live Theme is what
+  // "categorised" means everywhere else (the no-theme filter, the by-theme grouping) —
+  // and a since-retired tag is counted and named rather than dropped, so a card never
+  // silently omits something the record carries.
+  const live = idea.themes.filter((t) => !t.archived);
+  const retired = idea.themes.length - live.length;
   return (
     <Card className="h-full gap-2 p-4">
       <div className="flex gap-2">
         <Lightbulb aria-hidden className="text-muted-foreground mt-0.5 size-4 shrink-0" />
         <p className="text-sm leading-snug text-pretty line-clamp-3">{headline}</p>
       </div>
-      {/* Provenance + age + source — the triage cues (#76). */}
+      <div className="flex flex-wrap items-center gap-1 pl-6">
+        {live.length > 0 ? (
+          live.map((t) => (
+            <Badge key={t.id} variant="secondary" className="font-normal">
+              {t.label}
+            </Badge>
+          ))
+        ) : (
+          // A card with none says so — the gap is the tagging queue, not an absence to
+          // be noticed.
+          <span className="text-muted-foreground inline-flex items-center gap-1 text-[0.7rem] italic">
+            <TagX aria-hidden className="size-3" />
+            no theme
+          </span>
+        )}
+        {retired > 0 ? (
+          <span className="text-muted-foreground text-[0.7rem]">· {retired} retired</span>
+        ) : null}
+      </div>
+      {/* Provenance + age + source — the triage cues (#76) — plus whether the words
+          have been reread since capture (#118). */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-6">
         {idea.status === "archived" ? (
           <Badge variant="outline" className="text-muted-foreground gap-1 font-normal">
@@ -254,10 +271,19 @@ export function IdeaCard({ idea }: { idea: IdeaWithProvenance }) {
           </Badge>
         ) : null}
         <UsedBadge count={idea.usedCount} />
-        {idle ? (
-          <span className="text-muted-foreground inline-flex items-center gap-1 text-[0.7rem] tabular-nums">
-            <Clock aria-hidden className="size-3" />
-            {idle}
+        <span
+          className="text-muted-foreground inline-flex items-center gap-1 text-[0.7rem] tabular-nums"
+          title={`Captured ${formatDate(idea.created_at) ?? "—"}`}
+        >
+          <Clock aria-hidden className="size-3" />
+          {ideaAgeLabel(ideaAgeDays(idea, today))}
+        </span>
+        {/* Never rewritten since it landed: the fact that turns a fresh spark into
+            something worth rereading, and it is on the record already (#118). */}
+        {neverEdited(idea) ? (
+          <span className="text-muted-foreground inline-flex items-center gap-1 text-[0.7rem]">
+            <PencilOff aria-hidden className="size-3" />
+            never edited
           </span>
         ) : null}
         {idea.source ? (
