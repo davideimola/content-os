@@ -3,9 +3,9 @@
 // The Engagement tier's detail drawers — the tier had none anywhere in the console,
 // so a row for an Event or a CFP deadline had nothing to open (#111).
 //
-// Both are **read-only**: the verbs that create an Event, create a submission or
-// record an outcome do not exist yet, and neither does anything that advances a
-// Talk's readiness. They show facts; nothing here writes.
+// Both are **read-only**: the verbs that create an Event, create a submission and
+// record an outcome exist now (#114, wrapped as Server Actions), but the surface
+// that calls them is the Talks rework's (#119). They show facts; nothing here writes.
 //
 // Each takes a **required** `trigger` (the shared opener contract, `DetailTrigger`):
 // unlike a Piece / Idea / Talk, an Event and a CFP have no canonical card in the

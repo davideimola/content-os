@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import type { EngagementOutcome } from "@/lib/pipeline";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
 // Every write is a call to a defined RPC verb (ADR-0015/0016): the UI holds no
@@ -132,4 +133,76 @@ export async function setIdeaThemes(ideaId: string, themeIds: string[]): Promise
 // range wider, and 2 of the 18 live Pieces have no source Idea at all.
 export async function setPieceThemes(pieceId: string, themeIds: string[]): Promise<ActionResult> {
   return callVerb("set_piece_themes", { p_piece_id: pieceId, p_theme_ids: themeIds });
+}
+
+// ── the Engagement tier (#114 verbs) ─────────────────────────────────────────
+// The console's half of the three verbs the Engagement tier gained: create an
+// Event, submit a Talk to it, record the outcome. Same rule as every other write —
+// a call to the verb, then revalidate; the UI holds no persistence logic.
+//
+// Both creators take an **object**, not positionals: they carry optional fields a
+// form leaves empty, and a row of `""` arguments invites a silent swap. Each blank
+// becomes `null` here instead of being passed through — an empty date input is
+// `""`, which Postgres cannot cast to `date`. That is this layer's only job: the
+// form boundary, not a second copy of the verb's trimming.
+
+// create_event(name, starts_on?, ends_on?, location?, url?, roles?): a conference
+// exists before anything is submitted to it. Returns the new id so a "create the
+// Event inline" flow can immediately submit against it (the way createTheme
+// returns the minted theme). `is_public` is not on the verb: putting an Event on
+// davideimola.dev is a separate act from recording that it exists.
+export async function createEvent(input: {
+  name: string;
+  startsOn?: string;
+  endsOn?: string;
+  location?: string;
+  url?: string;
+  roles?: string[];
+}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "A name is required." };
+  const res = await callVerbReturning<{ id: string } | null>("create_event", {
+    p_name: name,
+    p_starts_on: input.startsOn?.trim() || null,
+    p_ends_on: input.endsOn?.trim() || null,
+    p_location: input.location?.trim() || null,
+    p_url: input.url?.trim() || null,
+    p_roles: input.roles ?? [],
+  });
+  if (!res.ok) return res;
+  if (!res.data?.id) return { ok: false, error: "create_event returned no event." };
+  return { ok: true, id: res.data.id };
+}
+
+// create_engagement(talk_id, event_id, kind, deadline?, cfp_link?): one submission
+// of one Talk to one Event, born at `to_submit`. The console creates `cfp`
+// submissions only (a `direct` engagement is an invitation, which nothing here
+// records). A deadline is optional in the model — and a submission without one is
+// invisible on the Calendar, which is the fact the Talks view surfaces.
+export async function createEngagement(input: {
+  talkId: string;
+  eventId: string;
+  deadline?: string;
+  cfpLink?: string;
+}): Promise<ActionResult> {
+  if (!input.talkId) return { ok: false, error: "A Talk is required." };
+  if (!input.eventId) return { ok: false, error: "An Event is required." };
+  return callVerb("create_engagement", {
+    p_talk_id: input.talkId,
+    p_event_id: input.eventId,
+    p_kind: "cfp",
+    p_deadline: input.deadline?.trim() || null,
+    p_cfp_link: input.cfpLink?.trim() || null,
+  });
+}
+
+// set_engagement_outcome(id, outcome): record where a submission stands. The verb
+// validates the outcome against the Engagement's kind server-side (a `cfp` takes
+// the four submission outcomes, a `direct` only `confirmed`), so an illegal pair
+// comes back as an error rather than being written.
+export async function setEngagementOutcome(
+  id: string,
+  outcome: EngagementOutcome
+): Promise<ActionResult> {
+  return callVerb("set_engagement_outcome", { p_id: id, p_outcome: outcome });
 }
