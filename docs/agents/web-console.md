@@ -75,6 +75,11 @@ only brand accent is the mark's red cursor. The header reads **Editorial HQ · d
   The **Engagement tier** verbs `create_event` / `create_engagement` / `set_engagement_outcome` (#114) are
   wrapped the same way (`createEvent` / `createEngagement` / `setEngagementOutcome`); the surface that calls
   them is the Talks rework's, so today the tier's drawers stay read-only.
+  The **Talk ladder** verbs `start_talk_production` / `mark_talk_ready` (#115) likewise
+  (`startTalkProduction` / `markTalkReady`): `{proposed, ready} → in_production` and
+  `in_production → ready`, both from-state guarded server-side, with `declined` still reachable only
+  through `decline_talk`. The console is their intended only caller — the Desk judges and routes, it does
+  not build decks — and the surface that taps them is the Talks rework's too.
   `set_piece_linkedin_url` ([ADR-0019](../adr/0019-linkedin-metrics-contract-follows-the-aggregate-export.md),
   guarded to `channel = 'linkedin'`) ties a Piece to its LinkedIn post so the per-Piece metrics cross can
   join by URL. MCP-adapter parity for the edit verbs + this one (so the Desk/AI apps can use them too) is a

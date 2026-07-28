@@ -34,6 +34,33 @@
 -- is what `untriaged_proposals` counts, so a verb that put a Talk back there would
 -- put it back in front of the Monday Beat.
 --
+-- ADR-0017 dec.5 held these back — "the Talk ladder … get **no** verb here —
+-- nothing consumes them yet … Add them when a consumer appears". That condition is
+-- met, not overridden: the console's Talks rework (#119) taps both rungs, and the
+-- data repair below needs the verb today. This is the deferred-guard rule paying
+-- out, not an amendment to that ADR.
+--
+-- **The data repair is not a statement in this migration**, deliberately. The three
+-- live Talks (`talk_…066` ComeToCode, `talk_…067` GoLab, `talk_…068` reactjsday)
+-- were moved `ready → in_production` by calling `start_talk_production` on the live
+-- project once this migration was applied — the ticket's own condition, "through the
+-- new verbs, not with a raw UPDATE". A targeted statement here could not do the job:
+-- those rows exist in exactly one database (they were hand-seeded, like the
+-- Engagements #114 found), so on any fresh DB the ids resolve to nothing, and on the
+-- live one the migration is already recorded as applied. A statement that can never
+-- run is a worse record than this note.
+--
+-- Evidence the repair rests on, per Talk: each has an `accepted` `cfp` Engagement, so
+-- each was judged, pursued, submitted and won a slot — which is what rules out
+-- `proposed`, the state `untriaged_proposals` counts and the Monday Beat pings on.
+-- Each has a `brief_url` into the presentations Factory; two have a half-built deck
+-- there (`ai-defense/src/slides.md`, `securing-go/src/slides.md`) and `…068` has no
+-- deck folder at all ("Slidev folder: TBD"). None is finished, so none is `ready`.
+-- The residual, recorded rather than papered over: for `…068` this ladder has no rung
+-- for "accepted, deck not begun", and `in_production` overstates it by exactly that
+-- much. `in_production` is the least-wrong state it can be justified in, and it was
+-- not reached by redefining what the state means.
+--
 -- Style is the established one: atomic, `security definer`, `set search_path =
 -- public`, service_role-only grants at the foot, `updated_at` via the existing
 -- trigger. Verbs contracted in docs/design/supabase-foundations.md (RPC verbs).
