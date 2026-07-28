@@ -110,7 +110,7 @@ export function RowTrigger({
 }
 
 // A card made into a drawer trigger — full-width, left-aligned, with a hover cue.
-// `id` makes the card an anchor target (e.g. `/pipeline#<pieceId>`, so an Idea's
+// `id` makes the card an anchor target (e.g. `/calendar#<pieceId>`, so an Idea's
 // provenance list can link through to a Piece, #76): it scrolls into view and
 // flashes a ring while it is the URL's `:target`.
 export function CardTrigger({

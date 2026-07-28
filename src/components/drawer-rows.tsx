@@ -16,8 +16,10 @@ import { CardTrigger, type DetailTrigger, RowTrigger } from "@/components/detail
 import { CfpDetail, EventDetail } from "@/components/detail/engagement-detail";
 import { PieceDetail } from "@/components/detail/piece-detail";
 import { calendarKindMeta, formatDate, OutcomeBadge } from "@/components/pipeline";
+import { ReadinessBadge } from "@/components/readiness";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import type { Readiness } from "@/lib/derive";
 import type { CalendarItem, EngagementContext, PieceMetrics, ThemeContext } from "@/lib/pipeline";
 import { type CfpSubmission, cfpSubmission, type Row } from "@/lib/rows";
 
@@ -32,13 +34,16 @@ function KindBadge({ item }: { item: CalendarItem }) {
 }
 
 // What an agenda row shows, drawer or not: the title, its kind, its state, and for a
-// CFP or Event the conference behind it.
-function AgendaBody({ item }: { item: CalendarItem }) {
+// CFP or Event the conference behind it. `readiness` is optional and additive — the
+// derived "is it actually written" fact (#116) shown BESIDE the state, never instead
+// of it: a caller that has no notion of today simply omits it.
+function AgendaBody({ item, readiness }: { item: CalendarItem; readiness?: Readiness | null }) {
   return (
     <Card className="gap-2 p-3.5">
       <p className="text-sm leading-snug font-medium text-pretty">{item.title}</p>
       <div className="flex flex-wrap items-center gap-1.5">
         <KindBadge item={item} />
+        {readiness ? <ReadinessBadge readiness={readiness} /> : null}
         {item.state ? (
           <span className="text-muted-foreground text-xs">{item.state.replace("_", " ")}</span>
         ) : null}
@@ -51,19 +56,24 @@ function AgendaBody({ item }: { item: CalendarItem }) {
 }
 
 // One agenda row. `engagements`, `metrics` and `themes` are the plain-record lookups
-// the row needs to hand its drawer the full record behind the date.
+// the row needs to hand its drawer the full record behind the date; `readiness` is
+// the derived mark, computed by the caller (which knows what "today" is) and passed
+// in — this module must not compute a date on the client, where it would disagree
+// with the server render.
 export function AgendaRow({
   row,
   engagements,
   metrics,
   themes,
+  readiness,
 }: {
   row: Row;
   engagements: EngagementContext;
   metrics?: Record<string, PieceMetrics>;
   themes: ThemeContext;
+  readiness?: Readiness | null;
 }) {
-  const body = <AgendaBody item={row.item} />;
+  const body = <AgendaBody item={row.item} readiness={readiness} />;
   // The row is the opener. `id` keeps the anchor-target behaviour a card trigger has,
   // so a link to `#<id>` still scrolls the row into view and flashes it (#76).
   const asRow: DetailTrigger = (open) => (

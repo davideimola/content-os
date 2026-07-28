@@ -140,10 +140,18 @@ export function IdeaDetail({
               ) : (
                 <ul className="flex flex-col gap-1.5">
                   {idea.spawnedPieces.map((p) => {
-                    // A declined Piece has no card on the board, so there's nowhere
-                    // to click through to — show it (honest provenance) but not as a
-                    // dead link. Every other state renders a card on /pipeline.
-                    const href = p.state === "declined" ? null : `/pipeline#${p.id}`;
+                    // Where a Piece is visible now that the board has dissolved
+                    // (#116): a dated one on the Calendar, an undated proposal in the
+                    // Overview's "To judge" grid — both render it as an anchored card,
+                    // so `#<id>` scrolls to it and flashes. A declined Piece has no
+                    // card anywhere, so it shows (honest provenance) but not as a
+                    // dead link.
+                    const href =
+                      p.state === "declined"
+                        ? null
+                        : p.publish_date
+                          ? `/calendar#${p.id}`
+                          : `/#${p.id}`;
                     const inner = (
                       <>
                         <span className="text-sm leading-snug font-medium text-pretty">
