@@ -75,7 +75,6 @@ export default async function MetricsPage() {
   );
   const latest = liMonths[0];
   const siteMonths = monthly.filter((m) => m.site_visitors != null || m.site_page_views != null);
-  const latestSite = siteMonths[0];
 
   // ── what is measured, and what that explains ───────────────────────────────
   const coverage = metricsCoverage(pieces, metrics.posts);
