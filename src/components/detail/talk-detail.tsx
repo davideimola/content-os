@@ -28,20 +28,17 @@ export function TalkDetail({ talk, trigger }: { talk: Talk; trigger?: DetailTrig
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  function run(action: () => Promise<ActionResult>) {
+  // The same helper `PieceDetail` uses, with the same `closeOnDone` — so declining a Talk
+  // closes its drawer exactly as declining a Piece does.
+  function run(action: () => Promise<ActionResult>, closeOnDone = false) {
     setError(null);
     startTransition(async () => {
       const res = await action();
-      if (!res.ok) setError(res.error);
-    });
-  }
-
-  function decline() {
-    setError(null);
-    startTransition(async () => {
-      const res = await declineTalk(talk.id);
-      if (res.ok) setOpen(false);
-      else setError(res.error);
+      if (res.ok) {
+        if (closeOnDone) setOpen(false);
+      } else {
+        setError(res.error);
+      }
     });
   }
 
@@ -192,7 +189,12 @@ export function TalkDetail({ talk, trigger }: { talk: Talk; trigger?: DetailTrig
 
         {talk.state !== "declined" ? (
           <div className="border-t pt-4">
-            <Button size="sm" variant="destructive" onClick={decline} disabled={pending}>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => run(() => declineTalk(talk.id), true)}
+              disabled={pending}
+            >
               Decline
             </Button>
           </div>

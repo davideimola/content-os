@@ -77,10 +77,13 @@ function AssetSheet({
           `flex-1` pushes the creation button to the foot of the sheet, so the same
           action sits in the same place on every card in the grid. */}
       <div className="flex flex-1 flex-col gap-1.5 border-t p-4">
+        {/* A label, deliberately not a heading: the Talk's title is what names this card
+            and it lives in the trigger above, so a heading here would put N identical
+            "Submissions" into heading navigation with no owner. */}
         <div className="flex items-baseline justify-between gap-2">
-          <h3 className="text-muted-foreground text-[0.65rem] font-semibold tracking-wide uppercase">
+          <span className="text-muted-foreground text-[0.65rem] font-semibold tracking-wide uppercase">
             Submissions
-          </h3>
+          </span>
           {/* The TRUE count, always — the cap below hides rows, never the number. */}
           <span className="text-sm font-semibold tabular-nums">{submissions.length}</span>
         </div>
@@ -155,7 +158,11 @@ export function TalksView({
   }
 
   return (
-    <div className="grid auto-rows-fr grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+    // Equal heights from the breakpoint the second column appears at, not before it: in a
+    // single column every card is its own row, so `auto-rows-fr` there would stretch a
+    // Talk with no submissions to the tallest card in the whole list — dead space on the
+    // phone, where it costs most. Uniformity is a fact about a row of cards.
+    <div className="grid grid-cols-1 gap-3 md:auto-rows-fr md:grid-cols-2 xl:grid-cols-3">
       {talks.map((talk) => (
         <AssetSheet key={talk.id} talk={talk} engagements={engagements} events={events} />
       ))}

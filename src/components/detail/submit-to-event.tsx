@@ -30,19 +30,37 @@ import { cn } from "@/lib/utils";
 // The sentinel id for the synthetic "Create «query»" row — base-ui's Combobox has no
 // built-in creatable, so an item is injected and materialized on submit. Same technique
 // as `ThemeTagger`, single-select here because a submission goes to one conference.
+//
+// It differs from `ThemeTagger` in one way that matters: the tagger materializes the new
+// row inside `onValueChange`, this defers it to submit — because `create_event` is not
+// get-or-create and nothing deletes an Event, so minting one the moment a name is typed
+// would leave debris behind every abandoned draft. Deferring costs a hazard that has to
+// be closed explicitly: in single-select, picking an item fills the input and the
+// selection then **survives any later typing**, so a picked "GoLab" plus three more
+// keystrokes would file "GoLab" while the field reads "GoLab 2027". So the query lives in
+// the PARENT and the selection only counts while the two agree (`chosenEvent`) — the
+// field is what Davide can see, and nothing is created that it does not say.
 const CREATE_ID = "__create__";
 type Option = { id: string; label: string };
+
+// The selection, but only while the visible text still says so. Null the moment they
+// diverge, which disables the submit and asks for a re-pick.
+const chosenEvent = (option: Option | null, query: string): Option | null =>
+  option && option.label === query.trim() ? option : null;
 
 function EventPicker({
   events,
   value,
   onChange,
+  query,
+  setQuery,
 }: {
   events: EventRecord[];
   value: Option | null;
   onChange: (option: Option | null) => void;
+  query: string;
+  setQuery: (value: string) => void;
 }) {
-  const [query, setQuery] = useState("");
   const q = query.trim();
   const qLower = q.toLowerCase();
   const matching = events
@@ -60,7 +78,7 @@ function EventPicker({
       value={value}
       onValueChange={(next: Option | null) => onChange(next)}
       inputValue={query}
-      onInputValueChange={(v: string) => setQuery(v)}
+      onInputValueChange={setQuery}
       filter={null}
       itemToStringLabel={(item: Option) => item.label}
       itemToStringValue={(item: Option) => item.label}
@@ -148,13 +166,17 @@ export function SubmitToEvent({
 }) {
   const [open, setOpen] = useState(false);
   const [option, setOption] = useState<Option | null>(null);
+  const [query, setQuery] = useState("");
   // The Event fields, revealed only when one is being created — an existing Event's
   // details are not editable through any verb, so showing them for a picked Event would
-  // offer an edit that cannot happen.
+  // offer an edit that cannot happen. That is also why every one of them is offered here:
+  // there is no `edit_event`, so a field left off this form is a field that Event can
+  // never carry.
   const [startsOn, setStartsOn] = useState("");
   const [endsOn, setEndsOn] = useState("");
   const [location, setLocation] = useState("");
   const [url, setUrl] = useState("");
+  const [roles, setRoles] = useState("");
   const [deadline, setDeadline] = useState("");
   const [cfpLink, setCfpLink] = useState("");
   // The id of an Event this flow already created: the resume point if the submission
@@ -163,14 +185,18 @@ export function SubmitToEvent({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const creatingEvent = option?.id === CREATE_ID;
+  // The selection only counts while the field still reads it — see `chosenEvent`.
+  const chosen = chosenEvent(option, query);
+  const creatingEvent = chosen?.id === CREATE_ID;
 
   function reset() {
     setOption(null);
+    setQuery("");
     setStartsOn("");
     setEndsOn("");
     setLocation("");
     setUrl("");
+    setRoles("");
     setDeadline("");
     setCfpLink("");
     setCreatedEventId(null);
@@ -178,20 +204,24 @@ export function SubmitToEvent({
   }
 
   function submit() {
-    if (!option) return;
+    if (!chosen) return;
     setError(null);
     startTransition(async () => {
-      let eventId = option.id;
+      let eventId = chosen.id;
       if (creatingEvent) {
         if (createdEventId) {
           eventId = createdEventId; // a retry: the Event is already on the record
         } else {
           const created = await createEvent({
-            name: option.label,
+            name: chosen.label,
             startsOn,
             endsOn,
             location,
             url,
+            // Free text, split on commas: the verb drops blanks and dedupes, so
+            // "organizer, , organizer" lands as {organizer}. Speaking is NOT a role —
+            // it is derived from an accepted submission (#114).
+            roles: roles.split(",").map((r) => r.trim()),
           });
           if (!created.ok) {
             setError(created.error);
@@ -205,7 +235,7 @@ export function SubmitToEvent({
       const res = await createEngagement({ talkId: talk.id, eventId, deadline, cfpLink });
       if (!res.ok) {
         setError(
-          createdEventId || creatingEvent
+          creatingEvent
             ? `${res.error} — the Event was created; submitting again will reuse it.`
             : res.error
         );
@@ -246,12 +276,16 @@ export function SubmitToEvent({
             hint={
               creatingEvent
                 ? "New conference — it will be created, then submitted to."
-                : "Two conferences can share a name across years, so pick the right one."
+                : chosen
+                  ? "Two conferences can share a name across years, so this is the one by id."
+                  : "Pick one from the list, or type a new name and choose “Create …”."
             }
           >
             <EventPicker
               events={events}
               value={option}
+              query={query}
+              setQuery={setQuery}
               onChange={(next) => {
                 // Changing the conference drops the resume point: an Event created by a
                 // failed attempt belongs to the name that was typed then, and reusing its
@@ -299,6 +333,20 @@ export function SubmitToEvent({
                   aria-label="Event URL"
                 />
               </Field>
+              {/* Offered because it is unrecoverable: there is no `edit_event`, so a role
+                  left off here is one this Event can never carry. Speaking is not a role —
+                  it is derived from an accepted submission (#114). */}
+              <Field
+                label="Your roles there"
+                hint="Comma-separated (organizer, mc). Not speaking — that comes from an accepted submission. It cannot be changed afterwards."
+              >
+                <Input
+                  value={roles}
+                  onChange={(e) => setRoles(e.target.value)}
+                  placeholder="organizer, mc"
+                  aria-label="Your roles at the event"
+                />
+              </Field>
             </div>
           ) : null}
 
@@ -328,7 +376,7 @@ export function SubmitToEvent({
           </Field>
 
           <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-            <Button size="sm" onClick={submit} disabled={pending || !option}>
+            <Button size="sm" onClick={submit} disabled={pending || !chosen}>
               {creatingEvent && !createdEventId ? "Create event & submit" : "Create submission"}
             </Button>
             <span className="text-muted-foreground text-xs">

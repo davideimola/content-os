@@ -57,13 +57,18 @@ function OutcomeControl({ id, current }: { id: string; current: EngagementOutcom
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap gap-1.5">
         {CFP_OUTCOMES.map((outcome) => (
+          // The current value stays focusable rather than being disabled: disabling it
+          // takes it out of the tab order, so a keyboard or screen-reader user tabs the
+          // group and never meets the state they are in. Pressing it is a no-op instead —
+          // it would write the value it already has and bump `updated_at` for nothing.
           <Button
             key={outcome}
             size="xs"
             variant={outcome === current ? "default" : "outline"}
             aria-pressed={outcome === current}
-            disabled={pending || outcome === current}
+            disabled={pending}
             onClick={() => {
+              if (outcome === current) return;
               setError(null);
               startTransition(async () => {
                 const res = await setEngagementOutcome(id, outcome);
