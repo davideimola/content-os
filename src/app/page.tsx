@@ -10,6 +10,7 @@ import {
   agendaWindowRows,
   blogHolesAhead,
   linkedinHolesAhead,
+  monthLabel,
   outputByMonth,
   todayISO,
   writtenVsDated,
@@ -45,7 +46,6 @@ export const dynamic = "force-dynamic";
 // ranks an Idea, nothing suggests what to write. The derivations live in
 // `src/lib/derive.ts`, where the four tuning dials are named in one place.
 
-const monthLongFmt = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
 const monthShortFmt = new Intl.DateTimeFormat("en-GB", { month: "short" });
 const numFmt = new Intl.NumberFormat("en-GB");
 
@@ -150,7 +150,7 @@ export default async function OverviewPage() {
       <Section
         title={
           latest
-            ? `This month on LinkedIn · ${monthLongFmt.format(asMonth(latest.month))}`
+            ? `This month on LinkedIn · ${monthLabel(latest.month.slice(0, 7))}`
             : "This month on LinkedIn · no month ingested yet"
         }
       >

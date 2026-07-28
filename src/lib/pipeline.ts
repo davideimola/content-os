@@ -125,11 +125,6 @@ export type PieceMetrics = {
   siteVisitors?: number | null; // for a blog Piece: its publish-month site visitors (site-wide)
 };
 
-// The live order of the Pipeline lifecycle (ADR-0018), for anywhere the ladder has
-// to be listed in order. No longer a board's column order — the board dissolved with
-// the Pipeline view (#116).
-export const PIECE_STATE_ORDER: PieceState[] = ["proposed", "slotted", "ready", "published"];
-
 async function selectAll<T>(
   table: string,
   columns: string,

@@ -44,14 +44,26 @@ export function HomeAgenda({
   metrics?: Record<string, PieceMetrics>;
   themes: ThemeContext;
 }) {
-  const { shown, hidden } = capped(rows, TUNING.agendaRows);
+  // Readiness per row, computed once: it is what each row displays AND what the two
+  // counts below are folded from.
+  const marked = rows.map((row) => ({
+    row,
+    readiness: row.kind === "piece" && row.piece ? readinessOf(row.piece, today) : null,
+  }));
+
+  // A missed date is exempt from the row cap — a backlog of them must not push the
+  // week out of view, which is the one thing the cap exists to protect.
+  const behind = marked.filter((m) => m.readiness?.key === "missed");
+  const { shown, hidden } = capped(
+    marked.filter((m) => m.readiness?.key !== "missed"),
+    TUNING.agendaRows
+  );
+  const listed = [...behind, ...shown];
 
   // The count the cadence pills can never show: dated, close, and nothing written.
-  const readiness = rows.map((row) =>
-    row.kind === "piece" && row.piece ? readinessOf(row.piece, today) : null
-  );
-  const unwritten = readiness.filter((r) => r?.key === "late" || r?.key === "not_written").length;
-  const missed = readiness.filter((r) => r?.key === "missed").length;
+  const unwritten = marked.filter(
+    (m) => m.readiness?.key === "late" || m.readiness?.key === "not_written"
+  ).length;
 
   if (rows.length === 0) {
     return <EmptyState>Nothing dated in the next {TUNING.agendaDays} days.</EmptyState>;
@@ -60,7 +72,7 @@ export function HomeAgenda({
   return (
     <div className="flex flex-col gap-2">
       <ul className="flex flex-col gap-2">
-        {shown.map((row, i) => (
+        {listed.map(({ row, readiness }) => (
           <li key={rowKey(row)} className="flex items-start gap-2">
             <DateStamp date={row.item.date} today={today} />
             <div className="min-w-0 flex-1">
@@ -69,7 +81,7 @@ export function HomeAgenda({
                 engagements={engagements}
                 metrics={metrics}
                 themes={themes}
-                readiness={readiness[i]}
+                readiness={readiness}
               />
             </div>
           </li>
@@ -87,9 +99,11 @@ export function HomeAgenda({
           {unwritten} dated in the next {TUNING.agendaDays} days with nothing written yet.
         </p>
       ) : null}
-      {missed > 0 ? (
+      {behind.length > 0 ? (
         <p className="px-1 text-xs text-red-700 dark:text-red-400">
-          {missed} date already passed with nothing shipped.
+          {behind.length === 1
+            ? "1 date already passed with nothing shipped."
+            : `${behind.length} dates already passed with nothing shipped.`}
         </p>
       ) : null}
     </div>

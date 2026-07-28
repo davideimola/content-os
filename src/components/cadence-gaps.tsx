@@ -35,15 +35,19 @@ export function CadenceGaps({ linkedin, blog }: { linkedin: WeekHole[]; blog: Mo
       {/* The section heading above already says "Missing ahead" — this row names what
           the number counts instead of repeating it. */}
       <div className="flex items-baseline justify-between gap-2">
+        {/* "open" is the pills' own word for an uncovered period — one vocabulary for
+            one fact, and the card never re-words what the Beat's view already says. */}
         <span className="text-muted-foreground text-xs">
-          {total === 1 ? "uncovered period" : "uncovered periods"}
+          {total === 1 ? "open period" : "open periods"}
         </span>
         <span className="text-lg font-semibold tabular-nums tracking-tight">{total}</span>
       </div>
       {total === 0 ? (
+        // Careful wording: the current week and month are excluded, so this must not
+        // claim they are covered — a pill beside it may well read `open`.
         <p className="text-muted-foreground text-xs">
-          Both floors covered for the next {TUNING.linkedinHoleWeeks} weeks and{" "}
-          {TUNING.blogHoleMonths} months.
+          Nothing open in the {TUNING.linkedinHoleWeeks} weeks and {TUNING.blogHoleMonths} months
+          after the current one.
         </p>
       ) : null}
       <GapGroup

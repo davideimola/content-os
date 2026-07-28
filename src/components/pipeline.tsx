@@ -104,22 +104,6 @@ export function calendarKindMeta(item: CalendarItem): {
   return { icon: meta.icon, label: meta.label, variant: "outline" };
 }
 
-// The kind as a bare icon, labelled for screen readers + hover — the compact cue
-// used where a full badge would be too heavy (the Overview "Next up" list).
-export function CalendarKindIcon({ item }: { item: CalendarItem }) {
-  const { icon: Icon, label } = calendarKindMeta(item);
-  return (
-    <span
-      role="img"
-      aria-label={label}
-      title={label}
-      className="text-muted-foreground inline-flex shrink-0"
-    >
-      <Icon aria-hidden className="size-4" />
-    </span>
-  );
-}
-
 export function FlagBadge({ flagSide }: { flagSide: FlagSide }) {
   return flagSide === "flag" ? (
     <Badge className="uppercase tracking-wide">Flag</Badge>

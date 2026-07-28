@@ -48,10 +48,11 @@ export const TUNING = {
 
   /**
    * How many **weeks after the current one** to scan for a missing LinkedIn slot.
-   * Measured in the prototype against this same data: a 4-week horizon shows no
-   * holes, 8 shows one, 12 shows five, 20 shows thirteen running to December —
-   * noise. Eight is the longest horizon that still reports only holes worth
-   * filling (two today: 7–13 Sep and 21–27 Sep).
+   * Measured in the prototype against this same data, anchored on the current week:
+   * a 4-week horizon showed no holes, 8 showed one, 12 showed five, 20 showed
+   * thirteen running to December — noise. This list starts at the week *after* the
+   * current one (that one is the pills' answer), so the same 8 reports two today —
+   * 7–13 Sep and 21–27 Sep, both holes worth filling — where 12 would report five.
    */
   linkedinHoleWeeks: 8,
 
@@ -88,11 +89,11 @@ function toISO(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-export function parseISO(iso: string): Date {
+function parseISO(iso: string): Date {
   return new Date(`${iso.slice(0, 10)}T00:00:00`);
 }
 
-export function addDays(iso: string, n: number): string {
+function addDays(iso: string, n: number): string {
   const d = parseISO(iso);
   d.setDate(d.getDate() + n);
   return toISO(d);
@@ -100,13 +101,13 @@ export function addDays(iso: string, n: number): string {
 
 // Whole days from `from` to `to`; negative when `to` is behind `from`. Rounded, so
 // a DST hour inside the interval cannot bend a day into 0.96 of one.
-export function daysBetween(from: string, to: string): number {
+function daysBetween(from: string, to: string): number {
   return Math.round((parseISO(to).getTime() - parseISO(from).getTime()) / 86_400_000);
 }
 
 // The Monday of the week a date falls in — the phase `cadence_status` is defined
 // on (Postgres `date_trunc('week', …)` is Monday-based).
-export function mondayOf(iso: string): string {
+function mondayOf(iso: string): string {
   const d = parseISO(iso);
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // Mon = 0 … Sun = 6
   return toISO(d);
@@ -161,7 +162,7 @@ export type Readiness = {
   daysUntil: number;
 };
 
-export const READINESS_LABEL: Record<ReadinessKey, string> = {
+const READINESS_LABEL: Record<ReadinessKey, string> = {
   shipped: "shipped",
   missed: "missed",
   in_can: "in the can",
@@ -334,7 +335,9 @@ export function blogHolesAhead(
 // A rolling seven days (see `TUNING.agendaDays`), plus every Piece that already
 // reads `missed`: a date that passed with nothing shipped must not sit silently in
 // the past just because the window moved beyond it. Rows arrive date-sorted and
-// stay that way.
+// stay that way, so the missed ones come first — and the renderer exempts them from
+// the row cap, because a backlog of missed dates must never push the week itself
+// out of view.
 export function agendaWindowRows(rows: Row[], today: string): Row[] {
   const end = addDays(today, TUNING.agendaDays - 1);
   return rows.filter((row) => {

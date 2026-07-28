@@ -1,42 +1,7 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
-import Link from "next/link";
 
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-
-// A compact KPI tile for the Overview. `href` makes the whole tile a link; `accent`
-// draws attention (e.g. proposals waiting to be judged).
-export function StatTile({
-  label,
-  value,
-  href,
-  accent,
-}: {
-  label: string;
-  value: number | string;
-  href?: string;
-  accent?: boolean;
-}) {
-  const inner = (
-    <Card
-      className={cn(
-        "gap-1 p-4 transition-colors",
-        href && "hover:border-foreground/20",
-        accent && "border-amber-500/40 bg-amber-500/10"
-      )}
-    >
-      <span className="text-2xl font-semibold tabular-nums tracking-tight">{value}</span>
-      <span className="text-muted-foreground text-xs">{label}</span>
-    </Card>
-  );
-  return href ? (
-    <Link href={href} className="block">
-      {inner}
-    </Link>
-  ) : (
-    inner
-  );
-}
 
 // A KPI tile with an optional month-over-month delta. `tone` colours the delta:
 // up = growth (emerald), down = decline (red), neutral = muted. The caller writes
