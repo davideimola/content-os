@@ -148,7 +148,7 @@ export function ThemeMap({ graph }: { graph: ThemeGraph }) {
                   stroke="var(--background)"
                   strokeWidth={2}
                 >
-                  <title>{`${node.label} — ${node.pieces} Pieces out (${node.published} published), ${node.ideas} live Ideas in, ${node.flag} flag / ${node.side} side${alone ? ", shares no output with another Theme" : ""}`}</title>
+                  <title>{`${node.label} — ${node.pieces} Pieces out, ${node.ideas} live Ideas in, ${node.flag} flag / ${node.side} side${alone ? ", shares no output with another Theme" : ""}`}</title>
                 </circle>
                 {alone ? (
                   <circle
@@ -186,13 +186,40 @@ export function ThemeMap({ graph }: { graph: ThemeGraph }) {
           })}
         </g>
       </svg>
-      <figcaption className="text-muted-foreground text-xs">
-        Mark size = Pieces carrying the Theme · line thickness = outputs two Themes share · dashed =
-        shares no output with another Theme.
+      <figcaption className="text-muted-foreground flex flex-col gap-1 text-xs">
+        <span>
+          Mark size = Pieces carrying the Theme · line thickness = outputs two Themes share · dashed
+          = shares no output with another Theme.
+        </span>
+        {/* Every line's weight as a NUMBER, not only as a thickness and a hover: the
+            phone is the deciding test for this drawing (ADR-0021 dec.3) and a phone has
+            no hover, so the heaviest pair has to be readable as a figure too. Sorted by
+            weight, which is the order the graph is built in. */}
+        {edges.length > 0 ? (
+          <span>
+            Sharing an output:{" "}
+            {edges.slice(0, PAIRS_SHOWN).map((edge, i) => (
+              <span key={`${edge.a}-${edge.b}`}>
+                {i > 0 ? " · " : ""}
+                <span className="text-foreground">
+                  {edge.aLabel} × {edge.bLabel}
+                </span>{" "}
+                <span className="tabular-nums">{edge.weight}</span>
+              </span>
+            ))}
+            {edges.length > PAIRS_SHOWN ? ` · ${edges.length - PAIRS_SHOWN} more pairs` : ""}
+          </span>
+        ) : (
+          <span>No output carries two Themes.</span>
+        )}
       </figcaption>
     </figure>
   );
 }
+
+// Enough for the shape of the positioning to read; more than this and the line stops
+// being a sentence.
+const PAIRS_SHOWN = 6;
 
 // ── the scoreboard ────────────────────────────────────────────────────────────
 // What the old "By theme" table showed, as bars: six rows of small integers cannot be
@@ -253,9 +280,13 @@ export function ThemeScoreboard({
               {node.label}
             </span>
             <span className="flex flex-wrap gap-x-2 text-[0.65rem]">
+              {/* Deliberately NOT in the warning amber the completeness cues use: the
+                  comparison is a fact (more in than out), and painting it as a defect
+                  would be the console saying a subject is under-shipped — which
+                  ADR-0021 keeps in the Desk, by name, in its accepted costs. */}
               {node.accumulating ? (
                 <span
-                  className="text-amber-700 dark:text-amber-400"
+                  className="text-foreground"
                   title={`${node.ideas} Ideas in against ${node.pieces} Pieces out`}
                 >
                   accumulating
@@ -293,16 +324,18 @@ export function ThemeScoreboard({
               value={node.pieces}
               max={maxOut}
               className={FILL_OUT}
-              title={`${node.pieces} Pieces carry ${node.label} (${node.published} published)`}
+              title={`${node.pieces} Pieces carry ${node.label}`}
             />
           </div>
         </div>
       ))}
+      {/* The denominator, stated: `out` is counted over Pieces — never over Ideas — and
+          declined Pieces are not output. It deliberately does not claim to be the same
+          count as the `flag_mix` view, which spans Talks too and does not filter state. */}
       <p className="text-muted-foreground text-xs">
         <span className="font-medium">in</span> = live Ideas carrying the Theme ·{" "}
         <span className="font-medium">out</span> = Pieces carrying it, declined excluded ·
-        accumulating = more in than out. Counted over Pieces, the same metre as Cadence and the Flag
-        mix.
+        accumulating = more in than out. Counted over Pieces, not over Ideas.
       </p>
     </div>
   );

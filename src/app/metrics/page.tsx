@@ -6,6 +6,7 @@ import {
   MeasuredPosts,
   MissingArtifacts,
   MonthTable,
+  type PieceLine,
   PiecePerformance,
   type PieceRowData,
 } from "@/components/metrics-panels";
@@ -94,16 +95,16 @@ export default async function MetricsPage() {
     .reduce((n, i) => n + i.themes.length, 0);
 
   // ── per Piece: everything that could carry numbers ─────────────────────────
-  // Shipped, or carrying a post link. Sorted by impressions, with a date and an id
-  // behind it so the order is total and the page renders the same way twice.
-  const impressionsOf = (id: string) => metrics.byPiece[id]?.linkedin?.impressions ?? -1;
+  // Shipped, or carrying a post link. Ordered by DATE, newest first — deliberately not
+  // by impressions: a table of output sorted by performance says which output did well,
+  // and ADR-0021 dec.1 keeps that sentence out of the console ("numbers of record,
+  // unranked"). The id breaks a tie so the order is total and the page renders the same
+  // way twice.
   const piecePerformance: PieceRowData[] = pieces
     .filter((p) => p.state === "published" || p.linkedin_post_url)
     .sort(
       (a, b) =>
-        impressionsOf(b.id) - impressionsOf(a.id) ||
-        (b.publish_date ?? "").localeCompare(a.publish_date ?? "") ||
-        a.id.localeCompare(b.id)
+        (b.publish_date ?? "").localeCompare(a.publish_date ?? "") || a.id.localeCompare(b.id)
     )
     .map((piece) => ({
       piece,
@@ -115,6 +116,9 @@ export default async function MetricsPage() {
   const titleByUrl = new Map(
     pieces.filter((p) => p.linkedin_post_url).map((p) => [p.linkedin_post_url as string, p.title])
   );
+  // These are the measurements themselves, not the output: a list of what LinkedIn
+  // measured, ordered by the figure it measured, with the URL breaking a tie. The
+  // Pieces above are what must not be ranked.
   const measured: MeasuredPost[] = [...sumByPostUrl(metrics.posts).entries()]
     .map(([url, sum]) => ({ url, ...sum, pieceTitle: titleByUrl.get(url) ?? null }))
     .sort((a, b) => b.impressions - a.impressions || a.url.localeCompare(b.url));
@@ -131,13 +135,9 @@ export default async function MetricsPage() {
 
   // ── completeness: published with nothing to point at ───────────────────────
   const published = pieces.filter((p) => p.state === "published");
-  const missingArtifacts: PieceRowData[] = published
+  const missingArtifacts: PieceLine[] = published
     .filter((p) => !p.artifact_url)
-    .map((piece) => ({
-      piece,
-      metrics: metrics.byPiece[piece.id],
-      themeLabels: (themes.byPiece[piece.id] ?? []).map((t) => t.label),
-    }));
+    .map((piece) => ({ piece, metrics: metrics.byPiece[piece.id] }));
 
   return (
     <View
@@ -262,26 +262,25 @@ export default async function MetricsPage() {
         />
       </Section>
 
-      {latestSite ? (
-        <Section title={`Site · ${monthLabel(latestSite.month.slice(0, 7))}`}>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <MetricTile label="Visitors" value={cell(latestSite.site_visitors)} />
-            <MetricTile label="Page views" value={cell(latestSite.site_page_views)} />
-            <div className="md:col-span-2">
-              <TrendChart
-                label="Site visitors · trend"
-                points={series(siteMonths, (r) => r.site_visitors)}
-              />
-            </div>
-          </div>
-        </Section>
-      ) : null}
-
+      {/* The month table is where the site figures live — the headline above is
+          LinkedIn's, and the site's latest month is often a different one (today: a
+          provisional July against an ingested June). The site trend sits with the table
+          rather than in a section of its own. */}
       <Section title="By month" count={monthly.length}>
         {monthly.length === 0 ? (
           <EmptyState>No metrics ingested yet — run /review to import a month.</EmptyState>
         ) : (
-          <MonthTable rows={monthly} />
+          <>
+            {siteMonths.length > 0 ? (
+              <div className="sm:max-w-xs">
+                <TrendChart
+                  label="Site visitors · trend"
+                  points={series(siteMonths, (r) => r.site_visitors)}
+                />
+              </div>
+            ) : null}
+            <MonthTable rows={monthly} />
+          </>
         )}
       </Section>
     </View>

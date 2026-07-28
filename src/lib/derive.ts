@@ -442,7 +442,6 @@ export type ThemeNode = {
   archived: boolean;
   ideas: number; // live Ideas carrying it
   pieces: number; // non-declined Pieces carrying it
-  published: number; // …of which already shipped
   flag: number;
   side: number;
   /** More Ideas in than Pieces out. A comparison of two counts, not a verdict. */
@@ -484,7 +483,6 @@ export function themeGraph(
       archived: t.archived,
       ideas: 0,
       pieces: 0,
-      published: 0,
       flag: 0,
       side: 0,
       accumulating: false,
@@ -507,20 +505,19 @@ export function themeGraph(
     for (const t of themes) {
       const node = touch(t);
       node.pieces += 1;
-      if (piece.state === "published") node.published += 1;
       if (piece.flag_side === "flag") node.flag += 1;
       else node.side += 1;
     }
     // Co-occurrence on ONE output: every unordered pair of the Themes it carries.
-    const ids = themes.map((t) => t).sort((x, y) => x.id.localeCompare(y.id));
-    for (let i = 0; i < ids.length; i++) {
-      for (let j = i + 1; j < ids.length; j++) {
-        const key = `${ids[i].id}|${ids[j].id}`;
+    const pairwise = [...themes].sort((x, y) => x.id.localeCompare(y.id));
+    for (let i = 0; i < pairwise.length; i++) {
+      for (let j = i + 1; j < pairwise.length; j++) {
+        const key = `${pairwise[i].id}|${pairwise[j].id}`;
         const edge = edges.get(key) ?? {
-          a: ids[i].id,
-          b: ids[j].id,
-          aLabel: ids[i].label,
-          bLabel: ids[j].label,
+          a: pairwise[i].id,
+          b: pairwise[j].id,
+          aLabel: pairwise[i].label,
+          bLabel: pairwise[j].label,
           weight: 0,
         };
         edge.weight += 1;

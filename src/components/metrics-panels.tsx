@@ -28,8 +28,9 @@ const growth = (n: number | null) => (n != null ? `+${numFmt.format(n)}` : "—"
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
 // ── the coverage strip ────────────────────────────────────────────────────────
-// How much of the output is actually measured — counted **over Pieces**, the same
-// metre as Cadence and the Flag mix. It doubles as the explanation for every empty
+// How much of the output is actually measured — counted **over Pieces**, never over
+// Ideas, which is the metre Cadence and the Flag mix are read in. It doubles as the
+// explanation for every empty
 // cell further down the page, which is why it sits above them and not at the bottom:
 // today all three figures collapse to zero coverage, and a page that showed dashes
 // without this strip would be a puzzle.
@@ -108,11 +109,15 @@ function coverageNote(
 // The numbers where they exist and the reason where they do not. The set is every
 // Piece that COULD carry numbers — shipped, or carrying a post link — because a
 // proposal with no date has no performance question to answer.
-export type PieceRowData = {
+
+// What every Piece row here needs to open its drawer. `PieceRowData` adds the Themes
+// only for the panel that shows them, so no caller computes a field its panel drops.
+export type PieceLine = {
   piece: PieceWithBlocker;
   metrics?: PieceMetrics;
-  themeLabels: string[];
 };
+
+export type PieceRowData = PieceLine & { themeLabels: string[] };
 
 export function PiecePerformance({
   rows,
@@ -255,7 +260,7 @@ export function MeasuredPosts({
               {numFmt.format(post.impressions)}
             </span>
             <span className="text-muted-foreground w-16 shrink-0 text-xs tabular-nums">
-              {post.engagements} eng
+              {numFmt.format(post.engagements)} eng
             </span>
             <a
               href={post.url}
@@ -315,14 +320,19 @@ export function IdeaYield({
                 <span className="w-8 shrink-0 text-sm font-semibold tabular-nums">
                   {idea.usedCount}×
                 </span>
-                <span className="min-w-0 flex-1 truncate text-sm">
-                  {idea.title?.trim() || idea.body}
-                </span>
-                <span className="text-muted-foreground hidden shrink-0 text-[0.7rem] sm:block">
-                  {idea.themes
-                    .filter((t) => !t.archived)
-                    .map((t) => t.label)
-                    .join(" · ") || "no Theme"}
+                {/* The Themes go UNDER the title on a phone and beside it on a wide row
+                    — different density, never a fact the phone lacks (ADR-0021 dec.3),
+                    which a `hidden sm:block` would have been. */}
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {idea.title?.trim() || idea.body}
+                  </span>
+                  <span className="text-muted-foreground shrink-0 text-[0.7rem]">
+                    {idea.themes
+                      .filter((t) => !t.archived)
+                      .map((t) => t.label)
+                      .join(" · ") || "no Theme"}
+                  </span>
                 </span>
               </span>
             </IdeaRow>
@@ -344,7 +354,7 @@ export function MissingArtifacts({
   themes,
   publishedCount,
 }: {
-  rows: PieceRowData[];
+  rows: PieceLine[];
   themes: ThemeContext;
   publishedCount: number;
 }) {

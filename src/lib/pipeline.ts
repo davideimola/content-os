@@ -314,6 +314,10 @@ export async function getFlagMix(): Promise<FlagMix> {
   return data as FlagMix;
 }
 
+// More months than the record will hold for years — the "every month" argument, named
+// so two callers cannot drift apart on the literal.
+const EVERY_MONTH = 120;
+
 // The most recent months with an account snapshot (newest first) — [latest, previous]
 // gives the Overview its value + month-over-month delta.
 export async function getLinkedinAccounts(limit = 2): Promise<LinkedinAccount[]> {
@@ -425,7 +429,7 @@ export type MonthlyMetrics = {
 // keyed by YYYY-MM so first-of-month dates from any source line up.
 export async function getMonthlyMetrics(): Promise<MonthlyMetrics[]> {
   const [accounts, site, posts] = await Promise.all([
-    getLinkedinAccounts(120),
+    getLinkedinAccounts(EVERY_MONTH),
     getSiteMetrics(),
     getLinkedinPosts(),
   ]);
@@ -455,7 +459,7 @@ export function monthlyMetricsFrom(
       month: `${m}-01`,
       li_impressions: a?.impressions ?? null,
       li_reach: a?.members_reached ?? null,
-      li_engagements: eng.has(m) ? (eng.get(m) as number) : null,
+      li_engagements: eng.get(m) ?? null,
       li_new_followers: a?.new_followers ?? null,
       site_visitors: s?.visitors ?? null,
       site_page_views: s?.page_views ?? null,
@@ -508,7 +512,7 @@ export type MetricsContext = {
 
 export async function getMetricsContext(pieces: Piece[]): Promise<MetricsContext> {
   const [accounts, site, posts, followerLevel] = await Promise.all([
-    getLinkedinAccounts(120),
+    getLinkedinAccounts(EVERY_MONTH),
     getSiteMetrics(),
     getLinkedinPosts(),
     getLatestFollowerLevel(),
