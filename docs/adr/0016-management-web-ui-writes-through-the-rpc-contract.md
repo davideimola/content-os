@@ -6,6 +6,15 @@ realizes: [ADR-0015]
 
 # The management web UI: a mobile-first console that writes only through the RPC contract
 
+> **Amended by [ADR-0021](0021-console-computes-facts-not-judgement.md):** the console's navigation goes
+> from **six views to five** — Overview, Calendar, Ideas, Talks, Metrics — and the **Pipeline view
+> dissolves**, removed and not replaced: measured against live data, its three post-`proposed` columns held
+> exactly the 14 dated Pieces the Calendar already showed, the same set re-sorted by state. ADR-0021 also
+> writes down the rule that governs every future addition — *the console computes facts about time and
+> completeness and never weighs the value of content* — which **sharpens decision 2 below**: "never embeds
+> the ~70% Flag mix" means never holding the *judgement*, so the console may show the distance to a target
+> it does not own. Decisions 1 and 3 (RPC-only writes, no logic of its own) stand unchanged.
+
 ADR-0002 decided content-os is deliberately **not software** — a repo plus routines — and left one door
 open: *"if a visual dashboard is ever wanted, it must be additive (read-only over the same source), never a
 second source of truth."* ADR-0014 then moved the source of truth to Supabase and ADR-0015 (decision 1)
