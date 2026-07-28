@@ -45,6 +45,14 @@ const IDEA_IDS_PROP = {
   description: "Optional source Idea ids to link (piece_sources / talk_sources).",
 } as const;
 
+// The whole set, always: the two theme setters replace rather than append (#121).
+const THEME_IDS_PROP = {
+  type: "array",
+  items: { type: "string" },
+  description:
+    "Theme ids from list_themes — the COMPLETE set to end up with, not an addition. `[]` clears.",
+} as const;
+
 const TOOLS = [
   {
     name: "capture_idea",
@@ -195,6 +203,63 @@ const TOOLS = [
       additionalProperties: false,
     },
   },
+  // ── Themes (#121) ──────────────────────────────────────────────────────────
+  // The subject lens carried by Ideas and Pieces. Parity, not new behaviour: the
+  // model was born console-side and the Desk could not see it. Deliberately NOT
+  // exposed here: create_theme and archive_theme. Minting stays a hand act in the
+  // console, because an LLM handed a create verb grows the vocabulary until it
+  // stops meaning anything — the exact failure merge_themes exists to bound.
+  {
+    name: "list_themes",
+    description:
+      "List the Theme vocabulary — the controlled subject lens carried by Ideas and Pieces, label-sorted. Read this before setting Themes: assignment is by id, and reusing an existing Theme is the point of a vocabulary. `archived` marks retired vocabulary: it still resolves on anything already tagged with it, and the setters accept it so those items stay representable — which means nothing stops you assigning one afresh, so do not. Assign only Themes with `archived: false`.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "set_idea_themes",
+    description:
+      "Set an Idea's Themes. REPLACE-ALL, not additive: the Idea ends carrying EXACTLY the ids given, so to add one you must pass the Themes it already has alongside it, and `[]` clears them. Ids come from list_themes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "The Idea id." },
+        theme_ids: THEME_IDS_PROP,
+      },
+      required: ["id", "theme_ids"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "set_piece_themes",
+    description:
+      "Set a Piece's Themes. REPLACE-ALL, not additive: the Piece ends carrying EXACTLY the ids given, so to add one you must pass the Themes it already has alongside it, and `[]` clears them (which is how a wrongly inherited Theme comes off). A Piece inherits its source Ideas' live Themes at spawn; that inheritance is a default to correct, and this is the correction. Ids come from list_themes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "The Piece id." },
+        theme_ids: THEME_IDS_PROP,
+      },
+      required: ["id", "theme_ids"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "merge_themes",
+    description:
+      "Merge two Themes that turned out to be the same subject: every Idea and Piece carrying the absorbed Theme comes to carry the survivor instead (an item that carried both keeps it once), and the absorbed Theme is archived — retired vocabulary, its record kept. Nothing loses a Theme. This is the vocabulary's only repair, so name the survivor deliberately: no verb un-merges, and none un-archives the absorbed Theme.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        absorbed_id: { type: "string", description: "The Theme folded away and archived." },
+        survivor_id: {
+          type: "string",
+          description: "The Theme that survives and receives the assignments. Must not be archived.",
+        },
+      },
+      required: ["absorbed_id", "survivor_id"],
+      additionalProperties: false,
+    },
+  },
   {
     name: "ingest_linkedin_metrics",
     description:
@@ -212,17 +277,33 @@ const TOOLS = [
   {
     name: "record_linkedin_account",
     description:
-      "Record a month's LinkedIn account-level snapshot (upsert): impressions, members reached, follower total, and the month's follower growth — the DISCOVERY + FOLLOWERS figures from the Aggregate Analytics export (ADR-0019).",
+      "Record a month's LinkedIn account-level snapshot (upsert): impressions, members reached, and the month's follower growth — the DISCOVERY + FOLLOWERS figures from the Aggregate Analytics export that are quantities OF THE MONTH (ADR-0019). The follower LEVEL is not a monthly quantity and does not live here: record it with record_linkedin_followers, keyed by the date it was observed (#113).",
     inputSchema: {
       type: "object",
       properties: {
         month: { type: "string", description: "Snapshot month as YYYY-MM." },
         impressions: { type: "integer", description: "Total account impressions for the month." },
         members_reached: { type: "integer", description: "Unique members reached for the month." },
-        followers_total: { type: "integer", description: "Follower count at the month's end." },
         new_followers: { type: "integer", description: "Followers gained during the month." },
       },
       required: ["month"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "record_linkedin_followers",
+    description:
+      "Record the LinkedIn follower LEVEL as observed on one date (upsert on that date — re-recording the same date replaces it). The export reports the total at export time, so the level belongs to the day it was read, never to a month: pass the date you actually read it (the export date), never a month boundary (#113).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        observed_on: {
+          type: "string",
+          description: "The date the level was observed, YYYY-MM-DD (the export date / the day you read it).",
+        },
+        total: { type: "integer", description: "The follower total on that date." },
+      },
+      required: ["observed_on", "total"],
       additionalProperties: false,
     },
   },
@@ -253,7 +334,7 @@ const TOOLS = [
   {
     name: "get_metrics",
     description:
-      "A month's ingested metrics: LinkedIn per-post rows (impressions, engagements), the LinkedIn account-level snapshot, and the site numbers.",
+      "A month's ingested metrics: LinkedIn per-post rows (impressions, engagements), the LinkedIn account-level snapshot (impressions, members reached, the month's follower growth), the site numbers, and the latest follower level with the date it was observed (that one is not a figure of the queried month).",
     inputSchema: {
       type: "object",
       properties: { month: { type: "string", description: "Month as YYYY-MM." } },
@@ -327,8 +408,9 @@ function toolOk(text: string, structured: Record<string, unknown>) {
   return { content: [{ type: "text", text }], structuredContent: structured, isError: false };
 }
 
-// PostgREST returns a single composite (a `returns <table>` RPC) as an object,
-// but tolerate an array shape just in case.
+// PostgREST returns a single composite (a `returns <table>` RPC) as an object, and
+// a set-returning one (`returns table(…)`, which merge_themes uses for its counts)
+// as an array — so both shapes are real here, not defensive.
 function firstRow(data: unknown) {
   return Array.isArray(data) ? data[0] : data;
 }
@@ -486,6 +568,80 @@ async function setPieceArtifact(args: Record<string, unknown> | undefined) {
   return toolOk(`Set artifact on piece ${row?.id}`, { piece: row });
 }
 
+// ── themes (#121) ────────────────────────────────────────────────────────────
+async function listThemes() {
+  const { data, error } = await db()
+    .from("themes")
+    .select("id,label,archived,created_at")
+    .order("label", { ascending: true });
+  if (error) return toolError(`list_themes failed: ${error.message}`);
+  return toolOk(JSON.stringify(data ?? []), { themes: data ?? [] });
+}
+
+// An array of ids, or null if it is not one. Shape only — the FK on theme_id is
+// what rejects an id that names no Theme (the DB stays the validator, ADR-0015).
+function themeIds(v: unknown): string[] | null {
+  if (!Array.isArray(v)) return null;
+  const out: string[] = [];
+  for (const id of v) {
+    if (!nonEmptyString(id)) return null;
+    out.push(id);
+  }
+  return out;
+}
+
+// The two replace-all setters share one shape: an entity id, the complete set of
+// theme ids, and the same replace semantics — so they share one handler, the way
+// the id-only write verbs share `idVerb`. `kind` names both the RPC and its first
+// parameter (set_idea_themes(p_idea_id, …) / set_piece_themes(p_piece_id, …)).
+async function setThemes(kind: "idea" | "piece", args: Record<string, unknown> | undefined) {
+  if (!nonEmptyString(args?.id)) return toolError("id is required");
+  // Absent is refused rather than read as `[]`: an omitted set would CLEAR every
+  // Theme, so silence must not be a valid way to say "none" — clearing is `[]`.
+  const ids = themeIds(args?.theme_ids);
+  if (ids === null) {
+    // One message for all three ways it can be wrong (absent, not an array, an empty
+    // or non-string entry), naming each so the caller can tell which it hit.
+    return toolError(
+      "theme_ids is required and must be an array of non-empty theme ids ([] clears them)",
+    );
+  }
+  const { data, error } = await db().rpc(`set_${kind}_themes`, {
+    [`p_${kind}_id`]: args!.id,
+    p_theme_ids: ids,
+  });
+  if (error) return toolError(`set_${kind}_themes failed: ${error.message}`);
+  const landed = (Array.isArray(data) ? data : []).map((r) => (r as { theme_id: string }).theme_id);
+  const noun = kind === "idea" ? "Idea" : "Piece";
+  return toolOk(
+    `${noun} ${args!.id} now carries ${landed.length} theme(s)` +
+      (landed.length ? `: ${landed.join(", ")}` : ""),
+    { theme_ids: landed },
+  );
+}
+
+async function mergeThemes(args: Record<string, unknown> | undefined) {
+  if (!nonEmptyString(args?.absorbed_id)) return toolError("absorbed_id is required");
+  if (!nonEmptyString(args?.survivor_id)) return toolError("survivor_id is required");
+  const { data, error } = await db().rpc("merge_themes", {
+    p_absorbed_id: args!.absorbed_id,
+    p_survivor_id: args!.survivor_id,
+  });
+  if (error) return toolError(`merge_themes failed: ${error.message}`);
+  const row = firstRow(data) as {
+    survivor_label?: string;
+    absorbed_label?: string;
+    ideas_moved?: number;
+    pieces_moved?: number;
+  } | null;
+  return toolOk(
+    `Merged "${row?.absorbed_label}" into "${row?.survivor_label}" — ` +
+      `${row?.ideas_moved} Idea and ${row?.pieces_moved} Piece assignment(s) moved; ` +
+      `"${row?.absorbed_label}" is archived`,
+    { merge: row },
+  );
+}
+
 // ── metrics: deterministic LinkedIn CSV parse (ported from internal/metrics) ──
 const LINKEDIN_COLUMNS = ["date", "post_url", "impressions", "engagements"];
 
@@ -589,16 +745,43 @@ async function ingestLinkedinMetrics(args: Record<string, unknown> | undefined) 
 async function recordLinkedinAccount(args: Record<string, unknown> | undefined) {
   const month = monthToFirstDay(args?.month);
   if (!month) return toolError("month is required as YYYY-MM");
+  // A caller still passing the retired follower level is REFUSED, not quietly
+  // ignored: silently dropping it would leave the level unrecorded and the
+  // caller believing otherwise — the failure mode #113 exists to end.
+  if (args && "followers_total" in args) {
+    return toolError(
+      "followers_total is gone: the follower level is keyed by its observation date — call record_linkedin_followers(observed_on, total) instead"
+    );
+  }
   const intOrNull = (v: unknown) => (Number.isInteger(v) ? (v as number) : null);
   const { data, error } = await db().rpc("record_linkedin_account", {
     p_month: month,
     p_impressions: intOrNull(args?.impressions),
     p_members_reached: intOrNull(args?.members_reached),
-    p_followers_total: intOrNull(args?.followers_total),
     p_new_followers: intOrNull(args?.new_followers),
   });
   if (error) return toolError(`record_linkedin_account failed: ${error.message}`);
   return toolOk(`Recorded LinkedIn account snapshot for ${args!.month}`, { account: firstRow(data) });
+}
+
+// The follower level, keyed by the date it was observed (#113). Only the date's
+// SHAPE is checked here — it is the key, and a malformed one must come back as a
+// readable tool error rather than a Postgres cast; the level's own rules (present,
+// non-negative) stay in the verb, since the DB is the validator (ADR-0015).
+async function recordLinkedinFollowers(args: Record<string, unknown> | undefined) {
+  const observedOn = args?.observed_on;
+  if (!nonEmptyString(observedOn) || !isYmd(observedOn)) {
+    return toolError("observed_on is required as YYYY-MM-DD (the date the level was observed)");
+  }
+  const { data, error } = await db().rpc("record_linkedin_followers", {
+    p_observed_on: observedOn,
+    p_total: Number.isInteger(args?.total) ? (args!.total as number) : null,
+  });
+  if (error) return toolError(`record_linkedin_followers failed: ${error.message}`);
+  const row = firstRow(data) as { total?: number } | null;
+  return toolOk(`Recorded ${row?.total ?? "?"} followers observed on ${observedOn}`, {
+    followers: row,
+  });
 }
 
 async function recordSiteMetrics(args: Record<string, unknown> | undefined) {
@@ -634,19 +817,31 @@ async function getMetrics(args: Record<string, unknown> | undefined) {
   const month = monthToFirstDay(args?.month);
   if (!month) return toolError("month is required as YYYY-MM");
   const client = db();
-  const [posts, account, site] = await Promise.all([
+  // The follower level is NOT a figure of the queried month (it is keyed by the
+  // date it was observed, #113), so it comes back as its own field, carrying that
+  // date — the latest observation on record, whenever it was read.
+  const [posts, account, site, followers] = await Promise.all([
     client.from("metrics_linkedin_posts")
       .select("posted_on,post_url,impressions,engagements")
       .eq("month", month).order("impressions", { ascending: false }),
     client.from("metrics_linkedin_account")
-      .select("month,impressions,members_reached,followers_total,new_followers")
+      .select("month,impressions,members_reached,new_followers")
       .eq("month", month).maybeSingle(),
     client.from("metrics_site").select("month,visitors,page_views").eq("month", month).maybeSingle(),
+    client.from("metrics_linkedin_followers")
+      .select("observed_on,total")
+      .order("observed_on", { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (posts.error) return toolError(`get_metrics failed: ${posts.error.message}`);
   if (account.error) return toolError(`get_metrics failed: ${account.error.message}`);
   if (site.error) return toolError(`get_metrics failed: ${site.error.message}`);
-  const payload = { linkedin: posts.data ?? [], linkedin_account: account.data, site: site.data };
+  if (followers.error) return toolError(`get_metrics failed: ${followers.error.message}`);
+  const payload = {
+    linkedin: posts.data ?? [],
+    linkedin_account: account.data,
+    linkedin_followers_latest: followers.data,
+    site: site.data,
+  };
   return toolOk(JSON.stringify(payload), payload);
 }
 
@@ -667,8 +862,13 @@ function callTool(name: unknown, args: Record<string, unknown> | undefined) {
     case "archive_idea": return archiveIdea(args);
     case "block_piece": return blockPiece(args);
     case "set_piece_artifact": return setPieceArtifact(args);
+    case "list_themes": return listThemes();
+    case "set_idea_themes": return setThemes("idea", args);
+    case "set_piece_themes": return setThemes("piece", args);
+    case "merge_themes": return mergeThemes(args);
     case "ingest_linkedin_metrics": return ingestLinkedinMetrics(args);
     case "record_linkedin_account": return recordLinkedinAccount(args);
+    case "record_linkedin_followers": return recordLinkedinFollowers(args);
     case "record_site_metrics": return recordSiteMetrics(args);
     case "flag_mix": return flagMix();
     case "cadence_status": return cadenceStatus();
@@ -724,8 +924,11 @@ async function handleMessage(msg: JsonRpcMessage): Promise<object | null> {
           "The Content OS operations adapter. Read the Pipeline with list_ideas / " +
           "list_proposals / list_calendar; act with spawn_piece / slot_piece / " +
           "deslot_piece / decline_piece / spawn_talk / decline_talk; capture raw " +
-          "sparks with capture_idea. Editorial judgement lives in the caller's skill, " +
-          "not here.",
+          "sparks with capture_idea. Themes are the subject lens on Ideas and Pieces: " +
+          "read the vocabulary with list_themes and assign it with set_idea_themes / " +
+          "set_piece_themes (both REPLACE the whole set); merge_themes folds two " +
+          "duplicates together. Minting a new Theme is not available here — reuse the " +
+          "vocabulary. Editorial judgement lives in the caller's skill, not here.",
       });
 
     // MCP keep-alive.

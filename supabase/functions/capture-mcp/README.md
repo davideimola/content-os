@@ -33,6 +33,7 @@ The MCP surface implemented: `initialize`, `notifications/initialized`, `ping`,
 - **`list_ideas`** — the live Idea pool (`status = live`), oldest first.
 - **`list_proposals`** — Pieces + Talks in state `proposed`, each tagged `kind`.
 - **`list_calendar`** — dated Pieces (any with a `publish_date`), earliest first.
+- **`list_themes`** — the whole Theme vocabulary, label-sorted, each with its `archived` flag.
 
 **Writes** (each wraps a `security definer` RPC, atomic):
 
@@ -46,6 +47,17 @@ The MCP surface implemented: `initialize`, `notifications/initialized`, `ping`,
 - **`block_piece`** `(id, blocked_by)` — record that a Piece is blocked by another (blog → LinkedIn amplifier).
 - **`set_piece_artifact`** `(id, url)` — point a Piece at its Factory draft (`pieces.artifact_url`).
 
+**Themes** (the subject lens on Ideas and Pieces — parity with the console, #121):
+
+- **`set_idea_themes`** `(id, theme_ids)` — **replace-all**, never additive: the Idea ends carrying exactly the ids given, `[]` clears. Omitting `theme_ids` is refused rather than read as `[]`.
+- **`set_piece_themes`** `(id, theme_ids)` — the same for a Piece (its inherited set is a default to correct). An archived id is accepted, so a Piece that inherited a since-retired Theme stays representable.
+- **`merge_themes`** `(absorbed_id, survivor_id)` — fold two Themes that turned out to be one subject: **both** joins move onto the survivor, duplicates collapse, the absorbed Theme is archived and keeps its record. Raises on a self-merge, an unknown id, or an archived survivor.
+
+`create_theme` and `archive_theme` are **deliberately not exposed here**. Minting stays
+a hand act in the console: an LLM handed a create verb grows the vocabulary until it
+stops meaning anything, which is the exact failure `merge_themes` exists to bound. So
+this surface can *reuse* and *repair* the vocabulary, never inflate it.
+
 **Capture** (the original door, still here):
 
 - **`capture_idea`** `(spark, title?, source?)` — file a raw Idea, spark verbatim.
@@ -53,8 +65,10 @@ The MCP surface implemented: `initialize`, `notifications/initialized`, `ping`,
 **Metrics** (the Review's ingest + reads):
 
 - **`ingest_linkedin_metrics`** `(month, csv_text)` — deterministic parse of a LinkedIn export CSV, replacing that month's posts (idempotent). Replaces the retired `contentos metrics-ingest`.
+- **`record_linkedin_account`** `(month, impressions?, members_reached?, new_followers?)` — upsert a month's account-level snapshot. Passing the retired `followers_total` is **refused**, not ignored.
+- **`record_linkedin_followers`** `(observed_on, total)` — the follower **level**, keyed by the date it was observed (#113).
 - **`record_site_metrics`** `(month, visitors?, page_views?)` — upsert a month's site numbers.
-- **`get_metrics`** `(month)` — a month's LinkedIn per-post metrics + site numbers.
+- **`get_metrics`** `(month)` — a month's LinkedIn per-post metrics + site numbers, plus the latest follower level with its observation date.
 - **`flag_mix`** / **`cadence_status`** — the editorial-mix and Cadence-floor views.
 
 A tool success returns a text content block plus `structuredContent` (the JSON

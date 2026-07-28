@@ -99,7 +99,13 @@ export function AppShell({
       <main className="pb-20 lg:pb-0 lg:pl-56">{children}</main>
 
       {/* Mobile bottom tab bar */}
-      <nav className="bg-background/90 fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t backdrop-blur lg:hidden">
+      {/* One tab per nav item, counted from NAV itself — the view roster changed once
+          already (six to five, #116) and a hardcoded column count is a second place
+          to forget. */}
+      <nav
+        className="bg-background/90 fixed inset-x-0 bottom-0 z-30 grid border-t backdrop-blur lg:hidden"
+        style={{ gridTemplateColumns: `repeat(${NAV.length}, minmax(0, 1fr))` }}
+      >
         {NAV.map((item) => {
           const active = isActive(pathname, item.href);
           return (

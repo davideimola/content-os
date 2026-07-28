@@ -1,42 +1,7 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
-import Link from "next/link";
 
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-
-// A compact KPI tile for the Overview. `href` makes the whole tile a link; `accent`
-// draws attention (e.g. proposals waiting to be judged).
-export function StatTile({
-  label,
-  value,
-  href,
-  accent,
-}: {
-  label: string;
-  value: number | string;
-  href?: string;
-  accent?: boolean;
-}) {
-  const inner = (
-    <Card
-      className={cn(
-        "gap-1 p-4 transition-colors",
-        href && "hover:border-foreground/20",
-        accent && "border-amber-500/40 bg-amber-500/10"
-      )}
-    >
-      <span className="text-2xl font-semibold tabular-nums tracking-tight">{value}</span>
-      <span className="text-muted-foreground text-xs">{label}</span>
-    </Card>
-  );
-  return href ? (
-    <Link href={href} className="block">
-      {inner}
-    </Link>
-  ) : (
-    inner
-  );
-}
 
 // A KPI tile with an optional month-over-month delta. `tone` colours the delta:
 // up = growth (emerald), down = decline (red), neutral = muted. The caller writes
@@ -54,7 +19,10 @@ export function MetricTile({
 }) {
   const Arrow = tone === "up" ? ArrowUp : tone === "down" ? ArrowDown : null;
   return (
-    <Card className="gap-1 p-4">
+    // Centred, so a tile sharing a grid row with something taller (a trend chart on
+    // the Overview) reads as a deliberate KPI rather than as content that fell to
+    // the top of an over-tall box.
+    <Card className="justify-center gap-1 p-4">
       <span className="text-2xl font-semibold tabular-nums tracking-tight">{value}</span>
       <span className="text-muted-foreground text-xs">{label}</span>
       {delta ? (
@@ -75,17 +43,27 @@ export function MetricTile({
 }
 
 // Shared view container: a centered, width-capped column with a title row.
+// `wide` opens the cap for a view whose content is tiles, bars and lanes rather than
+// prose — a desktop screen should not be three quarters empty (#116). The responsive
+// rule is unchanged either way: same view, same question, different density.
 export function View({
   title,
   subtitle,
+  wide,
   children,
 }: {
   title: string;
   subtitle?: string;
+  wide?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 lg:py-8">
+    <div
+      className={cn(
+        "mx-auto flex w-full flex-col gap-6 px-4 py-6 lg:py-8",
+        wide ? "max-w-[96rem]" : "max-w-6xl"
+      )}
+    >
       <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
         {subtitle ? <p className="text-muted-foreground text-sm">{subtitle}</p> : null}

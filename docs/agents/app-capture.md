@@ -1,7 +1,8 @@
 # AI-app capture door: voice or text, from a phone or desktop app
 
-The second **capture door** onto the [Pipeline](../../CONTEXT.md), the sibling of the machine-side
-[`/idea` skill](idea.md). From an AI app on the phone or desktop, Davide **dictates or types** a raw
+The second of **three capture doors** onto the [Pipeline](../../CONTEXT.md) — the sibling of the machine-side
+[`/idea` skill](idea.md), with the [web console](web-console.md) the third since #118. From an AI app on the
+phone or desktop, Davide **dictates or types** a raw
 [Idea](../../CONTEXT.md) and it lands on the Content OS Pipeline (Supabase), asking **no format, channel,
 or quality question**. Capture first, judge later — it is judged afterwards in the
 [Desk](../../CONTEXT.md) (the Monday [Beat](../../CONTEXT.md) only reminds Davide to open it). Davide has
@@ -25,7 +26,13 @@ both word the title differently for the same spark — that is fine; the raw spa
 | --- | --- |
 | Body (`spark`) | the spark **verbatim** — nothing summarized, reformatted, translated, corrected, or added |
 | `title` | a short, readable summary of the idea's core (thesis or subject), in the spark's own language, one scannable line (aim under ~70 chars). A handle, **not** a judgement — never a channel, format, or quality call |
-| `source` | the app it came from (e.g. `perplexity`, `chatgpt`) |
+| `source` | the app it came from (e.g. `perplexity`, `chatgpt`; `ios-shortcut` for the Shortcut below) |
+
+The **third door**, the [web console](web-console.md) (`source` = `console`, #118), keeps this invariant
+**minus the summarizing**: verbatim body and no judgement, but the console has no LLM and must not gain one
+(ADR-0002), so its title is typed by hand or left empty (an Idea with no title falls back to its body
+wherever it is shown). *Verbatim* is a constraint on the **door**, not a promise the record is frozen — every
+Idea stays editable afterwards, which is how a garbled dictation gets repaired (see CONTEXT.md's **Idea**).
 
 There is **no label and no `[Idea]` prefix** anymore — those were GitHub-issue artifacts; the Supabase
 Idea is a row with `status = live`, a body, a title, and a source. Keep this door and the `/idea` skill

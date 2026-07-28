@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { CopyId } from "@/components/copy-id";
-import { CardTrigger, DetailSheet } from "@/components/detail/detail-sheet";
+import { DetailOpener, DetailSheet, type DetailTrigger } from "@/components/detail/detail-sheet";
 import { ThemeTagger } from "@/components/detail/theme-tagger";
 import { ChannelBadge, formatDate, IdeaCard, StateBadge, UsedBadge } from "@/components/pipeline";
 import { Button } from "@/components/ui/button";
@@ -14,15 +14,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { archiveIdea, editIdea } from "@/lib/actions";
 import type { IdeaWithProvenance, Theme } from "@/lib/pipeline";
 
-export function IdeaDetail({
-  idea,
-  themes,
-  themesInUse,
-}: {
+// `trigger` is the shared opener contract (`DetailTrigger`): omit it for the Idea's
+// own card, supply one to open the same drawer from a row.
+//
+// The two are a union rather than two optional props, because `today` is needed by
+// exactly one of them: the Idea's own card shows an age, and that age has to be the
+// **caller's** "today" or it can disagree with the age-derived band the card sits in
+// (#118). So supplying a `trigger` means no card and no date to pass; omitting one
+// makes the date required, and neither case can be got wrong silently.
+type IdeaDetailProps = {
   idea: IdeaWithProvenance;
   themes: Theme[];
-  themesInUse: Set<string>;
-}) {
+  themesInUse: string[];
+} & ({ trigger: DetailTrigger; today?: never } | { trigger?: undefined; today: string });
+
+export function IdeaDetail({ idea, themes, themesInUse, today, trigger }: IdeaDetailProps) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(idea.title ?? "");
@@ -62,9 +68,11 @@ export function IdeaDetail({
 
   return (
     <>
-      <CardTrigger className="h-full" onClick={() => setOpen(true)}>
-        <IdeaCard idea={idea} />
-      </CardTrigger>
+      {/* `today` is present exactly when `trigger` is absent (see the props union), so
+          the null branch is what the type already rules out — not a fallback. */}
+      <DetailOpener trigger={trigger} open={() => setOpen(true)} className="h-full">
+        {today ? <IdeaCard idea={idea} today={today} /> : null}
+      </DetailOpener>
 
       <DetailSheet
         open={open}
@@ -136,10 +144,18 @@ export function IdeaDetail({
               ) : (
                 <ul className="flex flex-col gap-1.5">
                   {idea.spawnedPieces.map((p) => {
-                    // A declined Piece has no card on the board, so there's nowhere
-                    // to click through to — show it (honest provenance) but not as a
-                    // dead link. Every other state renders a card on /pipeline.
-                    const href = p.state === "declined" ? null : `/pipeline#${p.id}`;
+                    // Where a Piece is visible now that the board has dissolved
+                    // (#116): a dated one on the Calendar, an undated proposal in the
+                    // Overview's "To judge" grid — both render it as an anchored card,
+                    // so `#<id>` scrolls to it and flashes. A declined Piece has no
+                    // card anywhere, so it shows (honest provenance) but not as a
+                    // dead link.
+                    const href =
+                      p.state === "declined"
+                        ? null
+                        : p.publish_date
+                          ? `/calendar#${p.id}`
+                          : `/#${p.id}`;
                     const inner = (
                       <>
                         <span className="text-sm leading-snug font-medium text-pretty">
@@ -184,7 +200,7 @@ export function IdeaDetail({
             <div className="flex flex-col gap-2 border-t pt-4">
               <p className="text-sm font-medium">Themes</p>
               <ThemeTagger
-                ideaId={idea.id}
+                target={{ kind: "idea", id: idea.id }}
                 assigned={idea.themes}
                 themes={themes}
                 themesInUse={themesInUse}

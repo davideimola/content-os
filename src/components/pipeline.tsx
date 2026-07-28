@@ -8,19 +8,23 @@ import {
   Lightbulb,
   Mic,
   Newspaper,
+  PencilOff,
+  TagX,
   TriangleAlert,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { ideaAgeDays, ideaAgeLabel, neverEdited } from "@/lib/derive";
 import type {
   Cadence,
   CalendarItem,
+  EngagementOutcome,
   FlagSide,
   IdeaWithProvenance,
-  Piece,
   PieceChannel,
   PieceState,
+  PieceWithBlocker,
   Talk,
   TalkState,
 } from "@/lib/pipeline";
@@ -37,24 +41,6 @@ export function formatDate(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? null : dateFmt.format(d);
-}
-
-// Whole days since the capture date — the raw idle age (#76). Drives both the card's
-// cue and the triage "candidate" test (idle ≥ N days, #77). Null on an unparseable date.
-export function idleDays(iso: string): number | null {
-  const from = new Date(iso);
-  if (Number.isNaN(from.getTime())) return null;
-  return Math.max(0, Math.floor((Date.now() - from.getTime()) / 86_400_000));
-}
-
-// "idle N mo" from the capture date — how long a spark has sat untouched (#76).
-// Under a month it reads in days so a fresh spark doesn't collapse to "idle 0 mo";
-// months are floored 30-day buckets (a rough cue, not a precise date).
-export function idleLabel(iso: string): string | null {
-  const days = idleDays(iso);
-  if (days === null) return null;
-  if (days < 30) return `idle ${days}d`;
-  return `idle ${Math.floor(days / 30)} mo`;
 }
 
 // ── badges ────────────────────────────────────────────────────────────────────
@@ -103,8 +89,11 @@ export function calendarKindMeta(item: CalendarItem): {
   return { icon: meta.icon, label: meta.label, variant: "outline" };
 }
 
-// The kind as a bare icon, labelled for screen readers + hover — the compact cue
-// used where a full badge would be too heavy (the Overview "Next up" list).
+// The same kind as a bare glyph, for a row too dense to carry a badge — the Calendar's
+// compact line (#117), where the type has to read at a glance without spending a third
+// of a phone's width on a word. It carries its label as `aria-label`/`title`, so the
+// kind survives a screen reader and a hover; the row's state and readiness marks say
+// the rest. (Deleted with the Pipeline board in #116, restored here with a caller.)
 export function CalendarKindIcon({ item }: { item: CalendarItem }) {
   const { icon: Icon, label } = calendarKindMeta(item);
   return (
@@ -114,7 +103,7 @@ export function CalendarKindIcon({ item }: { item: CalendarItem }) {
       title={label}
       className="text-muted-foreground inline-flex shrink-0"
     >
-      <Icon aria-hidden className="size-4" />
+      <Icon aria-hidden className="size-3.5" />
     </span>
   );
 }
@@ -150,8 +139,32 @@ export function StateBadge({ state }: { state: PieceState | TalkState }) {
   );
 }
 
+// An Engagement's outcome — the *submission's* state, which is not the Talk's
+// readiness: a CFP can read `accepted` while the slides are not written. Both show
+// on an Engagement, side by side, so neither can be mistaken for the other.
+const OUTCOME_DOT: Record<EngagementOutcome, string> = {
+  to_submit: "text-amber-500",
+  submitted: "text-sky-500",
+  accepted: "text-emerald-500",
+  rejected: "text-muted-foreground",
+  confirmed: "text-violet-500",
+};
+
+export function OutcomeBadge({ outcome }: { outcome: EngagementOutcome }) {
+  return (
+    <Badge variant="outline" className="gap-1 font-normal">
+      <CircleDot aria-hidden className={cn(OUTCOME_DOT[outcome])} />
+      {outcome.replace("_", " ")}
+    </Badge>
+  );
+}
+
 // ── cards ─────────────────────────────────────────────────────────────────────
-export function PieceCard({ piece }: { piece: Piece }) {
+// Takes a `PieceWithBlocker`, not a bare `Piece`: the blocked-by cue is only legible
+// with the blocking Piece's title, so the type is what keeps a caller from rendering
+// four characters of an id again (#111). It falls back to the id only when the
+// blocker itself could not be resolved.
+export function PieceCard({ piece }: { piece: PieceWithBlocker }) {
   const date = formatDate(piece.publish_date);
   return (
     <Card className="gap-3 p-4">
@@ -161,11 +174,16 @@ export function PieceCard({ piece }: { piece: Piece }) {
         <ChannelBadge channel={piece.channel} />
         <FlagBadge flagSide={piece.flag_side} />
       </div>
-      <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
-        <CalendarDays aria-hidden className="size-3.5" />
-        {date ?? <span className="italic">no date</span>}
+      <div className="text-muted-foreground flex flex-col gap-1 text-xs">
+        <span className="flex items-center gap-1.5">
+          <CalendarDays aria-hidden className="size-3.5 shrink-0" />
+          {date ?? <span className="italic">no date</span>}
+        </span>
+        {/* Its own line, so a blocker's title has the card's width to read in. */}
         {piece.blocked_by_piece_id ? (
-          <span className="ml-auto">blocked by {piece.blocked_by_piece_id.slice(-4)}</span>
+          <span className="truncate pl-5">
+            blocked by {piece.blockedByTitle ?? piece.blocked_by_piece_id.slice(-4)}
+          </span>
         ) : null}
       </div>
     </Card>
@@ -202,17 +220,49 @@ export function UsedBadge({ count }: { count: number }) {
   );
 }
 
-export function IdeaCard({ idea }: { idea: IdeaWithProvenance }) {
+// `today` is **required**, and passed in rather than read here — the same discipline
+// #117 gave `AgendaRow`'s readiness mark ("computed by the caller, which knows what
+// today is"). This module carries no `"use client"`, so a fallback of its own would
+// resolve against a browser clock and could disagree with the server-computed band the
+// card sits in, which is the exact drift the prop exists to prevent. It goes through
+// `ideaAgeDays` like the bands, so an Idea's age has one definition in the console.
+export function IdeaCard({ idea, today }: { idea: IdeaWithProvenance; today: string }) {
   // The title is a summary; fall back to the verbatim spark.
   const headline = idea.title?.trim() || idea.body;
-  const idle = idleLabel(idea.created_at);
+  // Themes on the card, not only in the drawer (#118): the model was invisible in the
+  // view that owns it. LIVE Themes are the ones shown, because a live Theme is what
+  // "categorised" means everywhere else (the no-theme filter, the by-theme grouping) —
+  // and a since-retired tag is counted and named rather than dropped, so a card never
+  // silently omits something the record carries.
+  const live = idea.themes.filter((t) => !t.archived);
+  const retired = idea.themes.length - live.length;
   return (
     <Card className="h-full gap-2 p-4">
       <div className="flex gap-2">
         <Lightbulb aria-hidden className="text-muted-foreground mt-0.5 size-4 shrink-0" />
         <p className="text-sm leading-snug text-pretty line-clamp-3">{headline}</p>
       </div>
-      {/* Provenance + age + source — the triage cues (#76). */}
+      <div className="flex flex-wrap items-center gap-1 pl-6">
+        {live.length > 0 ? (
+          live.map((t) => (
+            <Badge key={t.id} variant="secondary" className="font-normal">
+              {t.label}
+            </Badge>
+          ))
+        ) : (
+          // A card with none says so — the gap is the tagging queue, not an absence to
+          // be noticed.
+          <span className="text-muted-foreground inline-flex items-center gap-1 text-[0.7rem] italic">
+            <TagX aria-hidden className="size-3" />
+            no theme
+          </span>
+        )}
+        {retired > 0 ? (
+          <span className="text-muted-foreground text-[0.7rem]">· {retired} retired</span>
+        ) : null}
+      </div>
+      {/* Provenance + age + source — the triage cues (#76) — plus whether the words
+          have been reread since capture (#118). */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-6">
         {idea.status === "archived" ? (
           <Badge variant="outline" className="text-muted-foreground gap-1 font-normal">
@@ -221,10 +271,19 @@ export function IdeaCard({ idea }: { idea: IdeaWithProvenance }) {
           </Badge>
         ) : null}
         <UsedBadge count={idea.usedCount} />
-        {idle ? (
-          <span className="text-muted-foreground inline-flex items-center gap-1 text-[0.7rem] tabular-nums">
-            <Clock aria-hidden className="size-3" />
-            {idle}
+        <span
+          className="text-muted-foreground inline-flex items-center gap-1 text-[0.7rem] tabular-nums"
+          title={`Captured ${formatDate(idea.created_at) ?? "—"}`}
+        >
+          <Clock aria-hidden className="size-3" />
+          {ideaAgeLabel(ideaAgeDays(idea, today))}
+        </span>
+        {/* Never rewritten since it landed: the fact that turns a fresh spark into
+            something worth rereading, and it is on the record already (#118). */}
+        {neverEdited(idea) ? (
+          <span className="text-muted-foreground inline-flex items-center gap-1 text-[0.7rem]">
+            <PencilOff aria-hidden className="size-3" />
+            never edited
           </span>
         ) : null}
         {idea.source ? (

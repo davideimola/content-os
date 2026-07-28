@@ -41,8 +41,13 @@ alter table metrics_linkedin_posts add  column engagements int;
 
 -- ── (2) metrics_linkedin_account: the monthly account-level snapshot ──────────
 -- One row per month (unique), upserted. `new_followers` is that month's growth
--- (sum of the export's daily "New followers"); `followers_total` is the count at
--- the month's end. Kept separate from metrics_site (which is the website).
+-- (sum of the export's daily "New followers"). `followers_total` was meant to be
+-- the follower level and never could be: the export reports the total at export
+-- time, always after the month has ended, so the value never belonged to its own
+-- key. It is DROPPED (with `p_followers_total`) by
+-- 20260728172539_follower_level_keyed_by_observation_date.sql, which moves the
+-- level to a table keyed by the date it was observed (#113/#98). Kept separate
+-- from metrics_site (which is the website).
 create table metrics_linkedin_account (
   id              text primary key default gen_prefixed_id('mla'),
   month           date not null unique,

@@ -6,8 +6,10 @@ format, channel, or quality question**. Capture first, judge later — the Idea 
 judged afterwards in the [Desk](../../CONTEXT.md) (the Monday [Beat](../../CONTEXT.md) only reminds
 Davide to open it; see the [pipeline taxonomy](pipeline-taxonomy.md)).
 Davide has a spark → he runs `/idea <spark>` in Claude → a live Idea lands on the Content OS Pipeline
-(Supabase), and he keeps working. Its sibling is the [AI-app door](app-capture.md), which files the
-**same shape** by voice or text from the phone; the two share one invariant.
+(Supabase), and he keeps working. It is one of **three doors**: its siblings are the
+[AI-app door](app-capture.md), which files the **same shape** by voice or text from the phone, and the
+[web console](web-console.md) (`source` = `console`, #118), which has no LLM and so keeps the invariant
+minus the summarizing.
 
 It **used to be** a `contentos` subcommand (`contentos idea create`). It moved to a skill because a good
 title needs an LLM to distil the spark, and that judgement is "brain" — which belongs in a skill, not
@@ -65,13 +67,20 @@ one-line confirmation carrying the new Idea id.
   or which channel. Capture is the whole job.
 - On success the **new Idea id** is the reply. It never pretends an idea was filed when it was not.
 
-## The shape, and the sibling door
+## The shape, and the sibling doors
 
 The skill and the [AI-app door](app-capture.md) file the **same invariant**: the spark stored **verbatim**
 as the body, a **summarized** title (both have an LLM, so the two doors word the title differently for the
 same spark — that is expected), and **no judgement** (no channel/format/quality). Keep the skill
 (`.claude/skills/idea/SKILL.md`) and the AI-app door's capture instructions in `app-capture.md` in step:
 if the shape ever changes in one, change it in the other.
+
+The [web console](web-console.md) is the **third door** (`source` = `console`, #118) and shares the same
+invariant **except the summarizing**: it has no LLM and must not gain one (ADR-0002), so it asks for the
+title rather than distilling it, and an Idea filed without one falls back to its body. Note that *verbatim*
+is a constraint on the **door**, not a claim the record never changes: an Idea is editable after capture,
+which is how a garbled dictation is repaired — and CONTEXT.md's **Idea** records that where repair ends and
+rewriting begins is still an open question.
 
 ## Testing
 

@@ -2,14 +2,17 @@
 
 Metrics ingest turns the monthly raw inputs — LinkedIn's creator **Aggregate Analytics** export and the
 manually reported site numbers — into rows in the Supabase [Metrics snapshot](../../CONTEXT.md) tables
-(`metrics_linkedin_posts` / `metrics_linkedin_account` / `metrics_site`). It is three tools on the
-**content-os MCP adapter**
+(`metrics_linkedin_posts` / `metrics_linkedin_account` / `metrics_linkedin_followers` / `metrics_site`).
+It is four tools on the **content-os MCP adapter**
 ([ADR-0015](../adr/0015-operations-surface-is-an-mcp-adapter-over-the-rpc-contract.md)):
 
 - **`ingest_linkedin_metrics(month, csv_text)`** — the adapter parses the per-post CSV deterministically
   (server-side) and **replaces that month's posts** in one atomic write.
-- **`record_linkedin_account(month, impressions?, members_reached?, followers_total?, new_followers?)`** —
-  upserts the month's LinkedIn **account-level** snapshot.
+- **`record_linkedin_account(month, impressions?, members_reached?, new_followers?)`** — upserts the
+  month's LinkedIn **account-level** snapshot: the figures that are **quantities of the month**.
+- **`record_linkedin_followers(observed_on, total)`** — records the follower **level** against the date it
+  was observed (upsert on that date). The level is **not** a monthly quantity, so it never sits on a month
+  row (see [below](#the-follower-level-is-keyed-by-its-observation-date)).
 - **`record_site_metrics(month, visitors?, page_views?)`** — upserts the month's **website** numbers.
 
 This replaces the retired `contentos metrics-ingest` Go CLI (ADR-0009 → ADR-0015). The parse is still
@@ -51,8 +54,32 @@ date,post_url,impressions,engagements
 
 ## LinkedIn account-level input
 
-`record_linkedin_account` takes the month's `impressions`, `members_reached`, `followers_total`, and
-`new_followers` (the month's follower growth). All optional; whatever is provided is upserted on the month.
+`record_linkedin_account` takes the month's `impressions`, `members_reached`, and `new_followers` (the
+month's follower growth). All optional; whatever is provided is upserted on the month. Every one of them is
+a **quantity of the period**, and the period is the row's key.
+
+## The follower level is keyed by its observation date
+
+The export reports the follower **total at export time**, and the export always arrives **after** the month
+has ended — so a level can never sit honestly on a month row (June's row once carried a 22 July figure).
+`record_linkedin_followers(observed_on, total)` records it against the date it was actually read, which is
+the date the number is true for: the key cannot lie, and the observations accrue a real level series, one
+point per ingest.
+
+| argument      | meaning                                     | format               |
+| ------------- | ------------------------------------------- | -------------------- |
+| `observed_on` | the day the level was read (the export date)| `YYYY-MM-DD`, required |
+| `total`       | the follower total on that date             | non-negative integer, required |
+
+**Never pass a month boundary** as the observation date to make it look tidy — pass the day you read it.
+The tool refuses a call with no observation date (it is not defaulted to today), and re-recording the same
+date **replaces** it, so a corrected read of the same day lands as a correction rather than a second truth.
+`record_linkedin_account` **refuses** a `followers_total` argument outright, so a stale caller fails loudly
+instead of having the level silently dropped.
+
+The month's **growth** (`new_followers`) stays on the month row and is the exact monthly follower metric —
+verified window-independent — which is why the console's follower curve is **cumulative growth**, with the
+level shown separately beside the date it was observed.
 
 ## Site input (manual)
 
@@ -70,8 +97,9 @@ monthly Review's job. The export has five sheets; the map:
 - **TOP POSTS** → two side-by-side ranked lists (posts by impressions, posts by engagements). Join them by
   `post_url` to get, per post: `post_url`, publish `date`, `impressions`, `engagements` (0 when absent from
   the engagements list). At personal volume the lists are complete (per-post impressions sum to DISCOVERY).
-- **FOLLOWERS** → `followers_total` (count at month end) and `new_followers` (sum of the daily "New
-  followers").
+- **FOLLOWERS** → `new_followers` (sum of the daily "New followers") for the month row, and the follower
+  **total** for `record_linkedin_followers` — keyed by the **export date**, which is the day that total was
+  true, never by the month.
 - ENGAGEMENT (daily account series) and DEMOGRAPHICS are not ingested.
 
 During the Review (steps in [monthly-beat.md](monthly-beat.md)):
@@ -79,9 +107,10 @@ During the Review (steps in [monthly-beat.md](monthly-beat.md)):
 1. **Ask Davide for the Aggregate Analytics XLSX** for the month + the site numbers (read by hand from the
    Umami Cloud dashboard).
 2. **Read the XLSX** (an XLSX is a zip of XML — unzip and read the sheets) and build the per-post CSV
-   (`date, post_url, impressions, engagements`) + the account figures.
-3. **Call** `ingest_linkedin_metrics(month, csv_text)`, `record_linkedin_account(month, …)`, and
-   `record_site_metrics(month, …)`.
+   (`date, post_url, impressions, engagements`) + the account figures + the follower total with **the date
+   the export was taken**.
+3. **Call** `ingest_linkedin_metrics(month, csv_text)`, `record_linkedin_account(month, …)`,
+   `record_linkedin_followers(observed_on, total)`, and `record_site_metrics(month, …)`.
 
 Nothing is committed — the numbers live in the Pipeline.
 
@@ -90,5 +119,7 @@ Nothing is committed — the numbers live in the Pipeline.
 No unit tests — verified at the ops seam against a local Supabase: ingest a small sample CSV (columns in any
 order, an extra ignored column) and assert the rows land, that a re-ingest **replaces** (not duplicates) the
 month, that `record_linkedin_account` upserts, and that the bad-date / missing-column / negative-count paths
-come back as tool errors. `get_metrics(month)` returns the per-post rows, the account snapshot, and the site
-numbers.
+come back as tool errors. For the level: `record_linkedin_followers` **raises with no observation date**,
+and re-recording the same date replaces rather than duplicating. `get_metrics(month)` returns the per-post
+rows, the account snapshot, the site numbers, and the latest follower level with its observation date (that
+one is not a figure of the queried month).

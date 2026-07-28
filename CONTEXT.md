@@ -45,12 +45,16 @@ Re-surfacing on-voice material content-os already holds — a parked Idea, or an
 _Avoid_: generate, brainstorm, suggest
 
 **Idea**:
-A raw content spark, captured in under thirty seconds — no format, no channel, no quality bar. Ideas form a **persistent pool**: an Idea stays **live** by default (it may never be used, and is never rejected) and goes **archived** only when a duplicate or repudiated. Outputs are proposed by correlating the pool, not by judging a single Idea.
+A raw content spark, captured in under thirty seconds — no format, no channel, no quality bar. **Verbatim is a constraint of the capture door, not a property the record keeps forever**: every door stores the spark exactly as it arrived — nothing summarized, reformatted, translated, corrected, or added — and after capture the Idea is an editable record, because a spark dictated by voice can land garbled and repairing it is the whole point of being able to reread it. Where repair ends and **rewriting** begins is **open**: fixing a transcription is plainly repair and replacing an Idea's thesis is plainly not, but the line between them is undecided and nothing distinguishes the two — an edit leaves no history, only a bumped timestamp. Ideas form a **persistent pool**: an Idea stays **live** by default (it may never be used, and is never rejected) and goes **archived** only when a duplicate or repudiated. Outputs are proposed by correlating the pool, not by judging a single Idea.
 _Avoid_: draft, proposal, note
 
 **Piece**:
 A single dated output on a cadence channel — a blog post or a LinkedIn post — correlated from one or more Ideas (Talks are a separate type), or tied to an Engagement (an accepted-talk announcement). Its lifecycle is proposed → slotted → ready → published (or declined) — `ready` meaning written and in the can, awaiting its publish date (ADR-0018); a proposal is always kept on the record so it is not re-proposed. It carries a channel, publish date, and production artifact, and can block a sibling Piece (a blog blocks the LinkedIn Piece that amplifies it).
 _Avoid_: post, content, item
+
+**Theme**:
+A recurring subject of Davide's material — a property of the **content**, carried today by **Ideas and Pieces**. A Piece inherits the union of its source Ideas' live Themes when it is spawned; the inheritance is a default to correct, not the truth, because one output covers one angle and its sources may range wider. Coverage by Theme is counted **over Pieces**, the same metre as Cadence and the Flag mix — a Theme only says something editorial once it is on the output. The vocabulary can be **repaired, not only grown**: two Themes that turn out to be one subject are **merged** — every assignment moves onto the survivor and the absorbed Theme is archived, keeping its record — and the fold is one-way, since nothing restores an absorbed Theme. Whether a **Talk** should carry Themes too is **open**: it is the one content object with none of its own, so a talk's subject is invisible to this lens.
+_Avoid_: tag, category, topic
 
 **Engagement**:
 One instance of a Talk taken to an Event, of kind **cfp** (a call-for-papers submission, with a deadline and outcome to submit / submitted / accepted / rejected) or **direct** (a self-organized slot, outcome confirmed). One Talk has **many** Engagements; the accepted one is the single link between a Talk and an Event — the same talk delivered more than once, each pitch tuned to its Event.
@@ -81,5 +85,5 @@ The interactive counterpart to the monthly Beat — an on-demand session Davide 
 _Avoid_: report, digest, dashboard
 
 **Metrics snapshot**:
-The monthly capture of channel data — the LinkedIn creator Aggregate Analytics export (per-post impressions + combined engagements, plus account-level impressions / members reached / follower growth) and the site numbers — stored with the Pipeline and crossed with the Calendar by the monthly review to judge what worked. LinkedIn figures are per-period (a post's total is the sum over months), and a Piece is tied to its post by URL (ADR-0019).
+The monthly capture of channel data — the LinkedIn creator Aggregate Analytics export (per-post impressions + combined engagements, plus account-level impressions / members reached / the month's follower growth) and the site numbers — stored with the Pipeline and crossed with the Calendar by the monthly review to judge what worked. LinkedIn figures are per-period (a post's total is the sum over months), and a Piece is tied to its post by URL (ADR-0019). The follower **level** is a separate fact, keyed by **the date it was observed** rather than by a month: the export reports the total at export time, so it belongs to that day and never to the period it reports on (ADR-0019 as amended). A month that was never ingested is **unknown, not zero** — an absent figure is absent, and nothing reads it as a measurement of nothing.
 _Avoid_: report, stats dump

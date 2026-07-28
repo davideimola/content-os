@@ -48,6 +48,19 @@ erDiagram
     text talk_id FK
     text idea_id FK
   }
+  THEME {
+    text id PK
+    text label
+    bool archived
+  }
+  IDEA_THEMES {
+    text idea_id FK
+    text theme_id FK
+  }
+  PIECE_THEMES {
+    text piece_id FK
+    text theme_id FK
+  }
   METRICS_LINKEDIN_POSTS {
     text id PK
     date month
@@ -58,6 +71,11 @@ erDiagram
   METRICS_LINKEDIN_ACCOUNT {
     text id PK
     date month
+    int new_followers
+  }
+  METRICS_LINKEDIN_FOLLOWERS {
+    date observed_on PK
+    int total
   }
   METRICS_SITE {
     text id PK
@@ -68,6 +86,10 @@ erDiagram
   PIECE ||--o{ PIECE_SOURCES : ""
   IDEA  ||--o{ TALK_SOURCES  : ""
   TALK  ||--o{ TALK_SOURCES  : ""
+  IDEA  ||--o{ IDEA_THEMES   : ""
+  THEME ||--o{ IDEA_THEMES   : ""
+  PIECE ||--o{ PIECE_THEMES  : ""
+  THEME ||--o{ PIECE_THEMES  : ""
   TALK  ||--o{ ENGAGEMENT : has
   EVENT ||--o{ ENGAGEMENT : hosts
   ENGAGEMENT |o--o{ PIECE : announces
@@ -78,8 +100,10 @@ erDiagram
 ## Entities
 
 - **ideas** (`idea_…`) — a spark in a persistent pool. `status` ∈ `live` (default) / `archived`;
-  `body` (spark verbatim), optional `title`, `archived_reason`, `duplicate_of` (self-ref, for dedup),
-  `source`. **Never rejected.**
+  `body` (the spark as the door received it), optional `title`, `archived_reason`, `duplicate_of` (self-ref,
+  for dedup), `source` — free text naming the door: `skill`, an AI app's name (`perplexity`, `chatgpt`),
+  `ios-shortcut`, or **`console`** since #118 (the init migration's inline comment lists only the first three
+  kinds, predating the console door). **Never rejected.**
 - **pieces** (`piece_…`) — a dated output on a cadence channel. `channel` ∈ `blog`/`linkedin` (enum);
   `flag_side`; `state` ∈ `proposed`/`slotted`/`ready`/`published`/`declined` (ADR-0018: `ready` replaced
   `in_production`); `publish_date`;
@@ -87,6 +111,11 @@ erDiagram
   Source Ideas via **`piece_sources`** (N-M).
 - **talks** (`talk_…`) — dateless. `flag_side`; `state` ∈ `proposed`/`in_production`/`ready`/`declined`;
   `brief_url` (TALK.md). Source Ideas via **`talk_sources`** (N-M).
+- **themes** (`theme_…`) — the controlled subject vocabulary: `label`, `archived` (retired, reversible,
+  kept on record). Data, not an enum, so minting one needs no migration. A **partial** unique index on
+  `lower(label) where not archived` is the guarantee the vocabulary cannot split into near-duplicates;
+  retiring a label frees it. Carried by Ideas via **`idea_themes`** and by Pieces via **`piece_themes`**
+  (both N-M) — a Piece inherits its sources' live Themes at spawn, as a default to correct.
 - **engagements** (`eng_…`) — a Talk taken to an Event. `kind` ∈ `cfp`/`direct`; `outcome` ∈
   `to_submit`/`submitted`/`accepted`/`rejected` (cfp) or `confirmed` (direct), enforced by a check;
   `deadline`/`cfp_link`/`answers_path` (cfp only); FK `talk_id`, `event_id`. The **accepted** engagement
@@ -98,7 +127,12 @@ erDiagram
   Per-period, so a still-active post has a row per month; the Piece link is **`pieces.linkedin_post_url`**
   (the post's stable identity), joined by URL — not an FK — so it rolls up every monthly slice.
 - **metrics_linkedin_account** (`mla_…`) — the monthly account-level snapshot: `month` (unique),
-  `impressions`, `members_reached`, `followers_total`, `new_followers` (ADR-0019).
+  `impressions`, `members_reached`, `new_followers` (ADR-0019). Every field is a **quantity of the period**,
+  and the period is the row's key — which is why the follower **level** is not here (#113).
+- **metrics_linkedin_followers** — the follower **level**, keyed by **`observed_on` (the primary key)** with
+  `total`. The export reports the total at export time, always after the month has ended, so a level on a
+  month-keyed row is wrong by construction; keyed by the day it was read it cannot lie, and the rows accrue
+  a level series (#113). Re-recording a date replaces it.
 - **metrics_site** (`mst_…`) — monthly `visitors`/`page_views` (the website), read by hand from the Umami
   Cloud dashboard (free plan → no API; Vercel Analytics until mid-July 2026).
 
@@ -106,8 +140,8 @@ erDiagram
 
 Atomic multi-step writes are Postgres functions; skills call them through the content-os MCP adapter, the
 front end calls them directly via PostgREST (ADR-0015). Reads are MCP **tools** over tables/views
-(`list_ideas`, `list_proposals`, `list_calendar`) for MCP-only clients, and direct PostgREST for the front
-end. `capture_idea` shipped in the init migration; the Piece/Talk write verbs (`spawn_piece`, `slot_piece`,
+(`list_ideas`, `list_proposals`, `list_calendar`, `list_themes`) for MCP-only clients, and direct
+PostgREST for the front end. `capture_idea` shipped in the init migration; the Piece/Talk write verbs (`spawn_piece`, `slot_piece`,
 `deslot_piece`, `decline_piece`, `spawn_talk`, `decline_talk`) shipped in the Fase-4 ops slice; the rest
 land as they're built.
 
@@ -122,17 +156,38 @@ land as they're built.
 | `slot_piece(id, on_date)` / `deslot_piece(id)` | Slot/de-slot on the Calendar. |
 | `mark_ready(id)` | Advance a slotted Piece to `ready` — written, in the can, awaiting its date (keeps its date). From-state-guarded (slotted-only); called by the console (ADR-0018). |
 | `publish_piece(id)` | Advance a `slotted`/`ready` Piece to `published` (keeps its date). From-state-guarded; called by the console (ADR-0017, widened to `ready` by ADR-0018). |
-| `create_engagement(talk_id, event_id, kind, deadline?, cfp_link?)` | Insert an engagement. |
-| `set_engagement_outcome(id, outcome, conference-date via event)` | Advance the outcome. |
+| `start_talk_production(id)` | Advance a Talk to `in_production` — the deck is being built. From-state-guarded to `{proposed, ready}`: the second source is a `ready` Talk whose slides are **reopened** (a talk re-cut for another conference), which is the normal life of a reusable asset, not an error (#115). |
+| `mark_talk_ready(id)` | Advance a Talk to `ready` — the slides are finished, the twin of the Piece's `mark_ready`. From-state-guarded to `in_production` only: no jump from `proposed`, because `ready` claims work was done and `proposed` claims none has been (#115). |
+| `create_event(name, starts_on?, ends_on?, location?, url?, roles?)` | Insert an Event (a conference exists before anything is submitted to it). Only the name is required; blank roles are dropped and the set deduped. **Not** get-or-create by name — two Events may share a name (the same conference, another year). `is_public` is not a parameter: putting an Event on `davideimola.dev` is a separate act with its own verb when a surface asks (#114). |
+| `create_engagement(talk_id, event_id, kind = cfp, deadline?, cfp_link?)` | Insert one submission of one Talk to one Event, born at the bottom of its ladder (`cfp` → `to_submit`, `direct` → `confirmed`) — the outcome is not a parameter. Raises if the Talk or the Event does not exist. **A `cfp` with no deadline is invisible on the Calendar** — that is why the three hand-seeded ones never appeared (#114). |
+| `set_engagement_outcome(id, outcome)` | Record where a submission stands (`to_submit`/`submitted`/`accepted`/`rejected`; `confirmed` for a `direct`). **Kind-guarded**: the verb validates `engagement_outcome_matches_kind` with a legible message and the check stays the backstop. No transition guard — an outcome records an outside decision, so it must be correctable (#114). |
 | `set_piece_artifact(piece_id, url)` | Write the Factory draft pointer into `pieces.artifact_url`. Called by the Factory skills. |
+| `edit_idea(id, title, body)` / `edit_piece(id, title)` / `edit_talk(id, title)` | Correct free text — an Idea's summary title + its body, an output's title. Body required on `edit_idea`; a blank title becomes `null`. *Verbatim* binds the **capture door**, not the record, so repairing a garbled dictation is a legal move (ADR-0016; CONTEXT.md's **Idea** notes that where repair ends and rewriting begins is open). No history is kept — only `updated_at` bumps. Called by the console; MCP-adapter parity is a later additive step. |
+| `create_theme(label)` / `archive_theme(id)` | Mint a live Theme (get-or-create by case-insensitive label) / retire one (reversible flag, keeps the row and its links). **Console only** — deliberately not on the MCP adapter, because an LLM handed a create verb inflates the vocabulary (#121). |
+| `set_idea_themes(idea_id, theme_ids[])` / `set_piece_themes(piece_id, theme_ids[])` | **Replace-all**, idempotent: the item ends carrying exactly the given set, `{}` clears. `set_piece_themes` accepts an archived id on purpose, so a Piece that inherited a since-retired Theme stays representable (#112). |
+| `merge_themes(absorbed_id, survivor_id)` | Fold two Themes into one: **both** joins move onto the survivor, duplicates collapse (composite PK), and the absorbed Theme is archived, keeping its record. The vocabulary's only repair — without it it can only grow (#121). Raises on a self-merge, an unknown id, or an **archived survivor** (folding live assignments into retired vocabulary is a loss, not a repair). Preserves the live-label index trivially: it creates no new live label. **One-way through the contract** — nothing un-archives a Theme. |
 | `set_piece_linkedin_url(piece_id, url)` | Attach a LinkedIn post URL to a `linkedin` Piece (guarded to channel; null clears). The per-Piece metrics cross joins on it (ADR-0019). Called by the console; MCP-adapter parity is a later additive step. |
 | `ingest_linkedin_metrics(month, csv_text)` | Deterministic parse of the per-post CSV (`date, post_url, impressions, engagements`) + replace that month's rows in `metrics_linkedin_posts` (ADR-0019, replaces the retired `contentos metrics-ingest` per ADR-0015). |
-| `record_linkedin_account(month, impressions?, members_reached?, followers_total?, new_followers?)` | Upsert a month's LinkedIn account-level snapshot into `metrics_linkedin_account` (ADR-0019). |
+| `record_linkedin_account(month, impressions?, members_reached?, new_followers?)` | Upsert a month's LinkedIn account-level snapshot into `metrics_linkedin_account` (ADR-0019; the follower level left this verb with the column, #113). |
+| `record_linkedin_followers(observed_on, total)` | Record the follower **level** on the date it was observed (upsert on that date — re-recording replaces). **Raises with no observation date**: a level without its date is the lie the key exists to prevent (#113). |
 | `record_site_metrics(month, visitors?, page_views?)` | Upsert a month's website numbers into `metrics_site`. |
 
 Advancing a Piece to `ready`/`published` has its own guarded verbs (`mark_ready`/`publish_piece`,
-ADR-0018/0017). Advancing a **Talk** to `in_production`/`ready` is still a plain state update — no verb yet,
-added when a consumer needs one (the deferred-guard rule from the ops slice).
+ADR-0018/0017); a **Talk** now climbs its ladder the same way (`start_talk_production`/`mark_talk_ready`,
+#115):
+
+```
+proposed      → start_talk_production → in_production
+in_production → mark_talk_ready       → ready
+ready         → start_talk_production → in_production   (slides reopened)
+```
+
+`declined` is reachable **only** through `decline_talk` — neither ladder verb can write it, and neither
+accepts it as a source. Two gaps the ladder therefore has, both deliberate and both open (#115): a Talk
+declined by mistake is **stuck** (there is no `deslot_piece`-shaped way back down, unlike the Piece
+verbs, which set state unconditionally), and **nothing returns a Talk to `proposed`** — that is not an
+oversight to close in passing, because `proposed` is what `untriaged_proposals` counts, so such a verb
+would put a Talk back in front of the Monday Beat.
 
 ## Views
 
@@ -182,4 +237,9 @@ conference is known.
 Managed by the **Supabase CLI** (`supabase migration new`, `supabase db push`); files in
 `supabase/migrations/<ts>_*.sql`, applied in timestamp order and tracked in
 `supabase_migrations.schema_migrations`. Up-only — reverse by writing a new migration. Edge Functions live
-in `supabase/functions/`. IDs are Stripe-style prefixed text via `gen_prefixed_id(prefix)`.
+in `supabase/functions/`. IDs are Stripe-style prefixed text via `gen_prefixed_id(prefix)` — for
+**entities**. A row that is a **fact identified by its own key** carries no surrogate id: the join tables
+(`piece_sources`, `talk_sources`, `idea_themes`, `piece_themes`) are keyed by the pair they relate, and
+`metrics_linkedin_followers` by `observed_on`, because the date the level was observed *is* its identity
+(#113) and a second identity beside it would make "one observation per date" a constraint rather than the
+key.
