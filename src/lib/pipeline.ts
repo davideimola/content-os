@@ -161,6 +161,29 @@ export function getThemes(): Promise<Theme[]> {
   return selectAll<Theme>("themes", "id,label,archived,created_at", { column: "label" });
 }
 
+// Fold a `<owner>_themes` join onto its owners. One fold for both joins — idea_themes
+// and piece_themes are the same shape and must resolve the same way: theme ids resolve
+// against the WHOLE vocabulary (archived included, so a since-retired tag still reads
+// as itself), and each owner's list is sorted by label, because the join rows arrive
+// in no meaningful order and unsorted chips reshuffle between reads.
+function foldThemeRefs(
+  rows: Array<{ ownerId: string; themeId: string }>,
+  vocabulary: Theme[]
+): Record<string, ThemeRef[]> {
+  const themeById = new Map(vocabulary.map((t) => [t.id, t]));
+  const byOwner: Record<string, ThemeRef[]> = {};
+  for (const { ownerId, themeId } of rows) {
+    const t = themeById.get(themeId);
+    if (!t) continue; // defensive: the FK + cascade keep this from happening
+    byOwner[ownerId] = [
+      ...(byOwner[ownerId] ?? []),
+      { id: t.id, label: t.label, archived: t.archived },
+    ];
+  }
+  for (const refs of Object.values(byOwner)) refs.sort((a, b) => a.label.localeCompare(b.label));
+  return byOwner;
+}
+
 // The theme lookup a drawer is handed (#112): the vocabulary to pick from, each
 // Piece's assigned Themes with their labels resolved, and which Themes are carried
 // by anything at all. **Plain records and arrays, never Maps or Sets** — this
@@ -188,31 +211,19 @@ export async function getThemeContext(): Promise<ThemeContext> {
   if (pieceThemes.error) throw new Error(`read piece_themes failed: ${pieceThemes.error.message}`);
   if (ideaThemes.error) throw new Error(`read idea_themes failed: ${ideaThemes.error.message}`);
 
-  const themeById = new Map(vocabulary.map((t) => [t.id, t]));
-  const byPiece: Record<string, ThemeRef[]> = {};
+  const pieceRows = (pieceThemes.data ?? []) as Array<{ piece_id: string; theme_id: string }>;
+  const ideaRows = (ideaThemes.data ?? []) as Array<{ theme_id: string }>;
+
   // `inUse` spans BOTH joins: a Theme carried only by a Piece is still in use, and
   // must not be offered for retirement (the tagger's "retire unused" row, #78).
   const inUse = new Set<string>();
+  for (const { theme_id } of pieceRows) inUse.add(theme_id);
+  for (const { theme_id } of ideaRows) inUse.add(theme_id);
 
-  for (const { piece_id, theme_id } of (pieceThemes.data ?? []) as Array<{
-    piece_id: string;
-    theme_id: string;
-  }>) {
-    inUse.add(theme_id);
-    const t = themeById.get(theme_id);
-    if (!t) continue; // defensive: the FK + cascade keep this from happening
-    byPiece[piece_id] = [
-      ...(byPiece[piece_id] ?? []),
-      { id: t.id, label: t.label, archived: t.archived },
-    ];
-  }
-  for (const { theme_id } of (ideaThemes.data ?? []) as Array<{ theme_id: string }>) {
-    inUse.add(theme_id);
-  }
-
-  // By label, so a Piece's chips read in the same order every time: the join rows
-  // arrive in no meaningful order, and unsorted chips reshuffle between reads.
-  for (const refs of Object.values(byPiece)) refs.sort((a, b) => a.label.localeCompare(b.label));
+  const byPiece = foldThemeRefs(
+    pieceRows.map((r) => ({ ownerId: r.piece_id, themeId: r.theme_id })),
+    vocabulary
+  );
 
   return { vocabulary, byPiece, inUse: [...inUse] };
 }
@@ -262,21 +273,15 @@ export async function getIdeasWithProvenance(): Promise<IdeaWithProvenance[]> {
     byIdea.set(idea_id, list);
   }
 
-  // Fold the idea_themes join onto the Ideas: each Idea's theme_ids resolve to
-  // labels (archived carried through). themes is already label-sorted, so the
-  // per-Idea lists inherit that order.
-  const themeById = new Map(themes.map((t) => [t.id, t]));
-  const themesByIdea = new Map<string, ThemeRef[]>();
-  for (const { idea_id, theme_id } of (ideaThemes.data ?? []) as Array<{
-    idea_id: string;
-    theme_id: string;
-  }>) {
-    const t = themeById.get(theme_id);
-    if (!t) continue; // defensive: the FK + cascade keep this from happening
-    const list = themesByIdea.get(idea_id) ?? [];
-    list.push({ id: t.id, label: t.label, archived: t.archived });
-    themesByIdea.set(idea_id, list);
-  }
+  // Fold the idea_themes join onto the Ideas — the same fold the Piece side uses, so
+  // an Idea's tags and a Piece's resolve identically (labels, archived, order).
+  const themesByIdea = foldThemeRefs(
+    ((ideaThemes.data ?? []) as Array<{ idea_id: string; theme_id: string }>).map((r) => ({
+      ownerId: r.idea_id,
+      themeId: r.theme_id,
+    })),
+    themes
+  );
 
   return ideas.map((idea) => {
     const spawnedPieces = (byIdea.get(idea.id) ?? []).sort(bySpawnOrder);
@@ -284,7 +289,7 @@ export async function getIdeasWithProvenance(): Promise<IdeaWithProvenance[]> {
       ...idea,
       usedCount: spawnedPieces.length,
       spawnedPieces,
-      themes: themesByIdea.get(idea.id) ?? [],
+      themes: themesByIdea[idea.id] ?? [],
     };
   });
 }

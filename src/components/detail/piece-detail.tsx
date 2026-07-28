@@ -29,10 +29,10 @@ const numFmt = new Intl.NumberFormat("en-GB");
 // its blocker already resolved to a title (`PieceWithBlocker`) — the cue is only
 // legible with it (#111).
 //
-// `themes` is the theme lookup (#112), optional like `metrics` and for the same
-// reason: it is a read a caller must fetch, and a view that has not got it yet should
-// still render the drawer rather than fail to compile. Given it, the drawer carries
-// the Themes section — the correction path for the inheritance at spawn.
+// `themes` is the theme lookup (#112) and is **required**, unlike `metrics`: a Theme
+// is a property of the content, so every drawer onto a Piece must be able to correct
+// it. Required means a new call site fails to compile until it fetches the context,
+// rather than silently dropping the Themes section from a view.
 export function PieceDetail({
   piece,
   metrics,
@@ -41,9 +41,10 @@ export function PieceDetail({
 }: {
   piece: PieceWithBlocker;
   metrics?: PieceMetrics;
-  themes?: ThemeContext;
+  themes: ThemeContext;
   trigger?: DetailTrigger;
 }) {
+  const assignedThemes = themes.byPiece[piece.id] ?? [];
   const [open, setOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(piece.title);
@@ -170,23 +171,20 @@ export function PieceDetail({
             angle while its sources range wider, and a Piece with no source Idea
             starts with nothing. The same creatable multi-combobox that tags an Idea,
             with the same replace-all semantics through set_piece_themes. */}
-        {themes ? (
-          <div className="flex flex-col gap-2 border-t pt-4">
-            <p className="text-sm font-medium">Themes</p>
-            {(themes.byPiece[piece.id] ?? []).length === 0 ? (
-              <p className="text-muted-foreground text-xs">
-                No Theme — inherited nothing from its sources. Add one so this output counts towards
-                its subject.
-              </p>
-            ) : null}
-            <ThemeTagger
-              target={{ kind: "piece", id: piece.id }}
-              assigned={themes.byPiece[piece.id] ?? []}
-              themes={themes.vocabulary}
-              themesInUse={themes.inUse}
-            />
-          </div>
-        ) : null}
+        <div className="flex flex-col gap-2 border-t pt-4">
+          <p className="text-sm font-medium">Themes</p>
+          {assignedThemes.length === 0 ? (
+            <p className="text-muted-foreground text-xs">
+              No Theme — this output counts towards no subject.
+            </p>
+          ) : null}
+          <ThemeTagger
+            target={{ kind: "piece", id: piece.id }}
+            assigned={assignedThemes}
+            themes={themes.vocabulary}
+            themesInUse={themes.inUse}
+          />
+        </div>
 
         {piece.channel === "linkedin" ? (
           <div className="flex flex-col gap-2 border-t pt-4">

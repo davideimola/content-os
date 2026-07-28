@@ -26,7 +26,7 @@ function DayGroup({
   rows: Row[];
   engagements: EngagementContext;
   metrics?: Record<string, PieceMetrics>;
-  themes?: ThemeContext;
+  themes: ThemeContext;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -60,7 +60,7 @@ export function CalendarAgenda({
   today: string;
   engagements: EngagementContext;
   metrics?: Record<string, PieceMetrics>;
-  themes?: ThemeContext;
+  themes: ThemeContext;
 }) {
   if (rows.length === 0) {
     return <EmptyState>Nothing dated yet — slot a Piece to see it here.</EmptyState>;

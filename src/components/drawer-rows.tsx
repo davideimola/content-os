@@ -61,7 +61,7 @@ export function AgendaRow({
   row: Row;
   engagements: EngagementContext;
   metrics?: Record<string, PieceMetrics>;
-  themes?: ThemeContext;
+  themes: ThemeContext;
 }) {
   const body = <AgendaBody item={row.item} />;
   // The row is the opener. `id` keeps the anchor-target behaviour a card trigger has,
