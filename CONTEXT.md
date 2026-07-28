@@ -33,7 +33,7 @@ The single editorial backlog, in tiers: **Ideas** (a live pool of sparks); the *
 _Avoid_: backlog, content plan, board
 
 **Factory**:
-A repo where content gets produced with its own writing skills: `davideimola.dev` (blog posts, LinkedIn content) and `presentations` (talks, CFPs, slides). Factories keep their production artifacts; they never hold the editorial pipeline.
+A repo where content gets produced with its own writing skills: `davideimola.dev` (blog posts, LinkedIn content) and `presentations` (talks, CFPs, slides). Factories keep their production artifacts; they never hold the editorial pipeline. The converse also holds: content-os holds no production prose — when it needs to compare against published work it **reads** the Factory's published output, and never copies it.
 _Avoid_: content repo, downstream repo
 
 **Cadence**:

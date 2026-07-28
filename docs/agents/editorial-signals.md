@@ -54,6 +54,24 @@ The signals set the routing, not the wording:
 Pieces/Talks (the current proposals + the Calendar). If it duplicates shipped or in-flight work, angle
 it differently or fold it in — never let the same piece be made twice.
 
+The Pipeline holds **no prose of its own output** (`pieces` carries an `artifact_url`, not a body), so
+the comparison reads the **published corpus** where the Factories already publish it — derived from
+their source of truth, always current, and never copied into content-os
+([ADR-0020](../adr/0020-published-corpus-is-read-derived-not-maintained.md)):
+
+| What | Where | When to read it |
+| --- | --- | --- |
+| Blog + talks + projects, as an index | `https://davideimola.dev/llms.txt` | **start here** — title, link, excerpt per post |
+| One post, full text | append `.md` to its URL | drilling in on a single candidate |
+| Every post, full text inlined | `https://davideimola.dev/llms-full.txt` | the comparison needs the whole corpus |
+| Talk history, with abstracts | `src/content/talks.json` in the blog Factory | checking against a delivered talk |
+| LinkedIn copy, as shipped | `.carousel/<slug>/social-post.md` in the blog Factory | matching the amplifier's own wording |
+
+Read the index first and drill in only where it looks close; the whole published corpus is small enough
+to read outright when a comparison needs it. [Recycle](../../CONTEXT.md) draws from this same corpus —
+deriving an angle from a published blog or an upcoming Talk is **reading** it, never generating a new
+topic ([ADR-0006](../adr/0006-dry-pipeline-recycle-and-prompt-never-generate.md)).
+
 ## Judge on editorial state only
 
 Judge with the Pipeline's own editorial state and fields — the Idea pool, the proposal states, the
