@@ -85,22 +85,28 @@ export function DetailOpener({
 }
 
 // A row made into a drawer trigger — the row-shaped counterpart of `CardTrigger`,
-// so every list row that opens a drawer looks and focuses the same way.
+// so every list row that opens a drawer looks and focuses the same way. `id` does the
+// same job it does on a card: it makes the row an anchor target, so `/calendar#<id>`
+// scrolls it into view and flashes it (#76) whichever layout the row was rendered in.
 export function RowTrigger({
   onClick,
   className,
+  id,
   children,
 }: {
   onClick: () => void;
   className?: string;
+  id?: string;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
+      id={id}
       onClick={onClick}
       className={cn(
-        "hover:bg-muted/50 focus-visible:ring-ring/50 flex w-full cursor-pointer items-center gap-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none",
+        "hover:bg-muted/50 focus-visible:ring-ring/50 flex w-full cursor-pointer items-center gap-3 rounded-md text-left transition-colors focus-visible:ring-2 focus-visible:outline-none",
+        id && "scroll-mt-20 target:ring-ring target:ring-2",
         className
       )}
     >

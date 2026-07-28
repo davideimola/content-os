@@ -469,74 +469,18 @@ export type CalendarItem = {
   kind: CalendarItemKind;
   title: string;
   detail: string | null; // channel / event name / location
-  state: string | null; // piece state or engagement outcome
+  // A Piece's lifecycle state, a CFP's submission outcome, or — for an Event — the
+  // readiness of the Talk being taken to it, least ready first where several share it
+  // (`eventTalkReadiness`, #117). Null only when nothing is accepted there yet.
+  state: string | null;
 };
 
-export async function getCalendarItems(): Promise<CalendarItem[]> {
-  const db = supabaseAdmin();
-  const [pieces, engagements, events] = await Promise.all([
-    db.from("pieces").select("id,title,channel,state,publish_date").not("publish_date", "is", null),
-    db
-      .from("engagements")
-      .select("id,outcome,deadline,talks(title),events(name)")
-      .eq("kind", "cfp")
-      .not("deadline", "is", null),
-    db.from("events").select("id,name,starts_on,location").not("starts_on", "is", null),
-  ]);
-  if (pieces.error) throw new Error(`read pieces (calendar) failed: ${pieces.error.message}`);
-  if (engagements.error) throw new Error(`read engagements failed: ${engagements.error.message}`);
-  if (events.error) throw new Error(`read events failed: ${events.error.message}`);
-
-  const one = <T>(v: T | T[] | null): T | null =>
-    (Array.isArray(v) ? (v[0] ?? null) : v) as T | null;
-
-  const items: CalendarItem[] = [];
-  for (const p of (pieces.data ?? []) as Piece[]) {
-    if (p.publish_date)
-      items.push({
-        id: p.id,
-        date: p.publish_date,
-        kind: "piece",
-        title: p.title,
-        detail: p.channel,
-        state: p.state,
-      });
-  }
-  for (const e of (engagements.data ?? []) as Array<{
-    id: string;
-    outcome: string;
-    deadline: string;
-    talks: { title: string } | { title: string }[] | null;
-    events: { name: string } | { name: string }[] | null;
-  }>) {
-    items.push({
-      id: e.id,
-      date: e.deadline,
-      kind: "cfp",
-      title: one(e.talks)?.title ?? "CFP",
-      detail: one(e.events)?.name ?? null,
-      state: e.outcome,
-    });
-  }
-  for (const ev of (events.data ?? []) as Array<{
-    id: string;
-    name: string;
-    starts_on: string;
-    location: string | null;
-  }>) {
-    items.push({
-      id: ev.id,
-      date: ev.starts_on,
-      kind: "event",
-      title: ev.name,
-      detail: ev.location,
-      state: null,
-    });
-  }
-
-  items.sort((a, b) => a.date.localeCompare(b.date));
-  return items;
-}
+// The projection that fills these is **pure** and lives in `src/lib/rows.ts`
+// (`calendarItems`), over `getPieces()` and `getEngagementContext()` — the two reads a
+// by-date view needs anyway to hand each row its drawer. There is deliberately no
+// `getCalendarItems()` read beside them: it would fetch `pieces`, `engagements` and
+// `events` a second time for facts its caller is already holding (#111 left that
+// fold-in to #117).
 
 // ── Engagement tier: Talk → its CFPs → their Event ──────────────────────────────
 // The tier has existed since init and no view ever read it whole: the Calendar's

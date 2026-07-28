@@ -104,6 +104,25 @@ export function calendarKindMeta(item: CalendarItem): {
   return { icon: meta.icon, label: meta.label, variant: "outline" };
 }
 
+// The same kind as a bare glyph, for a row too dense to carry a badge — the Calendar's
+// compact line (#117), where the type has to read at a glance without spending a third
+// of a phone's width on a word. It carries its label as `aria-label`/`title`, so the
+// kind survives a screen reader and a hover; the row's state and readiness marks say
+// the rest. (Deleted with the Pipeline board in #116, restored here with a caller.)
+export function CalendarKindIcon({ item }: { item: CalendarItem }) {
+  const { icon: Icon, label } = calendarKindMeta(item);
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className="text-muted-foreground inline-flex shrink-0"
+    >
+      <Icon aria-hidden className="size-3.5" />
+    </span>
+  );
+}
+
 export function FlagBadge({ flagSide }: { flagSide: FlagSide }) {
   return flagSide === "flag" ? (
     <Badge className="uppercase tracking-wide">Flag</Badge>

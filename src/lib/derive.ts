@@ -57,10 +57,27 @@ export const TUNING = {
   linkedinHoleWeeks: 8,
 
   /**
+   * The same scan on the **Calendar**, where the horizon is longer. Not a second
+   * definition of `covered` — it is the same predicate over more weeks, so a week
+   * that is a hole is a hole on both surfaces and the two can never contradict each
+   * other. The reason they differ is the occasion: the home is a glance at a ping
+   * and wants the next thing, while the Calendar is where a date gets *placed* and
+   * reads as a quarter (user story 14), so its lane has to cover the span being
+   * placed into. Twelve is a first cut like the four above, not contract: the
+   * prototype measured that horizon as the longest that still read like a list
+   * (twelve reported five holes against that day's data, twenty reported thirteen
+   * running to December — noise). Over today's data the same twelve reports six
+   * weeks, 7–13 Sept through 19–25 Oct.
+   */
+  calendarHoleWeeks: 12,
+
+  /**
    * How many **months after the current one** to scan for a missing blog. The
    * monthly floor's unit is bigger, so a useful horizon is longer in absolute
    * time: six months surfaces December — the first uncovered month, and a blog
-   * needs a month of runway — while keeping the list at two chips today.
+   * needs a month of runway — while keeping the list at two chips today. Six
+   * months already spans `calendarHoleWeeks`, so the Calendar needs no separate
+   * blog horizon: both floors are read at least to the end of the quarter.
    */
   blogHoleMonths: 6,
 
@@ -69,6 +86,13 @@ export const TUNING = {
    * of more than a year of columns is unreadable at any tuning.
    */
   outputMonths: 12,
+
+  /**
+   * Display cap on a list in the Calendar's lane. Not one of the four dials either:
+   * the lane sits ABOVE the agenda on a phone, so its length is what stands between
+   * Davide and the thing he opened the view for. Overflow is stated, never silent.
+   */
+  laneRows: 5,
 } as const;
 
 // ── dates ─────────────────────────────────────────────────────────────────────
@@ -192,6 +216,22 @@ export function readinessOf(
   if (piece.state === "ready") return readiness("in_can", daysUntil);
   if (daysUntil <= leadDays) return readiness("late", daysUntil);
   return readiness("not_written", daysUntil);
+}
+
+// Every dated Piece's readiness, by Piece id — what a list of rows is handed so each
+// row shows the mark without recomputing it, and so the arithmetic happens once, beside
+// the render that decided what `today` is. Undated Pieces are absent, not null: an
+// undated proposal has made no commitment to be late on.
+export function readinessById(
+  pieces: Array<Pick<Piece, "id" | "state" | "publish_date">>,
+  today: string
+): Record<string, Readiness> {
+  const byId: Record<string, Readiness> = {};
+  for (const p of pieces) {
+    const r = readinessOf(p, today);
+    if (r) byId[p.id] = r;
+  }
+  return byId;
 }
 
 // How much of what is already dated is actually written — one figure, plus the

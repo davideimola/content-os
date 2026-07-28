@@ -28,7 +28,21 @@ function GapGroup({ label, items }: { label: string; items: { key: string; text:
   );
 }
 
-export function CadenceGaps({ linkedin, blog }: { linkedin: WeekHole[]; blog: MonthHole[] }) {
+// `weeks` / `months` are the horizons the two lists were computed over, so the labels
+// name the window the reader is looking at. They default to the home's dials; the
+// Calendar passes its own longer week horizon (`TUNING.calendarHoleWeeks`, #117) — the
+// same predicate over more weeks, never a second definition of `covered`.
+export function CadenceGaps({
+  linkedin,
+  blog,
+  weeks = TUNING.linkedinHoleWeeks,
+  months = TUNING.blogHoleMonths,
+}: {
+  linkedin: WeekHole[];
+  blog: MonthHole[];
+  weeks?: number;
+  months?: number;
+}) {
   const total = linkedin.length + blog.length;
   return (
     <Card className="h-fit gap-3 p-4">
@@ -46,16 +60,15 @@ export function CadenceGaps({ linkedin, blog }: { linkedin: WeekHole[]; blog: Mo
         // Careful wording: the current week and month are excluded, so this must not
         // claim they are covered — a pill beside it may well read `open`.
         <p className="text-muted-foreground text-xs">
-          Nothing open in the {TUNING.linkedinHoleWeeks} weeks and {TUNING.blogHoleMonths} months
-          after the current one.
+          Nothing open in the {weeks} weeks and {months} months after the current one.
         </p>
       ) : null}
       <GapGroup
-        label={`no LinkedIn · next ${TUNING.linkedinHoleWeeks} weeks`}
+        label={`no LinkedIn · next ${weeks} weeks`}
         items={linkedin.map((w) => ({ key: w.key, text: w.label }))}
       />
       <GapGroup
-        label={`no blog · next ${TUNING.blogHoleMonths} months`}
+        label={`no blog · next ${months} months`}
         items={blog.map((m) => ({ key: m.key, text: m.label }))}
       />
       {total > 0 ? (

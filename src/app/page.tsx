@@ -18,7 +18,6 @@ import {
 import {
   cumulativeFollowerGrowth,
   getCadence,
-  getCalendarItems,
   getEngagementContext,
   getFlagMix,
   getLatestFollowerLevel,
@@ -31,7 +30,7 @@ import {
   getThemeContext,
   type MonthlyMetrics,
 } from "@/lib/pipeline";
-import { buildRows } from "@/lib/rows";
+import { buildRows, calendarItems } from "@/lib/rows";
 import { formatObservedOn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -78,31 +77,19 @@ function EqualHeight({ children }: { children: React.ReactNode }) {
 }
 
 export default async function OverviewPage() {
-  const [
-    pieces,
-    ideas,
-    talks,
-    cadence,
-    mix,
-    calendar,
-    monthly,
-    themes,
-    followerLevel,
-    engagements,
-    posts,
-  ] = await Promise.all([
-    getPieces(),
-    getLiveIdeas(),
-    getTalks(),
-    getCadence(),
-    getFlagMix(),
-    getCalendarItems(),
-    getMonthlyMetrics(),
-    getThemeContext(),
-    getLatestFollowerLevel(),
-    getEngagementContext(),
-    getLinkedinPosts(),
-  ]);
+  const [pieces, ideas, talks, cadence, mix, monthly, themes, followerLevel, engagements, posts] =
+    await Promise.all([
+      getPieces(),
+      getLiveIdeas(),
+      getTalks(),
+      getCadence(),
+      getFlagMix(),
+      getMonthlyMetrics(),
+      getThemeContext(),
+      getLatestFollowerLevel(),
+      getEngagementContext(),
+      getLinkedinPosts(),
+    ]);
   const metrics = await getPieceMetricsById(pieces);
 
   const today = todayISO();
@@ -118,7 +105,10 @@ export default async function OverviewPage() {
   const blogHoles = blogHolesAhead(pieces, today);
 
   // ── the week ───────────────────────────────────────────────────────────────
-  const agenda = agendaWindowRows(buildRows(calendar, pieces), today);
+  // The by-date agenda is derived from the Pieces and the Engagement tier already read
+  // above — the same pure projection the Calendar uses, so neither view reads those
+  // tables twice for it (#117).
+  const agenda = agendaWindowRows(buildRows(calendarItems(pieces, engagements), pieces), today);
 
   // ── the month's LinkedIn numbers ───────────────────────────────────────────
   // The tiles track the latest month that actually has LinkedIn data — a site-only
