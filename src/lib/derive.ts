@@ -93,6 +93,16 @@ export const TUNING = {
    * Davide and the thing he opened the view for. Overflow is stated, never silent.
    */
   laneRows: 5,
+
+  /**
+   * How many of a Talk's submissions its asset sheet shows before the rest go behind
+   * one click (#119). Not one of the four dials either — it is what keeps an
+   * equal-height grid honest: uncapped, one Talk with five CFPs stretches every card
+   * in its row to that height, and Davide's own account is that more than two
+   * submissions on one Talk is rare. The true count is stated beside the heading
+   * whatever the cap, so nothing is hidden silently.
+   */
+  talkSubmissions: 2,
 } as const;
 
 // ── dates ─────────────────────────────────────────────────────────────────────

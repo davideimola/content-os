@@ -234,6 +234,21 @@ export function cfpSubmissionsOfTalk(ctx: EngagementContext, talkId: string): Cf
     .map((e) => resolve(ctx, e));
 }
 
+// How many of a Talk's engagements are NOT submissions, i.e. `direct` invitations
+// (#119). The Talks view is the asset sheet for what a Talk was *submitted* to, and an
+// invitation is a different act: it is born `confirmed`, has nothing to await and no
+// answer to write. Nothing in the contract creates one — the console's
+// `createEngagement` passes `kind = 'cfp'`, the MCP adapter has no Engagement tool at
+// all, and no live row is `direct` — so a creation flow and a row design for the kind
+// could not be driven at any seam, which is this repo's whole discipline. The
+// deliberate call is therefore: **no surface, but no silence either.** The sheet states
+// the number it is not showing, so a Talk carrying an invitation says so instead of
+// reading as never taken anywhere. The day something does create one, that line is
+// where the surface gets added.
+export function invitationsOfTalk(ctx: EngagementContext, talkId: string): number {
+  return (ctx.engagementsByTalk[talkId] ?? []).filter((e) => e.kind !== "cfp").length;
+}
+
 // The submissions the Calendar cannot show: a `cfp` with no deadline is not a dated
 // fact, so it never enters the agenda (#117). All three live submissions are in this
 // list — which is exactly why the count is stated with its cause, rather than leaving
