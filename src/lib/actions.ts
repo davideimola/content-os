@@ -125,3 +125,11 @@ export async function archiveTheme(id: string): Promise<ActionResult> {
 export async function setIdeaThemes(ideaId: string, themeIds: string[]): Promise<ActionResult> {
   return callVerb("set_idea_themes", { p_idea_id: ideaId, p_theme_ids: themeIds });
 }
+
+// set_piece_themes(p_piece_id, p_theme_ids): the twin of set_idea_themes, same
+// replace-all semantics. A Piece inherits its source Ideas' live Themes at spawn and
+// this is the hand correction (#112) — one output covers one angle while its sources
+// range wider, and 2 of the 18 live Pieces have no source Idea at all.
+export async function setPieceThemes(pieceId: string, themeIds: string[]): Promise<ActionResult> {
+  return callVerb("set_piece_themes", { p_piece_id: pieceId, p_theme_ids: themeIds });
+}

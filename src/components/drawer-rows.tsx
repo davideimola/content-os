@@ -18,7 +18,7 @@ import { PieceDetail } from "@/components/detail/piece-detail";
 import { calendarKindMeta, formatDate, OutcomeBadge } from "@/components/pipeline";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import type { CalendarItem, EngagementContext, PieceMetrics } from "@/lib/pipeline";
+import type { CalendarItem, EngagementContext, PieceMetrics, ThemeContext } from "@/lib/pipeline";
 import { type CfpSubmission, cfpSubmission, type Row } from "@/lib/rows";
 
 function KindBadge({ item }: { item: CalendarItem }) {
@@ -50,16 +50,18 @@ function AgendaBody({ item }: { item: CalendarItem }) {
   );
 }
 
-// One agenda row. `engagements` and `metrics` are the plain-record lookups the row
-// needs to hand its drawer the full record behind the date.
+// One agenda row. `engagements`, `metrics` and `themes` are the plain-record lookups
+// the row needs to hand its drawer the full record behind the date.
 export function AgendaRow({
   row,
   engagements,
   metrics,
+  themes,
 }: {
   row: Row;
   engagements: EngagementContext;
   metrics?: Record<string, PieceMetrics>;
+  themes?: ThemeContext;
 }) {
   const body = <AgendaBody item={row.item} />;
   // The row is the opener. `id` keeps the anchor-target behaviour a card trigger has,
@@ -72,7 +74,14 @@ export function AgendaRow({
 
   if (row.kind === "piece") {
     if (!row.piece) return body; // no Piece behind the date — nothing to open
-    return <PieceDetail piece={row.piece} metrics={metrics?.[row.piece.id]} trigger={asRow} />;
+    return (
+      <PieceDetail
+        piece={row.piece}
+        metrics={metrics?.[row.piece.id]}
+        themes={themes}
+        trigger={asRow}
+      />
+    );
   }
 
   if (row.kind === "event") {

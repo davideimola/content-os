@@ -24,7 +24,7 @@ export function IdeaDetail({
 }: {
   idea: IdeaWithProvenance;
   themes: Theme[];
-  themesInUse: Set<string>;
+  themesInUse: string[];
   trigger?: DetailTrigger;
 }) {
   const [open, setOpen] = useState(false);
@@ -188,7 +188,7 @@ export function IdeaDetail({
             <div className="flex flex-col gap-2 border-t pt-4">
               <p className="text-sm font-medium">Themes</p>
               <ThemeTagger
-                ideaId={idea.id}
+                target={{ kind: "idea", id: idea.id }}
                 assigned={idea.themes}
                 themes={themes}
                 themesInUse={themesInUse}

@@ -1,6 +1,6 @@
 import { AgendaRow } from "@/components/drawer-rows";
 import { EmptyState } from "@/components/pipeline";
-import type { EngagementContext, PieceMetrics } from "@/lib/pipeline";
+import type { EngagementContext, PieceMetrics, ThemeContext } from "@/lib/pipeline";
 import { groupRowsByDate, type Row, rowKey } from "@/lib/rows";
 
 const fmtHeading = new Intl.DateTimeFormat("en-GB", {
@@ -20,11 +20,13 @@ function DayGroup({
   rows,
   engagements,
   metrics,
+  themes,
 }: {
   date: string;
   rows: Row[];
   engagements: EngagementContext;
   metrics?: Record<string, PieceMetrics>;
+  themes?: ThemeContext;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -32,7 +34,13 @@ function DayGroup({
         {heading(date)}
       </h3>
       {rows.map((row) => (
-        <AgendaRow key={rowKey(row)} row={row} engagements={engagements} metrics={metrics} />
+        <AgendaRow
+          key={rowKey(row)}
+          row={row}
+          engagements={engagements}
+          metrics={metrics}
+          themes={themes}
+        />
       ))}
     </div>
   );
@@ -46,11 +54,13 @@ export function CalendarAgenda({
   today,
   engagements,
   metrics,
+  themes,
 }: {
   rows: Row[];
   today: string;
   engagements: EngagementContext;
   metrics?: Record<string, PieceMetrics>;
+  themes?: ThemeContext;
 }) {
   if (rows.length === 0) {
     return <EmptyState>Nothing dated yet — slot a Piece to see it here.</EmptyState>;
@@ -73,6 +83,7 @@ export function CalendarAgenda({
               rows={group}
               engagements={engagements}
               metrics={metrics}
+              themes={themes}
             />
           ))
         )}
@@ -88,6 +99,7 @@ export function CalendarAgenda({
               rows={group}
               engagements={engagements}
               metrics={metrics}
+              themes={themes}
             />
           ))}
         </section>

@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 
 import { CopyId } from "@/components/copy-id";
 import { DetailOpener, DetailSheet, type DetailTrigger } from "@/components/detail/detail-sheet";
+import { ThemeTagger } from "@/components/detail/theme-tagger";
 import { ChannelBadge, FlagBadge, formatDate, PieceCard, StateBadge } from "@/components/pipeline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,7 @@ import {
   setPieceLinkedinUrl,
   slotPiece,
 } from "@/lib/actions";
-import type { PieceMetrics, PieceWithBlocker } from "@/lib/pipeline";
+import type { PieceMetrics, PieceWithBlocker, ThemeContext } from "@/lib/pipeline";
 
 const numFmt = new Intl.NumberFormat("en-GB");
 
@@ -27,13 +28,20 @@ const numFmt = new Intl.NumberFormat("en-GB");
 // Piece's own card opens the drawer; supply one and a row does. The Piece comes with
 // its blocker already resolved to a title (`PieceWithBlocker`) — the cue is only
 // legible with it (#111).
+//
+// `themes` is the theme lookup (#112), optional like `metrics` and for the same
+// reason: it is a read a caller must fetch, and a view that has not got it yet should
+// still render the drawer rather than fail to compile. Given it, the drawer carries
+// the Themes section — the correction path for the inheritance at spawn.
 export function PieceDetail({
   piece,
   metrics,
+  themes,
   trigger,
 }: {
   piece: PieceWithBlocker;
   metrics?: PieceMetrics;
+  themes?: ThemeContext;
   trigger?: DetailTrigger;
 }) {
   const [open, setOpen] = useState(false);
@@ -156,6 +164,29 @@ export function PieceDetail({
             )}
           </dd>
         </dl>
+
+        {/* Themes (#112): a Piece inherits its source Ideas' live Themes at spawn,
+            and this is where that default gets corrected — one output covers one
+            angle while its sources range wider, and a Piece with no source Idea
+            starts with nothing. The same creatable multi-combobox that tags an Idea,
+            with the same replace-all semantics through set_piece_themes. */}
+        {themes ? (
+          <div className="flex flex-col gap-2 border-t pt-4">
+            <p className="text-sm font-medium">Themes</p>
+            {(themes.byPiece[piece.id] ?? []).length === 0 ? (
+              <p className="text-muted-foreground text-xs">
+                No Theme — inherited nothing from its sources. Add one so this output counts towards
+                its subject.
+              </p>
+            ) : null}
+            <ThemeTagger
+              target={{ kind: "piece", id: piece.id }}
+              assigned={themes.byPiece[piece.id] ?? []}
+              themes={themes.vocabulary}
+              themesInUse={themes.inUse}
+            />
+          </div>
+        ) : null}
 
         {piece.channel === "linkedin" ? (
           <div className="flex flex-col gap-2 border-t pt-4">

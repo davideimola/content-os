@@ -13,6 +13,7 @@ import {
   getMonthlyMetrics,
   getPieces,
   getTalks,
+  getThemeContext,
   type MonthlyMetrics,
 } from "@/lib/pipeline";
 
@@ -45,7 +46,7 @@ function series(rows: MonthlyMetrics[], pick: (r: MonthlyMetrics) => number | nu
 }
 
 export default async function OverviewPage() {
-  const [pieces, ideas, talks, cadence, mix, calendar, monthly] = await Promise.all([
+  const [pieces, ideas, talks, cadence, mix, calendar, monthly, themes] = await Promise.all([
     getPieces(),
     getLiveIdeas(),
     getTalks(),
@@ -53,6 +54,7 @@ export default async function OverviewPage() {
     getFlagMix(),
     getCalendarItems(),
     getMonthlyMetrics(),
+    getThemeContext(),
   ]);
 
   const proposedPieces = pieces.filter((p) => p.state === "proposed");
@@ -136,7 +138,7 @@ export default async function OverviewPage() {
           ) : (
             <div className="flex flex-col gap-2">
               {proposedPieces.map((p) => (
-                <PieceDetail key={p.id} piece={p} />
+                <PieceDetail key={p.id} piece={p} themes={themes} />
               ))}
               {proposedTalks.map((t) => (
                 <TalkDetail key={t.id} talk={t} />

@@ -59,8 +59,6 @@ export function IdeasView({
   const [showArchived, setShowArchived] = useState(false);
   const [groupByTheme, setGroupByTheme] = useState(false);
   const [themeFilter, setThemeFilter] = useState<string | null>(null);
-  // A theme may be archived only when no Idea carries it (#78).
-  const themesInUse = useMemo(() => new Set(usedThemeIds), [usedThemeIds]);
   // Only live themes are group/filter options — archived drop out (#79).
   const liveThemes = useMemo(() => themes.filter((t) => !t.archived), [themes]);
   // The active filter, normalised against the live list: a theme archived while it
@@ -199,7 +197,7 @@ export function IdeasView({
           <Section key={g.title} title={g.title} count={g.items.length}>
             <div className="flex flex-col gap-2">
               {g.items.map((i) => (
-                <IdeaDetail key={i.id} idea={i} themes={themes} themesInUse={themesInUse} />
+                <IdeaDetail key={i.id} idea={i} themes={themes} themesInUse={usedThemeIds} />
               ))}
             </div>
           </Section>

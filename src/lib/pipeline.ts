@@ -161,6 +161,62 @@ export function getThemes(): Promise<Theme[]> {
   return selectAll<Theme>("themes", "id,label,archived,created_at", { column: "label" });
 }
 
+// The theme lookup a drawer is handed (#112): the vocabulary to pick from, each
+// Piece's assigned Themes with their labels resolved, and which Themes are carried
+// by anything at all. **Plain records and arrays, never Maps or Sets** — this
+// crosses from a Server Component into a Client one and a Map does not survive the
+// RSC payload (#111).
+//
+// A Theme is a property of the content, so it is carried by the output and not only
+// by the spark: `byPiece` is the per-Piece set that coverage-by-Theme folds, counted
+// over Pieces — the same metre as Cadence and the Flag mix. Labels resolve against
+// the WHOLE vocabulary, archived included, so a Theme retired after it was assigned
+// still reads as itself.
+export type ThemeContext = {
+  vocabulary: Theme[]; // every theme, label-sorted (live + archived)
+  byPiece: Record<string, ThemeRef[]>; // a Piece's assigned themes
+  inUse: string[]; // theme ids carried by any Idea or any Piece
+};
+
+export async function getThemeContext(): Promise<ThemeContext> {
+  const db = supabaseAdmin();
+  const [vocabulary, pieceThemes, ideaThemes] = await Promise.all([
+    getThemes(),
+    db.from("piece_themes").select("piece_id,theme_id"),
+    db.from("idea_themes").select("idea_id,theme_id"),
+  ]);
+  if (pieceThemes.error) throw new Error(`read piece_themes failed: ${pieceThemes.error.message}`);
+  if (ideaThemes.error) throw new Error(`read idea_themes failed: ${ideaThemes.error.message}`);
+
+  const themeById = new Map(vocabulary.map((t) => [t.id, t]));
+  const byPiece: Record<string, ThemeRef[]> = {};
+  // `inUse` spans BOTH joins: a Theme carried only by a Piece is still in use, and
+  // must not be offered for retirement (the tagger's "retire unused" row, #78).
+  const inUse = new Set<string>();
+
+  for (const { piece_id, theme_id } of (pieceThemes.data ?? []) as Array<{
+    piece_id: string;
+    theme_id: string;
+  }>) {
+    inUse.add(theme_id);
+    const t = themeById.get(theme_id);
+    if (!t) continue; // defensive: the FK + cascade keep this from happening
+    byPiece[piece_id] = [
+      ...(byPiece[piece_id] ?? []),
+      { id: t.id, label: t.label, archived: t.archived },
+    ];
+  }
+  for (const { theme_id } of (ideaThemes.data ?? []) as Array<{ theme_id: string }>) {
+    inUse.add(theme_id);
+  }
+
+  // By label, so a Piece's chips read in the same order every time: the join rows
+  // arrive in no meaningful order, and unsorted chips reshuffle between reads.
+  for (const refs of Object.values(byPiece)) refs.sort((a, b) => a.label.localeCompare(b.label));
+
+  return { vocabulary, byPiece, inUse: [...inUse] };
+}
+
 // Dated Pieces first (oldest→newest), then undated; id as a stable tie-break. Keeps
 // the drawer's provenance list deterministic regardless of piece_sources row order.
 function bySpawnOrder(a: SpawnedPiece, b: SpawnedPiece): number {

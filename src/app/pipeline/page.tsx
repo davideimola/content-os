@@ -6,6 +6,7 @@ import {
   getPieceMetricsById,
   getPieces,
   getTalks,
+  getThemeContext,
   PIECE_STATE_ORDER,
   type PieceState,
   type PieceWithBlocker,
@@ -22,7 +23,7 @@ const STATE_LABEL: Record<PieceState, string> = {
 };
 
 export default async function PipelinePage() {
-  const [pieces, talks] = await Promise.all([getPieces(), getTalks()]);
+  const [pieces, talks, themes] = await Promise.all([getPieces(), getTalks(), getThemeContext()]);
   const metrics = await getPieceMetricsById(pieces);
 
   const proposedPieces = pieces.filter((p) => p.state === "proposed");
@@ -44,7 +45,7 @@ export default async function PipelinePage() {
           ) : (
             <div className="flex flex-col gap-2">
               {proposedPieces.map((p) => (
-                <PieceDetail key={p.id} piece={p} metrics={metrics[p.id]} />
+                <PieceDetail key={p.id} piece={p} metrics={metrics[p.id]} themes={themes} />
               ))}
               {proposedTalks.map((t) => (
                 <TalkDetail key={t.id} talk={t} />
@@ -62,7 +63,7 @@ export default async function PipelinePage() {
               ) : (
                 <div className="flex flex-col gap-2">
                   {items.map((p) => (
-                    <PieceDetail key={p.id} piece={p} metrics={metrics[p.id]} />
+                    <PieceDetail key={p.id} piece={p} metrics={metrics[p.id]} themes={themes} />
                   ))}
                 </div>
               )}

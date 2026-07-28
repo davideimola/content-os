@@ -2,10 +2,10 @@
 
 import { Combobox } from "@base-ui/react/combobox";
 import { Archive, Check, ChevronsUpDown, Plus, X } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
-import { archiveTheme, createTheme, setIdeaThemes } from "@/lib/actions";
+import { archiveTheme, createTheme, setIdeaThemes, setPieceThemes } from "@/lib/actions";
 import type { Theme, ThemeRef } from "@/lib/pipeline";
 import { cn } from "@/lib/utils";
 
@@ -14,26 +14,40 @@ import { cn } from "@/lib/utils";
 const CREATE_ID = "__create__";
 type Option = { id: string; label: string };
 
-// Tag an Idea's themes as a creatable multi-combobox (Davide's steer over the
+// What is being tagged. A Theme is a property of the content, so it is carried by
+// the spark AND by the output (#112): an Idea and a Piece are tagged by the same
+// control, with the same replace-all semantics, through their own verb. The verb
+// mapping lives here, once — a call site says what it is, never which RPC to call.
+export type ThemeTarget = { kind: "idea" | "piece"; id: string };
+
+const SET_THEMES = { idea: setIdeaThemes, piece: setPieceThemes } as const;
+
+// Tag a target's themes as a creatable multi-combobox (Davide's steer over the
 // earlier toggle-chips): selected themes show as chips inside the field, typing
 // filters the live vocabulary, and an unmatched query offers "Create «X»". Every
-// change replaces the whole set via set_idea_themes; a mint routes through
-// create_theme first (for the real DB id) then set_idea_themes. Archiving an
+// change replaces the whole set via the target's set verb; a mint routes through
+// create_theme first (for the real DB id) and then that verb. Archiving an
 // unused theme (#78) stays a discreet row below — it's maintenance, not tagging.
+//
+// `themesInUse` is a plain array of theme ids (never a Set: this contract has to
+// survive being built server-side, #111) — every theme carried by any Idea or any
+// Piece, i.e. the ones that may NOT be retired.
 export function ThemeTagger({
-  ideaId,
+  target,
   assigned,
   themes,
   themesInUse,
 }: {
-  ideaId: string;
+  target: ThemeTarget;
   assigned: ThemeRef[];
   themes: Theme[];
-  themesInUse: Set<string>;
+  themesInUse: string[];
 }) {
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const inUse = useMemo(() => new Set(themesInUse), [themesInUse]);
+  const setThemes = SET_THEMES[target.kind];
 
   const liveThemes = themes.filter((t) => !t.archived);
   const assignedIds = new Set(assigned.map((t) => t.id));
@@ -51,13 +65,14 @@ export function ThemeTagger({
   const showCreate = q.length > 0 && !liveThemes.some((t) => t.label.toLowerCase() === qLower);
   const items: Option[] = showCreate ? [...base, { id: CREATE_ID, label: q }] : base;
 
-  // Themes no Idea carries — the only ones that may be retired (#78).
-  const archivable = liveThemes.filter((t) => !themesInUse.has(t.id));
+  // Themes nothing carries — neither an Idea nor a Piece — the only ones that may
+  // be retired (#78, widened by #112 now that the output carries Themes too).
+  const archivable = liveThemes.filter((t) => !inUse.has(t.id));
 
   function apply(nextIds: string[]) {
     setError(null);
     startTransition(async () => {
-      const res = await setIdeaThemes(ideaId, nextIds);
+      const res = await setThemes(target.id, nextIds);
       if (!res.ok) setError(res.error);
     });
   }
@@ -78,7 +93,7 @@ export function ThemeTagger({
       }
       const ids = next.filter((o) => o.id !== CREATE_ID).map((o) => o.id);
       if (!ids.includes(res.id)) ids.push(res.id);
-      const applied = await setIdeaThemes(ideaId, ids);
+      const applied = await setThemes(target.id, ids);
       if (!applied.ok) setError(applied.error);
       setQuery("");
     });
