@@ -35,8 +35,9 @@ component (active-link state via `usePathname`); the signed-in user comes from `
 The views (nav order in `src/lib/nav.ts`):
 
 - **Overview** (`/`) — cadence, Flag mix, stat tiles, a **"This month on LinkedIn"** tile row (impressions
-  / members reached / engagements / followers, with month-over-month deltas — ADR-0019), the "to judge"
-  proposals, and the next dated items.
+  / members reached / engagements with month-over-month deltas, plus the follower **level** carrying the
+  date it was observed and the month's growth beside it — ADR-0019, #113), the "to judge" proposals, and
+  the next dated items.
 - **Pipeline** (`/pipeline`) — the lifecycle board (proposed → slotted → ready → published), one
   column per state; the write actions live on the Piece cards.
 - **Calendar** (`/calendar`) — the by-date agenda (`getCalendarItems`): Piece publish dates + CFP deadlines
@@ -45,9 +46,10 @@ The views (nav order in `src/lib/nav.ts`):
 - **Ideas** (`/ideas`) — the live Idea pool.
 - **Talks** (`/talks`) — the Talks.
 - **Metrics** (`/metrics`) — the month-by-month trend over LinkedIn + site (`getMonthlyMetrics`): a table
-  (impressions / reach / engagements / followers+Δ / site visitors / page views) plus dependency-free inline-SVG
-  trend charts (`src/components/trend-chart.tsx`). The accessible "table view" for the Overview's mini charts
-  (ADR-0019). Pure read.
+  (impressions / reach / engagements / new followers / site visitors / page views) plus dependency-free
+  inline-SVG trend charts (`src/components/trend-chart.tsx`), where the follower curve is **cumulative
+  growth** and the absolute level is stated separately with its observation date (#113). The accessible
+  "table view" for the Overview's mini charts (ADR-0019). Pure read.
 
 ## Branding
 

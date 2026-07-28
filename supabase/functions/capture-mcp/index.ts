@@ -624,24 +624,23 @@ async function recordLinkedinAccount(args: Record<string, unknown> | undefined) 
   return toolOk(`Recorded LinkedIn account snapshot for ${args!.month}`, { account: firstRow(data) });
 }
 
-// The follower level, keyed by the date it was observed (#113). The date is
-// required and never defaulted to today: a level with a guessed date is the lie
-// the observation key exists to prevent.
+// The follower level, keyed by the date it was observed (#113). Only the date's
+// SHAPE is checked here — it is the key, and a malformed one must come back as a
+// readable tool error rather than a Postgres cast; the level's own rules (present,
+// non-negative) stay in the verb, since the DB is the validator (ADR-0015).
 async function recordLinkedinFollowers(args: Record<string, unknown> | undefined) {
   const observedOn = args?.observed_on;
   if (!nonEmptyString(observedOn) || !isYmd(observedOn)) {
     return toolError("observed_on is required as YYYY-MM-DD (the date the level was observed)");
   }
-  if (!Number.isInteger(args?.total) || (args!.total as number) < 0) {
-    return toolError("total is required as a non-negative integer");
-  }
   const { data, error } = await db().rpc("record_linkedin_followers", {
     p_observed_on: observedOn,
-    p_total: args!.total as number,
+    p_total: Number.isInteger(args?.total) ? (args!.total as number) : null,
   });
   if (error) return toolError(`record_linkedin_followers failed: ${error.message}`);
-  return toolOk(`Recorded ${args!.total} followers observed on ${observedOn}`, {
-    followers: firstRow(data),
+  const row = firstRow(data) as { total?: number } | null;
+  return toolOk(`Recorded ${row?.total ?? "?"} followers observed on ${observedOn}`, {
+    followers: row,
   });
 }
 

@@ -67,23 +67,12 @@ function Sparkline({
   accentClassName: string;
   height: number;
 }) {
-  const vals = points.map((p) => p.value);
-  const min = Math.min(...vals);
-  const span = Math.max(...vals) - min || 1;
-  const n = points.length;
-  const PAD = 8; // keep the line off the top/bottom edges (viewBox units)
-  // One point has no horizontal extent and no range: place it mid-card and draw it
-  // as a dot (a round-capped zero-length stroke — the viewBox is non-uniformly
-  // scaled, so a <circle> would come out an ellipse). No area under one point:
-  // there is no interval for it to cover.
-  const single = n === 1;
-  const x = (i: number) => (single ? 50 : (i / (n - 1)) * 100);
-  const y = (v: number) => (single ? 50 : PAD + (1 - (v - min) / span) * (100 - 2 * PAD));
-  const line = single
-    ? "M50,50 L50,50"
-    : points
-        .map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(2)},${y(p.value).toFixed(2)}`)
-        .join(" ");
+  // One point has no horizontal extent and no range, so it is drawn mid-card as a
+  // dot — a round-capped zero-length stroke, since the viewBox is scaled
+  // non-uniformly and a <circle> would come out an ellipse — with no area beneath
+  // it: there is no interval for a single point to cover.
+  const single = points.length === 1;
+  const line = single ? "M50,50 L50,50" : linePath(points);
   const area = single ? null : `${line} L100,100 L0,100 Z`;
   return (
     // biome-ignore lint/a11y/noSvgWithoutTitle: decorative; the numbers live in the header + the /metrics table
@@ -106,4 +95,19 @@ function Sparkline({
       />
     </svg>
   );
+}
+
+// The path through two or more points, scaled to the viewBox: x by index, y by
+// value against the series' own min/max (so the shape is the change, not the
+// magnitude — the number itself is in the card's header).
+function linePath(points: { value: number }[]): string {
+  const vals = points.map((p) => p.value);
+  const min = Math.min(...vals);
+  const span = Math.max(...vals) - min || 1;
+  const PAD = 8; // keep the line off the top/bottom edges (viewBox units)
+  const x = (i: number) => (i / (points.length - 1)) * 100;
+  const y = (v: number) => PAD + (1 - (v - min) / span) * (100 - 2 * PAD);
+  return points
+    .map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(2)},${y(p.value).toFixed(2)}`)
+    .join(" ");
 }

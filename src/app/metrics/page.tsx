@@ -3,26 +3,37 @@ import { TrendChart } from "@/components/trend-chart";
 import { View } from "@/components/view";
 import {
   cumulativeFollowerGrowth,
+  type FollowerLevel,
   getLatestFollowerLevel,
   getMonthlyMetrics,
   type MonthlyMetrics,
 } from "@/lib/pipeline";
+import { formatObservedOn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 const numFmt = new Intl.NumberFormat("en-GB");
 const monthFmt = new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" });
-const dayFmt = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
 const asDate = (m: string) => new Date(`${m.slice(0, 7)}-01T00:00:00`);
 const cell = (n: number | null) => (n != null ? numFmt.format(n) : "—");
+const growth = (n: number | null) => (n != null ? `+${cell(n)}` : cell(n));
 
 // A chart wants points oldest -> newest; the rows come newest-first.
 function series(rows: MonthlyMetrics[], pick: (r: MonthlyMetrics) => number | null) {
   return [...rows].reverse().map((r) => ({ month: r.month, value: pick(r) }));
+}
+
+// The follower level is not a figure of any month (#113), so it is stated on its
+// own line — including when no month has been ingested at all, which is exactly
+// when a level on record must not disappear with the table that never had it.
+function FollowerLevelLine({ level }: { level: FollowerLevel | null }) {
+  return (
+    <p className="text-muted-foreground text-xs">
+      {level
+        ? `Follower level: ${numFmt.format(level.total)} as observed on ${formatObservedOn(level.observed_on)}.`
+        : "No follower level observed yet — the Review records one with the date it was read."}
+    </p>
+  );
 }
 
 export default async function MetricsPage() {
@@ -32,6 +43,7 @@ export default async function MetricsPage() {
     return (
       <View title="Metrics" subtitle="Month-by-month · LinkedIn + site">
         <EmptyState>No metrics ingested yet — run /review to import a month.</EmptyState>
+        <FollowerLevelLine level={followerLevel} />
       </View>
     );
   }
@@ -50,13 +62,9 @@ export default async function MetricsPage() {
           <TrendChart label="Site visitors" points={series(rows, (r) => r.site_visitors)} />
         </div>
         <p className="text-muted-foreground text-xs">
-          Follower growth is cumulative from the first month with data.{" "}
-          {followerLevel
-            ? `Level: ${numFmt.format(followerLevel.total)} as observed on ${dayFmt.format(
-                new Date(`${followerLevel.observed_on}T00:00:00`)
-              )}.`
-            : "No level observed yet — the Review records one with the date it was read."}
+          Follower growth is cumulative from the first month with data.
         </p>
+        <FollowerLevelLine level={followerLevel} />
       </Section>
 
       <Section title="By month">
@@ -94,9 +102,7 @@ export default async function MetricsPage() {
                   <td className="border-l px-3 py-2 text-right">{cell(r.li_impressions)}</td>
                   <td className="px-3 py-2 text-right">{cell(r.li_reach)}</td>
                   <td className="px-3 py-2 text-right">{cell(r.li_engagements)}</td>
-                  <td className="px-3 py-2 text-right">
-                    {r.li_new_followers != null ? `+${numFmt.format(r.li_new_followers)}` : "—"}
-                  </td>
+                  <td className="px-3 py-2 text-right">{growth(r.li_new_followers)}</td>
                   <td className="border-l px-3 py-2 text-right">{cell(r.site_visitors)}</td>
                   <td className="px-3 py-2 text-right">{cell(r.site_page_views)}</td>
                 </tr>

@@ -18,11 +18,11 @@ import {
   getThemeContext,
   type MonthlyMetrics,
 } from "@/lib/pipeline";
+import { formatObservedOn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 const upcomingFmt = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short" });
-const observedFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
 const monthLongFmt = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
 const monthShortFmt = new Intl.DateTimeFormat("en-GB", { month: "short" });
 const numFmt = new Intl.NumberFormat("en-GB");
@@ -108,13 +108,13 @@ export default async function OverviewPage() {
             <MetricTile
               label={
                 followerLevel
-                  ? `Followers · as of ${observedFmt.format(new Date(`${followerLevel.observed_on}T00:00:00`))}`
+                  ? `Followers · ${formatObservedOn(followerLevel.observed_on)}`
                   : "Followers · never observed"
               }
               value={followerLevel ? numFmt.format(followerLevel.total) : "—"}
               delta={
                 latest.li_new_followers != null
-                  ? `+${latest.li_new_followers} in ${monthShortFmt.format(asMonth(latest.month))}`
+                  ? `+${numFmt.format(latest.li_new_followers)} in ${monthShortFmt.format(asMonth(latest.month))}`
                   : undefined
               }
               tone={latest.li_new_followers && latest.li_new_followers > 0 ? "up" : "neutral"}

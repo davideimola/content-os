@@ -58,6 +58,11 @@ erDiagram
   METRICS_LINKEDIN_ACCOUNT {
     text id PK
     date month
+    int new_followers
+  }
+  METRICS_LINKEDIN_FOLLOWERS {
+    date observed_on PK
+    int total
   }
   METRICS_SITE {
     text id PK
@@ -188,4 +193,9 @@ conference is known.
 Managed by the **Supabase CLI** (`supabase migration new`, `supabase db push`); files in
 `supabase/migrations/<ts>_*.sql`, applied in timestamp order and tracked in
 `supabase_migrations.schema_migrations`. Up-only — reverse by writing a new migration. Edge Functions live
-in `supabase/functions/`. IDs are Stripe-style prefixed text via `gen_prefixed_id(prefix)`.
+in `supabase/functions/`. IDs are Stripe-style prefixed text via `gen_prefixed_id(prefix)` — for
+**entities**. A row that is a **fact identified by its own key** carries no surrogate id: the join tables
+(`piece_sources`, `talk_sources`, `idea_themes`, `piece_themes`) are keyed by the pair they relate, and
+`metrics_linkedin_followers` by `observed_on`, because the date the level was observed *is* its identity
+(#113) and a second identity beside it would make "one observation per date" a constraint rather than the
+key.
