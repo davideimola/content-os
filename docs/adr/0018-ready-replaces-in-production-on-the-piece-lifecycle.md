@@ -84,6 +84,9 @@ facts* Davide's finger records, not states an automated process must manage.
   "Mark shipped" shows on `slotted`/`ready`; the lifecycle board's third column is **"Ready"**
   (`src/lib/pipeline.ts`, `src/lib/actions.ts`, `src/app/pipeline/page.tsx`,
   `src/components/pipeline.tsx`, `src/components/detail/piece-detail.tsx`).
+  *(The lifecycle board was later **dissolved** — [ADR-0021](0021-console-computes-facts-not-judgement.md)
+  decision 2 — so `src/app/pipeline/page.tsx` no longer exists; both actions live on the Piece drawer, which
+  every view opens. The verbs and their guards are unchanged.)*
 - **CONTEXT.md changes** — this *is* new domain language (`in-production` → `ready` on the Piece), unlike
   ADR-0017. The living agent docs (`CLAUDE.md`, `pipeline-taxonomy.md`, `web-console.md`, `thursday-beat.md`,
   the Desk skill) track the Piece-state rename; Talk-`in_production` references stay.

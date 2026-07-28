@@ -100,8 +100,10 @@ erDiagram
 ## Entities
 
 - **ideas** (`idea_…`) — a spark in a persistent pool. `status` ∈ `live` (default) / `archived`;
-  `body` (spark verbatim), optional `title`, `archived_reason`, `duplicate_of` (self-ref, for dedup),
-  `source`. **Never rejected.**
+  `body` (the spark as the door received it), optional `title`, `archived_reason`, `duplicate_of` (self-ref,
+  for dedup), `source` — free text naming the door: `skill`, an AI app's name (`perplexity`, `chatgpt`),
+  `ios-shortcut`, or **`console`** since #118 (the init migration's inline comment lists only the first three
+  kinds, predating the console door). **Never rejected.**
 - **pieces** (`piece_…`) — a dated output on a cadence channel. `channel` ∈ `blog`/`linkedin` (enum);
   `flag_side`; `state` ∈ `proposed`/`slotted`/`ready`/`published`/`declined` (ADR-0018: `ready` replaced
   `in_production`); `publish_date`;
@@ -160,6 +162,7 @@ land as they're built.
 | `create_engagement(talk_id, event_id, kind = cfp, deadline?, cfp_link?)` | Insert one submission of one Talk to one Event, born at the bottom of its ladder (`cfp` → `to_submit`, `direct` → `confirmed`) — the outcome is not a parameter. Raises if the Talk or the Event does not exist. **A `cfp` with no deadline is invisible on the Calendar** — that is why the three hand-seeded ones never appeared (#114). |
 | `set_engagement_outcome(id, outcome)` | Record where a submission stands (`to_submit`/`submitted`/`accepted`/`rejected`; `confirmed` for a `direct`). **Kind-guarded**: the verb validates `engagement_outcome_matches_kind` with a legible message and the check stays the backstop. No transition guard — an outcome records an outside decision, so it must be correctable (#114). |
 | `set_piece_artifact(piece_id, url)` | Write the Factory draft pointer into `pieces.artifact_url`. Called by the Factory skills. |
+| `edit_idea(id, title, body)` / `edit_piece(id, title)` / `edit_talk(id, title)` | Correct free text — an Idea's summary title + its body, an output's title. Body required on `edit_idea`; a blank title becomes `null`. *Verbatim* binds the **capture door**, not the record, so repairing a garbled dictation is a legal move (ADR-0016; CONTEXT.md's **Idea** notes that where repair ends and rewriting begins is open). No history is kept — only `updated_at` bumps. Called by the console; MCP-adapter parity is a later additive step. |
 | `create_theme(label)` / `archive_theme(id)` | Mint a live Theme (get-or-create by case-insensitive label) / retire one (reversible flag, keeps the row and its links). **Console only** — deliberately not on the MCP adapter, because an LLM handed a create verb inflates the vocabulary (#121). |
 | `set_idea_themes(idea_id, theme_ids[])` / `set_piece_themes(piece_id, theme_ids[])` | **Replace-all**, idempotent: the item ends carrying exactly the given set, `{}` clears. `set_piece_themes` accepts an archived id on purpose, so a Piece that inherited a since-retired Theme stays representable (#112). |
 | `merge_themes(absorbed_id, survivor_id)` | Fold two Themes into one: **both** joins move onto the survivor, duplicates collapse (composite PK), and the absorbed Theme is archived, keeping its record. The vocabulary's only repair — without it it can only grow (#121). Raises on a self-merge, an unknown id, or an **archived survivor** (folding live assignments into retired vocabulary is a loss, not a repair). Preserves the live-label index trivially: it creates no new live label. **One-way through the contract** — nothing un-archives a Theme. |

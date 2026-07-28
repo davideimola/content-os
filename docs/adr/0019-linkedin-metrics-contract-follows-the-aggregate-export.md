@@ -106,11 +106,16 @@ console in the first place).
   (`src/components/view.tsx`), a `setPieceLinkedinUrl` Server Action (`src/lib/actions.ts`), the Overview
   tiles (`src/app/page.tsx`), and the per-Piece cross in the drawer (`src/app/pipeline/page.tsx`,
   `src/components/detail/piece-detail.tsx`).
+  *(`src/app/pipeline/page.tsx` no longer exists — the lifecycle board was dissolved by
+  [ADR-0021](0021-console-computes-facts-not-judgement.md) decision 2. The per-Piece cross is unchanged and
+  now reaches the drawer from every view that renders a Piece; the metrics themselves have their own view,
+  `src/app/metrics/page.tsx`.)*
 - **Docs**: `metrics-ingest.md` (contract + XLSX sheet map + per-period note), `monthly-beat.md` (the
   Review's steps), the Review skill, and CONTEXT.md's **Metrics snapshot** term + the CLAUDE.md
   *metrics-ingest seam* section.
 - **Gap found while verifying, fixed in a follow-up migration:** `service_role` had no `SELECT` grant on
-  `engagements`/`events`, so the console's `getCalendarItems` failed on a locked-down DB (surfaced on local;
+  `engagements`/`events`, so the console's `getCalendarItems` (since retired — the by-date projection is now
+  the pure `calendarItems` over reads the views already do) failed on a locked-down DB (surfaced on local;
   production worked only if the grant was applied out-of-band). Fixed by
   `supabase/migrations/…_grant_service_role_engagements_events.sql` (both tables keep RLS; anon still reaches
   events only via `public_events`).
